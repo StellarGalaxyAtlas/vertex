@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-170 -170 340 340" width="340" height="340" fill="none" stroke="#f7f6f3" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"><title>Vertex mark, small sizes</title>
+  <g transform="translate(0 -95)"><path d="M-68 -39 L0 0 L68 -39"></path></g>
+  <g transform="rotate(120) translate(0 -95)"><path d="M-68 -39 L0 0 L68 -39"></path></g>
+  <g transform="rotate(240) translate(0 -95)"><path d="M-68 -39 L0 0 L68 -39"></path></g>
+  <circle cx="0" cy="0" r="34" fill="oklch(0.72 0.13 265)" stroke="none"></circle>
+</svg>

@@ -1,0 +1,9 @@
+# `python install.py --check` verifies everything below, including the system
+# packages, against the interpreter that will actually run the app.
+customtkinter>=5.2
+Pillow>=10.0
+python-mpv>=1.0
+# Sends deleted clips to the desktop Trash. Optional — without it, deleting a
+# clip removes it permanently.
+Send2Trash>=1.8
+# System packages (not pip): tk, ffmpeg, mpv (libmpv)

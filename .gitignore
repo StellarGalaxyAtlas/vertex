@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+docs/demo
+
+# The app's own data, if anyone ever points it at the source tree
+*.db
+*.db.bak
+library.db*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# A literal "~" folder is a path bug, never something to commit
+/~/
