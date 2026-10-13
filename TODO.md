@@ -108,6 +108,11 @@ command already handle `save-clip`, `replay start/stop/toggle/status` and
 
 Decisions already made, and questions to settle when their item comes up.
 
+**Progress.** Done: 6 and 7. Next: 1, unless the maintainer says otherwise.
+The maintainer is collecting reference screenshots of SteelSeries GG on
+Windows for the remaining items; ask for the relevant ones when starting an
+item, and don't commit them (see CLAUDE.md).
+
 **Order.** Do item 13 before or together with item 9. Any action exposed as a
 `vertex …` command can be bound to a desktop keyboard shortcut, which is the
 simplest reliable way to get global hotkeys on Wayland.

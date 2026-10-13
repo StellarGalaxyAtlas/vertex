@@ -31,8 +31,28 @@ open questions. Read it before starting an item.
   the UI thread.
 - Never modify a user's recordings; write under a staging name and move into
   place.
-- Before every push: `ruff check src tests` and `xvfb-run -a pytest` must both
-  pass. Set up with `pip install -e ".[dev]"`.
+- Before every push: `ruff check src tests tools` and `xvfb-run -a pytest` must
+  both pass. Set up with `pip install -e ".[dev]"`.
+
+## Working in the cloud container
+
+- No audio server runs there. Tests use the fake pactl in `tests/fake_pactl.py`;
+  the PipeWire tests skip themselves.
+- For UI changes, look at the result before pushing:
+  `xvfb-run -a python tools/sonar_screenshot.py /tmp/shot` screenshots the
+  Sonar page against the fake server at the default and minimum window sizes.
+  Read the PNGs, and send the maintainer the final one.
+- Workflow agents with `isolation: "worktree"` get a worktree made from the
+  repository's default branch (the old 1.x code), not the working branch. Have
+  them `git reset --hard` to the working branch's commit first.
+
+## Reference screenshots
+
+The maintainer takes screenshots of SteelSeries GG (Moments and Sonar) on
+Windows as references for TODO items. Use them to understand the intended
+layout and behaviour, but never commit them: they show SteelSeries' own UI,
+and this repository is public. Vertex should be inspired by them, not copy
+them.
 
 ## The maintainer's test install
 

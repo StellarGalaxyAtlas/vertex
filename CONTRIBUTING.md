@@ -19,7 +19,7 @@ vertex
 ## Tests and lint
 
 ```bash
-ruff check src tests
+ruff check src tests tools
 pytest                                   # UI tests run offscreen
 xvfb-run -a pytest                       # also runs the editor's OpenGL test
 VERTEX_TEST_PIPEWIRE=1 pytest -m pipewire  # against your running audio server

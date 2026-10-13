@@ -26,3 +26,6 @@ library.db*
 
 # A literal "~" folder is a path bug, never something to commit
 /~/
+
+# Scratch git worktrees made by Claude Code workflows
+.claude/worktrees/
