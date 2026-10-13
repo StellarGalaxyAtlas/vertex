@@ -48,18 +48,8 @@ behind:
 - README's "Settings and first run": first-run setup now has the Vertex
   Sonar and Vertex Moments steps and brings an existing library along
   (item 22); the import tools are no longer where setup points.
-- The screenshots in `docs/` (first-run.png shows the old step 1).
-
-**24.** Waiting on the maintainer's pick
-**Design: colour, contrast and dead space**
-Three directions, drawn as Library and Sonar mockups on a private design
-canvas with the contrast of each palette measured: A · Anneal, sharpened
-(today's navy and periwinkle with AA contrast and a 216 px rail),
-B · Graphite (neutral greys, colour only for channels, games and recording;
-icon rail; Sonar as a mixer) and C · Showcase (black, a volt accent, top
-navigation, chip filters). The maintainer picks one; it is then saved under
-`temp/design/` for later sessions to build from. Building it is a separate
-item.
+- The screenshots in `docs/` (first-run.png shows the old step 1). Since
+  item 24 every one of them shows the old colours and layout.
 
 ## Waiting on the maintainer
 
@@ -80,6 +70,9 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
+- 24: the new look on their desktop, in their font and display scale:
+  toasts appear bottom-right and go after a few seconds; at 980 px wide the
+  Sonar page doesn't scroll sideways.
 
 ---
 
@@ -220,6 +213,18 @@ comes out, as Settings › Recording does: `ClipSize` in
 space half ("Room for about N more clips") stays in Settings (maintainer's
 call).
 
+**24. Design: colour, contrast and dead space.** Three directions were drawn
+(A · Anneal sharpened, B · Graphite, C · Showcase); the maintainer chose
+Graphite's colours with A's layout, and it is built. `temp/design/` holds the
+rules, the palette with its measured contrast, two mockups and what is still
+open; `theme.py` is the source of truth for the values. In short: neutral
+greys with black-and-white controls, colour only for channels, games,
+recording, meanings and a blue for focus; every text colour AA; a 216 px
+rail with no empty box; messages as toasts; Sonar's "New apps go to" in its
+header, channel cards as tall as their apps, two by two when four don't fit;
+library cards of two lines. Not built, each its own item if wanted: the
+monitor map's oversized frame, first run's empty space, drop-down arrows.
+
 ---
 
 ## Notes
@@ -229,11 +234,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22 and 23, including the bugs 14, 16
-and 18.
-Open: 9 (on hold), 21 (documentation, at the end) and 24 (design
-directions, waiting on the maintainer's pick). Waiting on the maintainer:
-the checks listed above, and removing 1.x.
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–24, including the bugs 14,
+16 and 18.
+Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
+maintainer: the checks listed above, and removing 1.x.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
 a channel's gear with its shortcut fields; a channel's device list; the

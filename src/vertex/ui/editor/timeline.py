@@ -121,13 +121,13 @@ class Timeline(QWidget):
         for x0, x1 in ((left, x_in), (x_out, right)):
             if x1 > x0:
                 p.fillRect(QRectF(x0, RULER_H, x1 - x0, bottom - RULER_H), shade)
-        pen = QPen(QColor(theme.ACCENT), 3)
+        pen = QPen(QColor(theme.SELECT), 3)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         for x in (x_in, x_out):
             p.drawLine(QPointF(x, RULER_H - 4), QPointF(x, bottom))
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(theme.ACCENT))
+        p.setBrush(QColor(theme.SELECT))
         for x in (x_in, x_out):
             p.drawRoundedRect(QRectF(x - 5, RULER_H - 8, 10, 8), 2, 2)
 
@@ -148,7 +148,7 @@ class Timeline(QWidget):
         p.setFont(theme.font(7.5))
         for seconds in range(0, int(self.duration) + 1, step):
             x = self.x_for(seconds)
-            p.setPen(QColor("#3a4050"))
+            p.setPen(QColor(theme.SEAM))
             p.drawLine(QPointF(x, RULER_H - 6), QPointF(x, RULER_H))
             p.setPen(QColor(theme.TEXT_MUTED))
             p.drawText(QRectF(x - 30, 0, 60, RULER_H - 7), Qt.AlignmentFlag.AlignCenter,

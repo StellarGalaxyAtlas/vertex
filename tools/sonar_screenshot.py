@@ -4,7 +4,7 @@ usage: xvfb-run -a python tools/sonar_screenshot.py OUT_PREFIX [WIDTH ...]
 
 Loads vertex from this checkout's src/ (so a worktree's version is used, not
 whatever is installed), plays a few fake apps, and saves OUT_PREFIX-<width>.png
-(the whole window) and OUT_PREFIX-<width>-devices.png (the Devices section)
+(the whole window) and OUT_PREFIX-<width>-manager.png (the device manager)
 for each width: by default 1280 (the default window) and 980 (the minimum).
 Needs no audio server and never touches your real config.
 """
@@ -106,7 +106,7 @@ def main(prefix: str, widths: list[int]) -> int:
 
         def grab():
             window.grab().save(f"{prefix}-{widths[i]}.png")
-            window.sonar_view.devices.grab().save(f"{prefix}-{widths[i]}-devices.png")
+            window.sonar_view.manager.grab().save(f"{prefix}-{widths[i]}-manager.png")
             print("saved", f"{prefix}-{widths[i]}.png")
             shoot(i + 1)
         QTimer.singleShot(600, grab)

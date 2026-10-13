@@ -1,8 +1,11 @@
 """The palette, the channel colours and the application stylesheet.
 
-The palette, "Anneal", is a deep page with the rail, the cards and the
-controls each lifted a step off it, so depth reads as "how far above the page
-is this" and nothing has to be outlined to be told apart.
+The palette, "Graphite", is neutral greys: the page, the rail, the cards and
+the controls are each a step lighter, and Vertex's own controls are black and
+white. Colour is kept for what means something: a channel, a game, recording,
+a warning, and blue for what is selected or has the keyboard focus. Every
+text colour reads at 4.5:1 or better on every ground it sits on, and a field's
+edge at 3:1 (the design is in temp/design/).
 Every colour the UI uses is defined here, once.
 """
 
@@ -10,50 +13,56 @@ from __future__ import annotations
 
 from PySide6.QtGui import QColor, QFont, QPalette
 
-# --- Accent -----------------------------------------------------------------
-ACCENT = "#5878ff"
-ACCENT_HOVER = "#4560e8"
-ACCENT_EDGE = "#8098ff"
-ACCENT_SOFT = "#2a3765"
+# --- Accent: the primary button, a switch that is on, a plain slider ---------
+ACCENT = "#f4f4f5"
+ACCENT_HOVER = "#dcdde0"
+ACCENT_EDGE = "#ffffff"
+ACCENT_SOFT = "#3b3c43"     # the selected row, tab or menu item
+ON_ACCENT = "#111214"       # text and icons on ACCENT
+
+# Selected and focused: the keyboard focus, the trim handles, selected text.
+SELECT = "#8ab4ff"
+SELECTION = "#2f4c7c"
 
 # --- Grounds, darkest first -------------------------------------------------
-MAIN_BG = "#0d1016"         # the page behind everything
-SECTION_BG = "#141822"      # panels: above the page, under the cards
-SIDEBAR_BG = "#171b26"      # the rail
-CARD_BG = "#1d2230"         # cards, and the controls that sit on one
-CARD_HOVER = "#262c3b"
-FIELD_BG = "#10131b"        # text fields, recessed
-CONTROL_BG = "#222735"      # buttons and empty thumbnails
-LINE = "#232838"            # dividers
-SEAM = "#2b3242"
-PAGE_GLOW = "#171d2b"       # the lit band across the top of a page
+MAIN_BG = "#0f1012"         # the page behind everything
+SECTION_BG = "#191a1d"      # panels: above the page, under the cards
+SIDEBAR_BG = "#141517"      # the rail
+CARD_BG = "#222327"         # cards, and the controls that sit on one
+CARD_HOVER = "#303137"
+FIELD_BG = "#0b0c0d"        # text fields, recessed
+CONTROL_BG = "#2a2b30"      # buttons and empty thumbnails
+LINE = "#2e2f34"            # dividers
+SEAM = "#3a3b41"            # the edge of a menu or tooltip
+EDGE = "#6c6e76"            # the edge of a field: 3:1 on a panel
+PAGE_GLOW = "#16171a"       # the lit band across the top of a page
 
-CARD_TOP = "#212734"
-CARD_BOTTOM = "#191d27"
-CARD_HOVER_TOP = "#2a3040"
-CARD_HOVER_BOTTOM = "#1f2431"
+CARD_TOP = "#25262a"
+CARD_BOTTOM = "#1e1f22"
+CARD_HOVER_TOP = "#2e2f34"
+CARD_HOVER_BOTTOM = "#26272b"
 
-BADGE_BG = "#06070a"
+BADGE_BG = "#060607"
 
 # --- Text -------------------------------------------------------------------
-TEXT = "#e8eaed"
-TEXT_MUTED = "#8b93a1"
-TEXT_DIM = "#5f6878"
+TEXT = "#f4f4f5"
+TEXT_MUTED = "#b6b7bd"
+TEXT_DIM = "#909299"
 
 # --- Meaning ----------------------------------------------------------------
-DANGER = "#e5484d"
-DANGER_HOVER = "#c93c40"
+DANGER = "#ff6b70"
+DANGER_HOVER = "#e85a5f"
 OK = "#3fb950"
 WARN = "#e6b422"
-RECORDING = "#ff4d5e"
+RECORDING = "#ff5c6c"
 
 # --- Editor -----------------------------------------------------------------
 VIDEO_BG = "#000000"
-TRIM_SHADE = "#06080c"
+TRIM_SHADE = "#060607"
 PLAYHEAD = "#ffffff"
 VIDEO_LANE = "#1f6f66"
 LANE_BG = CARD_BG
-WAVE_MUTED = "#3d4454"
+WAVE_MUTED = "#45464d"
 WAVE_SHADE = 0.40
 
 # A lane the mixer could name keeps its channel's colour however many tracks
@@ -72,7 +81,7 @@ AUDIO_LANES = ("#2fb39b", "#3b82f6", "#d98d2b", "#9b6bd6", "#c25d7b", "#8a93a6")
 RADIUS_CARD = 14
 RADIUS_CONTROL = 10
 RADIUS_SMALL = 8
-RAIL_WIDTH = 252
+RAIL_WIDTH = 216
 CONTENT_MARGIN = 24
 
 
@@ -112,11 +121,11 @@ def palette() -> QPalette:
         QPalette.ColorRole.PlaceholderText: TEXT_DIM,
         QPalette.ColorRole.Button: CONTROL_BG,
         QPalette.ColorRole.ButtonText: TEXT,
-        QPalette.ColorRole.Highlight: ACCENT,
-        QPalette.ColorRole.HighlightedText: "#ffffff",
+        QPalette.ColorRole.Highlight: SELECTION,
+        QPalette.ColorRole.HighlightedText: TEXT,
         QPalette.ColorRole.ToolTipBase: CARD_BG,
         QPalette.ColorRole.ToolTipText: TEXT,
-        QPalette.ColorRole.Link: ACCENT_EDGE,
+        QPalette.ColorRole.Link: SELECT,
         QPalette.ColorRole.Mid: LINE,
         QPalette.ColorRole.Dark: MAIN_BG,
     }
@@ -155,14 +164,14 @@ QPushButton:hover, QToolButton:hover {{ background: {CARD_HOVER}; }}
 QPushButton:pressed, QToolButton:pressed {{ background: {SECTION_BG}; }}
 QPushButton:disabled, QToolButton:disabled {{ color: {TEXT_DIM}; background: {SECTION_BG}; }}
 QPushButton[kind="primary"] {{
-    background: {ACCENT}; border: 1px solid {ACCENT_EDGE}; color: white; font-weight: 600;
+    background: {ACCENT}; border: 1px solid {ACCENT_EDGE}; color: {ON_ACCENT}; font-weight: 600;
 }}
 QPushButton[kind="primary"]:hover {{ background: {ACCENT_HOVER}; }}
 QPushButton[kind="primary"]:disabled {{
-    background: {ACCENT_SOFT}; border-color: {ACCENT_SOFT}; color: {TEXT_MUTED};
+    background: {CONTROL_BG}; border-color: {CONTROL_BG}; color: {TEXT_DIM};
 }}
 QPushButton[kind="danger"] {{ color: {DANGER}; }}
-QPushButton[kind="danger"]:hover {{ background: {DANGER}; color: white; }}
+QPushButton[kind="danger"]:hover {{ background: {DANGER}; color: {ON_ACCENT}; }}
 QPushButton[kind="danger"]:disabled {{ color: {TEXT_DIM}; background: {SECTION_BG}; }}
 QPushButton[kind="ghost"], QToolButton[kind="ghost"] {{ background: transparent; }}
 QPushButton[kind="ghost"]:hover, QToolButton[kind="ghost"]:hover {{ background: {CARD_HOVER}; }}
@@ -171,19 +180,19 @@ QToolButton:checked {{ background: {ACCENT_SOFT}; }}
 
 /* --- Fields -------------------------------------------------------------- */
 QLineEdit, QSpinBox, QDoubleSpinBox, QPlainTextEdit {{
-    background: {FIELD_BG}; border: 1px solid {LINE}; border-radius: {RADIUS_CONTROL}px;
-    padding: 7px 10px; selection-background-color: {ACCENT};
+    background: {FIELD_BG}; border: 1px solid {EDGE}; border-radius: {RADIUS_CONTROL}px;
+    padding: 7px 10px; selection-background-color: {SELECTION}; selection-color: {TEXT};
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QPlainTextEdit:focus {{
-    border-color: {ACCENT};
+    border-color: {SELECT};
 }}
 QSpinBox::up-button, QSpinBox::down-button,
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0; border: none; }}
 QComboBox {{
-    background: {FIELD_BG}; border: 1px solid {LINE}; border-radius: {RADIUS_CONTROL}px;
+    background: {FIELD_BG}; border: 1px solid {EDGE}; border-radius: {RADIUS_CONTROL}px;
     padding: 6px 10px; min-height: 20px;
 }}
-QComboBox:focus {{ border-color: {ACCENT}; }}
+QComboBox:focus {{ border-color: {SELECT}; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
 QComboBox QAbstractItemView {{
     background: {CARD_BG}; border: 1px solid {SEAM}; selection-background-color: {ACCENT_SOFT};
@@ -191,7 +200,7 @@ QComboBox QAbstractItemView {{
 }}
 QCheckBox {{ spacing: 8px; }}
 QCheckBox::indicator {{
-    width: 16px; height: 16px; border-radius: 5px; border: 1px solid {SEAM};
+    width: 16px; height: 16px; border-radius: 5px; border: 1px solid {EDGE};
     background: {FIELD_BG};
 }}
 QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT_EDGE}; }}
@@ -211,10 +220,11 @@ QSlider::handle:vertical {{
 /* --- Lists, scroll bars, menus -------------------------------------------- */
 QListView, QTreeView, QScrollArea {{ background: transparent; border: none; outline: none; }}
 QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
-QScrollBar::handle:vertical {{ background: {SEAM}; border-radius: 3px; min-height: 30px; }}
+QScrollBar::handle:vertical {{ background: {EDGE}; border-radius: 3px; min-height: 30px; }}
 QScrollBar::handle:vertical:hover {{ background: {TEXT_DIM}; }}
+QScrollBar::handle:horizontal:hover {{ background: {TEXT_DIM}; }}
 QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}
-QScrollBar::handle:horizontal {{ background: {SEAM}; border-radius: 3px; min-width: 30px; }}
+QScrollBar::handle:horizontal {{ background: {EDGE}; border-radius: 3px; min-width: 30px; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 QMenu {{

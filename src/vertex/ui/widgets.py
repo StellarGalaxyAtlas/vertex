@@ -17,7 +17,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath
+from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractSpinBox,
@@ -61,7 +61,7 @@ def button(text: str, kind: str = "", icon: str = "", on_click=None,
     if kind:
         widget.setProperty("kind", kind)
     if icon:
-        colour = "#ffffff" if kind == "primary" else (theme.DANGER if kind == "danger"
+        colour = theme.ON_ACCENT if kind == "primary" else (theme.DANGER if kind == "danger"
                                                       else theme.TEXT)
         widget.setIcon(icons.icon(icon, colour))
     if on_click is not None:
@@ -217,16 +217,17 @@ class Toggle(QAbstractButton):
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        track = QColor(theme.ACCENT) if self.isChecked() else QColor(theme.CONTROL_BG)
-        if not self.isEnabled():
-            # The knob dims; the track stays visible on any card.
-            track = QColor(theme.CONTROL_BG)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(track)
-        p.drawRoundedRect(QRectF(0, 0, self.width(), self.height()), 11, 11)
+        on = self.isChecked() and self.isEnabled()
+        # Off, the track is outlined so the switch reads as one on any card;
+        # disabled, the knob dims and the track stays.
+        p.setPen(Qt.PenStyle.NoPen if on else QPen(QColor(theme.EDGE), 1))
+        p.setBrush(QColor(theme.ACCENT if on else theme.CONTROL_BG))
+        p.drawRoundedRect(QRectF(0.5, 0.5, self.width() - 1, self.height() - 1), 10.5, 10.5)
         knob = 16
         x = 3 + self._offset * (self.width() - knob - 6)
-        p.setBrush(QColor("#ffffff" if self.isEnabled() else theme.TEXT_DIM))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(theme.ON_ACCENT if on else
+                          theme.TEXT_MUTED if self.isEnabled() else theme.TEXT_DIM))
         p.drawEllipse(QRectF(x, 3, knob, knob))
 
     def sizeHint(self):
@@ -250,12 +251,14 @@ class Segmented(QWidget):
         layout.setContentsMargins(3, 3, 3, 3)
         layout.setSpacing(2)
         self.setObjectName("Segmented")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)     # its recessed track
         self.setStyleSheet(f"""
             #Segmented {{ background: {theme.FIELD_BG}; border-radius: {theme.RADIUS_CONTROL}px; }}
             #Segmented QPushButton {{ background: transparent; padding: 5px 12px;
                                       border-radius: 7px; color: {theme.TEXT_MUTED}; }}
             #Segmented QPushButton:hover {{ color: {theme.TEXT}; }}
-            #Segmented QPushButton:checked {{ background: {theme.CARD_BG}; color: {theme.TEXT}; }}
+            #Segmented QPushButton:checked {{ background: {theme.ACCENT_SOFT}; color: {theme.TEXT};
+                                              font-weight: 600; }}
         """)
         for key, text in options:
             option = QPushButton(text)
@@ -596,7 +599,7 @@ class ChoiceCard(QFrame):
         ground = theme.ACCENT_SOFT if self._checked else theme.CARD_BG
         self.setStyleSheet(f"#ChoiceCard {{ background: {ground}; border: 1px solid {edge};"
                            f" border-radius: {theme.RADIUS_CONTROL}px; }}"
-                           f"#ChoiceCard:focus {{ border-color: {theme.ACCENT_EDGE}; }}")
+                           f"#ChoiceCard:focus {{ border-color: {theme.SELECT}; }}")
 
     def choose(self) -> None:
         if not self._checked:
@@ -644,23 +647,77 @@ class PathField(QWidget):
             self.set_value(chosen)
 
 
-class Banner(QLabel):
-    """A transient one-line status message."""
+class Banner(QFrame):
+    """A transient message, shown as a toast in the bottom-right corner of the
+    widget it floats over. It takes no room in any layout, so nothing is kept
+    free for it while there is nothing to say. A click dismisses it."""
 
     COLOURS: ClassVar[dict[str, str]] = {
         "info": theme.TEXT_MUTED, "ok": theme.OK, "warn": theme.WARN, "error": theme.DANGER}
+    MARGIN = 20
+    MAX_WIDTH = 440
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWordWrap(True)
+    def __init__(self, host: QWidget):
+        super().__init__(host)
+        self.setObjectName("Toast")
+        self.setStyleSheet(f"#Toast {{ background: {theme.CARD_BG}; border: 1px solid "
+                           f"{theme.SEAM}; border-radius: {theme.RADIUS_CONTROL}px; }}")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(10)
+        self.dot = QLabel()
+        self.dot.setFixedSize(8, 8)
+        layout.addWidget(self.dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.label = QLabel()
+        self.label.setWordWrap(True)
+        layout.addWidget(self.label, 1)
         self._timer = QTimer(self, singleShot=True)
         self._timer.timeout.connect(self.clear)
+        host.installEventFilter(self)
+        self.hide()
+
+    def text(self) -> str:
+        return self.label.text()
 
     def show_message(self, text: str, level: str = "info", ms: int = 6000) -> None:
-        self.setStyleSheet(f"color: {self.COLOURS.get(level, theme.TEXT_MUTED)};")
-        self.setText(text)
+        if not text:
+            self.clear()
+            return
+        colour = self.COLOURS.get(level, theme.TEXT_MUTED)
+        self.dot.setStyleSheet(f"background: {colour}; border-radius: 4px;")
+        self.label.setText(text)
+        self._place()
+        self.show()
+        self.raise_()
         if ms:
             self._timer.start(ms)
+        else:
+            self._timer.stop()
+
+    def clear(self) -> None:
+        self._timer.stop()
+        self.label.clear()
+        self.hide()
+
+    def mousePressEvent(self, event):
+        self.clear()
+
+    def eventFilter(self, watched, event):
+        if watched is self.parentWidget() and event.type() == QEvent.Type.Resize \
+                and self.isVisible():
+            self._place()
+        return False
+
+    def _place(self) -> None:
+        host = self.parentWidget()
+        margins = self.layout().contentsMargins()
+        chrome = margins.left() + margins.right() + self.dot.width() + self.layout().spacing()
+        natural = self.label.fontMetrics().horizontalAdvance(self.label.text()) + chrome + 2
+        width = max(160, min(natural, self.MAX_WIDTH, host.width() - 2 * self.MARGIN))
+        height = self.layout().totalHeightForWidth(width)
+        self.setFixedSize(width, height)
+        self.move(host.width() - width - self.MARGIN, host.height() - height - self.MARGIN)
 
 
 class TextDialog(QDialog):

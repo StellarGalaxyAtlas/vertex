@@ -22,7 +22,7 @@ from vertex import APP_NAME, desktop, notifications, reset
 from vertex.audio import channels
 from vertex.config import Config
 from vertex.media.thumbnails import ThumbnailCache
-from vertex.ui import icons, theme, workers
+from vertex.ui import icons, workers
 from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView, SetupResult
 from vertex.ui.library.state import LibraryState
@@ -58,15 +58,15 @@ class MainWindow(QMainWindow):
         self.rail = Rail(context, self.state)
         self.rail.navigate.connect(self.navigate)
         row.addWidget(self.rail)
-        column = QVBoxLayout()
+        self.page_area = QWidget()
+        column = QVBoxLayout(self.page_area)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
-        row.addLayout(column, 1)
+        row.addWidget(self.page_area, 1)
         self.stack = QStackedWidget()
         column.addWidget(self.stack, 1)
-        self.banner = Banner()
-        self.banner.setContentsMargins(theme.CONTENT_MARGIN, 0, theme.CONTENT_MARGIN, 8)
-        column.addWidget(self.banner)
+        # Messages float over the pages as toasts.
+        self.banner = Banner(self.page_area)
 
         self.library_view = LibraryView(context, self.state)
         self.library_view.open_clip.connect(self.open_clip)

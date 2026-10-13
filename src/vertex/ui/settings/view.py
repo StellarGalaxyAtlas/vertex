@@ -125,8 +125,7 @@ class SettingsView(QWidget):
         layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
         self.stack = QStackedWidget()
         layout.addWidget(self.stack, 1)
-        self.banner = Banner()
-        layout.addWidget(self.banner)
+        self.banner = Banner(self)
         self.pages = {}
         # The disk the clips go to, once measured.
         self._storage: storage.StorageStats | None = None

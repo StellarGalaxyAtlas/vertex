@@ -29,7 +29,7 @@ QPushButton {{
     text-align: left; color: {theme.TEXT_MUTED};
 }}
 QPushButton:hover {{ background: {theme.CARD_BG}; color: {theme.TEXT}; }}
-QPushButton:checked {{ background: {theme.ACCENT_SOFT}; color: #dfe4ff; }}
+QPushButton:checked {{ background: {theme.ACCENT_SOFT}; color: {theme.TEXT}; }}
 """
 
 
@@ -58,7 +58,7 @@ class FacetRow(QAbstractButton):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRectF(self.rect())
         if self.isChecked():
-            background, colour = theme.ACCENT_SOFT, "#dfe4ff"
+            background, colour = theme.ACCENT_SOFT, theme.TEXT
         elif self.underMouse():
             background, colour = theme.CARD_BG, theme.TEXT
         else:
@@ -138,33 +138,46 @@ class GroupHeader(QAbstractButton):
 
 
 class RecorderCard(QFrame):
-    """Replay buffer state, with start/stop and save."""
+    """Replay buffer state, with save and start/stop. Red means recording,
+    and only that: while the buffer is off nothing here is red."""
 
     def __init__(self, context, parent=None):
         super().__init__(parent)
         self.context = context
         self.setObjectName("Card")
         self.setStyleSheet(f"#Card {{ background: {theme.CARD_BG}; border-radius: 12px; }}")
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 6, 8)
-        layout.setSpacing(6)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 10, 10)
+        layout.setSpacing(8)
+        top = QHBoxLayout()
+        top.setSpacing(8)
         self.dot = QLabel()
         self.dot.setFixedSize(9, 9)
-        layout.addWidget(self.dot)
+        top.addWidget(self.dot)
         text = QVBoxLayout()
         text.setSpacing(0)
         self.title = label("Replay buffer")
         self.title.setStyleSheet("font-weight: 600;")
-        self.detail = label("", "Dim")
+        self.detail = label("", "Muted")
         text.addWidget(self.title)
         text.addWidget(self.detail)
-        layout.addLayout(text, 1)
-        self.save = IconButton("save-clip", "Save clip", 18)
+        top.addLayout(text, 1)
+        layout.addLayout(top)
+        actions = QHBoxLayout()
+        actions.setSpacing(6)
+        self.save = QPushButton(" Save clip")
+        self.save.setIcon(icons.icon("save-clip", theme.TEXT, 16))
+        self.save.setToolTip("Save the replay buffer as a clip")
+        self.save.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save.setStyleSheet("QPushButton { padding: 6px 10px; font-weight: 600; }")
         self.save.clicked.connect(self._save)
-        self.toggle = IconButton("record", "Start the replay buffer", 18, theme.RECORDING)
+        self.toggle = IconButton("record", "Start the replay buffer", 16, theme.TEXT_MUTED,
+                                 kind="")
+        self.toggle.setStyleSheet("QToolButton { padding: 7px; }")
         self.toggle.clicked.connect(context.recorder.toggle)
-        layout.addWidget(self.save)
-        layout.addWidget(self.toggle)
+        actions.addWidget(self.save, 1)
+        actions.addWidget(self.toggle)
+        layout.addLayout(actions)
         context.recorder.state_changed.connect(self.update_state)
         context.config_changed.connect(lambda: self.update_state(
             context.recorder.phase, ""))
@@ -191,14 +204,16 @@ class RecorderCard(QFrame):
         self.detail.setToolTip(error or ("Restarting to use the new settings. It starts "
                                          "empty." if state == "restarting" else ""))
         self.save.setEnabled(running)
-        self.toggle.set_icon("stop" if running or state in ("starting", "restarting") else "record",
-                             theme.TEXT if running else theme.RECORDING)
+        busy = running or state in ("starting", "restarting")
+        self.toggle.set_icon("stop" if busy else "record", theme.TEXT if busy else theme.TEXT_MUTED)
         self.toggle.setToolTip("Stop the replay buffer" if running else
                                "Start the replay buffer")
 
 
 class Rail(QFrame):
     navigate = Signal(str)        # "library" | "sonar" | "settings"
+
+    LOGO_HEIGHT = 42
 
     def __init__(self, context, state: LibraryState, parent=None):
         super().__init__(parent)
@@ -208,11 +223,11 @@ class Rail(QFrame):
         self.setFixedWidth(theme.RAIL_WIDTH)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 18, 14, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 14, 12, 12)
+        layout.setSpacing(8)
 
         self.logo = QLabel()
-        self.logo.setFixedHeight(46)
+        self.logo.setFixedHeight(self.LOGO_HEIGHT)
         self._show_logo()
         layout.addWidget(self.logo)
         layout.addSpacing(4)
@@ -257,6 +272,11 @@ class Rail(QFrame):
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # The filters sit on the rail itself: a ground of their own drew an
+        # empty box down the rail whenever there were few of them.
+        scroll.viewport().setAutoFillBackground(False)
+        self.facets_host.setAutoFillBackground(False)
+        self.facets_host.setStyleSheet("background: transparent;")
         layout.addWidget(scroll, 1)
         self.facet_group = QButtonGroup(self)
         self.group_headers: dict[str, GroupHeader] = {}
@@ -274,7 +294,7 @@ class Rail(QFrame):
         pixmap = QPixmap(str(paths.wordmark_path("light")))
         if not pixmap.isNull():
             ratio = self.devicePixelRatioF() or 1.0
-            scaled = pixmap.scaledToHeight(int(46 * ratio),
+            scaled = pixmap.scaledToHeight(int(self.LOGO_HEIGHT * ratio),
                                            Qt.TransformationMode.SmoothTransformation)
             scaled.setDevicePixelRatio(ratio)
             self.logo.setPixmap(scaled)

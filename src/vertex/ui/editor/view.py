@@ -148,7 +148,8 @@ class EditorView(QWidget):
         self.in_button = IconButton("mark-in", "Set In at the playhead (I)", 20)
         self.in_button.clicked.connect(self.set_in)
         transport.addWidget(self.in_button)
-        self.play_button = IconButton("pause", "Play / pause (Space)", 22, "#ffffff", kind="")
+        self.play_button = IconButton("pause", "Play / pause (Space)", 22, theme.ON_ACCENT,
+                                      kind="")
         self.play_button.setStyleSheet(
             f"QToolButton {{ background: {theme.ACCENT}; border-radius: 10px; padding: 7px; "
             f"border: 1px solid {theme.ACCENT_EDGE}; }}"
@@ -268,7 +269,7 @@ class EditorView(QWidget):
         except Exception:
             return
         if paused is not None:
-            self.play_button.set_icon("play" if paused else "pause", "#ffffff")
+            self.play_button.set_icon("play" if paused else "pause", theme.ON_ACCENT)
         if duration and not self.duration:
             # ffprobe could not say how long the clip is; mpv can.
             self.duration = duration
@@ -293,7 +294,7 @@ class EditorView(QWidget):
         if paused and not (self.trim_start <= self.position <= self.trim_end - 0.05):
             self.seek(self.trim_start)
         player.pause = not paused
-        self.play_button.set_icon("pause" if paused else "play", "#ffffff")
+        self.play_button.set_icon("pause" if paused else "play", theme.ON_ACCENT)
 
     def seek(self, seconds: float) -> None:
         player = self.player_widget.player if self.player_widget else None

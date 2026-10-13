@@ -70,6 +70,14 @@ where the work stands. New requests and bugs get the next free number in
   work on this branch), not the working branch. Have them `git reset --hard`
   to the working branch's commit first.
 
+## The design
+
+`temp/design/` holds the look the maintainer chose (TODO item 24): Graphite
+colours with a tightened layout. Read its README before UI work. New UI
+follows its rules: colour only where it means something, every text colour
+at AA contrast, no dead space. Its colours live in `ui/theme.py`; use the
+tokens there, never a new hex value in a widget.
+
 ## Reference screenshots
 
 The maintainer takes screenshots of SteelSeries GG (Moments and Sonar) on

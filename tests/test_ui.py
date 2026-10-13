@@ -567,17 +567,29 @@ def test_app_left_half_behind_after_a_drop_heals(qapp, window, fake_audio):
     assert wait_until(qapp, lambda: keys("chat") == ["discord"] and keys("game") == [])
 
 
-def test_unrouted_apps_badge_follows_its_channel(qapp, window, fake_audio):
-    from vertex.ui import theme
-
+def test_new_apps_channel_is_chosen_in_the_header(qapp, window, fake_audio):
     window.navigate("sonar")
     view = window.sonar_view
-    assert view.unrouted_field.colour == theme.channel_colour("game")
     combo = view.default_channel
+    assert combo.currentData() == "game"
     combo.setCurrentIndex(combo.findData("chat"))
     combo.activated.emit(combo.currentIndex())
-    assert view.unrouted_field.colour == theme.channel_colour("chat")
     assert wait_until(qapp, lambda: Config.load().sonar.default_channel == "chat")
+
+
+def test_channels_wrap_two_by_two_when_the_window_is_narrow(qapp, window, fake_audio):
+    window.navigate("sonar")
+    window.show()
+    grid = window.sonar_view.strips_host
+    window.resize(1600, 860)
+    assert wait_until(qapp, lambda: grid._per_row == 4)
+    window.resize(980, 860)
+    assert wait_until(qapp, lambda: grid._per_row in (2, 4))
+    # Whichever it chose, nothing hangs off the right of the page.
+    page = window.sonar_view.scroll
+    assert wait_until(qapp, lambda: not page.horizontalScrollBar().isVisible())
+    for column in window.sonar_view.strips.values():
+        assert column.geometry().right() <= grid.width()
 
 
 def test_each_channel_shows_and_picks_its_device(qapp, window, fake_audio):

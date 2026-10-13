@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -54,7 +56,7 @@ def app_icon(icon_name: str, key: str, name: str, size: int = 22) -> QLabel:
             return badge
     badge.setText((name[:1] or "?").upper())
     badge.setStyleSheet(f"background: {theme.game_colour(key)}; border-radius: 6px; "
-                        f"color: white; font-weight: 700; font-size: 8pt;")
+                        f"color: {theme.ON_ACCENT}; font-weight: 700; font-size: 8pt;")
     return badge
 
 
@@ -226,7 +228,8 @@ class DeviceList(QFrame):
         manager = button("Device manager", "primary", on_click=self._manage)
         # Its own look: the list's buttons are plain, left-aligned rows.
         manager.setStyleSheet(
-            f"QPushButton {{ background: {theme.ACCENT}; color: #ffffff; text-align: center; "
+            f"QPushButton {{ background: {theme.ACCENT}; color: {theme.ON_ACCENT}; "
+            f"text-align: center; "
             f"padding: 8px; border-radius: 8px; font-weight: 600; }}"
             f"QPushButton:hover {{ background: {theme.ACCENT_HOVER}; }}")
         layout.addWidget(manager)
@@ -374,7 +377,7 @@ class DevicePanel(QFrame):
         now.addWidget(self.now, 1)
         self.volume = QSlider(Qt.Orientation.Horizontal)
         self.volume.setRange(0, 100)
-        self.volume.setFixedWidth(110)
+        self.volume.setFixedWidth(96)
         self.volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.volume.setToolTip("The device's own volume")
         self.volume.valueChanged.connect(self._on_volume)
@@ -408,7 +411,7 @@ class DevicePanel(QFrame):
             row.addWidget(self.second, 1)
             self.second_volume = QSlider(Qt.Orientation.Horizontal)
             self.second_volume.setRange(0, 100)
-            self.second_volume.setFixedWidth(110)
+            self.second_volume.setFixedWidth(96)
             self.second_volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             self.second_volume.setToolTip("The second device's own volume")
             self.second_volume.valueChanged.connect(self._on_second_volume)
@@ -738,6 +741,44 @@ class DeviceField(QWidget):
         self.badge.setStyleSheet(f"background: {theme.shade(colour, 0.25)}; border-radius: 8px;")
 
 
+class ChannelGrid(QWidget):
+    """The channel columns side by side, or two by two when the page is too
+    narrow for all of them in a row. Each column is as tall as what it holds."""
+
+    SPACING = 12
+
+    def __init__(self, columns: list[QWidget], parent=None):
+        super().__init__(parent)
+        self.columns = columns
+        self._per_row = 0
+        self.grid = QGridLayout(self)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setSpacing(self.SPACING)
+        # Its width comes from the page, never the other way round: a row of
+        # columns too wide for the window would otherwise scroll sideways.
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._arrange(len(columns))
+
+    def _arrange(self, per_row: int) -> None:
+        if per_row == self._per_row:
+            return
+        self._per_row = per_row
+        for column in self.columns:
+            self.grid.removeWidget(column)
+        for index, column in enumerate(self.columns):
+            self.grid.addWidget(column, index // per_row, index % per_row,
+                                Qt.AlignmentFlag.AlignTop)
+        for index in range(len(self.columns)):
+            self.grid.setColumnStretch(index, 1 if index < per_row else 0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        need = sum(column.minimumSizeHint().width() for column in self.columns) + \
+            self.SPACING * (len(self.columns) - 1)
+        self._arrange(len(self.columns) if self.width() >= need else
+                      (len(self.columns) + 1) // 2)
+
+
 class SonarView(QWidget):
     def __init__(self, context, parent=None):
         super().__init__(parent)
@@ -766,21 +807,31 @@ class SonarView(QWidget):
         self.subtitle = label("", "Muted", wrap=True)
         title.addWidget(self.subtitle)
         header.addLayout(title, 1)
+        # The channel apps play on until they are dragged to another one.
+        header.addWidget(label("New apps go to", "Muted"))
+        self.default_channel = QComboBox()
+        self.default_channel.setToolTip("Apps play on this channel until you drag them to "
+                                        "another one.")
+        for output in channels.OUTPUTS:
+            self.default_channel.addItem(
+                icons.icon(icons.channel_icon_name(output.id), theme.channel_colour(output.id), 16),
+                output.label, output.id)
+        self.default_channel.setCurrentIndex(
+            max(0, self.default_channel.findData(context.config.sonar.default_channel)))
+        self.default_channel.setMinimumWidth(120)
+        self.default_channel.activated.connect(self._on_default_channel)
+        header.addWidget(self.default_channel)
+        header.addSpacing(10)
+        header.addWidget(label("Enabled", "Muted"))
         self.toggle = Toggle(context.config.sonar.enabled)
         self.toggle.toggled.connect(self.controller.set_enabled)
-        header.addWidget(label("Enabled", "Muted"))
         header.addWidget(self.toggle)
         layout.addLayout(header)
 
-        self.strips_host = QWidget()
-        strips = QHBoxLayout(self.strips_host)
-        strips.setContentsMargins(0, 0, 0, 0)
-        strips.setSpacing(12)
         self.strips: dict[str, ChannelColumn] = {}
         for channel in channels.ALL:
-            column = ChannelColumn(self, self.controller, channel)
-            strips.addWidget(column, 1)
-            self.strips[channel.id] = column
+            self.strips[channel.id] = ChannelColumn(self, self.controller, channel)
+        self.strips_host = ChannelGrid(list(self.strips.values()))
         layout.addWidget(self.strips_host)
 
         # Apps that picked an output themselves, past every channel. Only
@@ -793,25 +844,6 @@ class SonarView(QWidget):
         self.unrouted.add(self.unrouted_host)
         self.unrouted.hide()
         layout.addWidget(self.unrouted)
-
-        self.devices = Section("Unrouted apps", "Apps play on this channel until you drag "
-                                                "them to another one.")
-        row = QHBoxLayout()
-        self.default_channel = QComboBox()
-        for output in channels.OUTPUTS:
-            self.default_channel.addItem(
-                icons.icon(icons.channel_icon_name(output.id), theme.channel_colour(output.id), 16),
-                output.label, output.id)
-        self.default_channel.setCurrentIndex(
-            max(0, self.default_channel.findData(context.config.sonar.default_channel)))
-        self.unrouted_field = DeviceField("Default channel", "", self.default_channel)
-        self.unrouted_field.setMaximumWidth(320)
-        self._paint_unrouted()
-        row.addWidget(self.unrouted_field, 1)
-        row.addStretch(1)
-        self.devices.body.addLayout(row)
-        layout.addWidget(self.devices)
-        self.default_channel.activated.connect(self._on_default_channel)
 
         self.manager = Section("Device manager", "Which devices Vertex plays through and "
                                                  "records from. Drag them to reorder, or "
@@ -991,15 +1023,7 @@ class SonarView(QWidget):
         self.controller.set_linked(not self.context.config.sonar.linked, channel_id)
 
     def _on_default_channel(self, _index: int) -> None:
-        self._paint_unrouted()
         self.controller.set_default_channel(self.default_channel.currentData())
-
-    def _paint_unrouted(self) -> None:
-        """The Unrouted apps badge takes the colour of the channel it names, so
-        it matches that channel's column above."""
-        channel_id = self.default_channel.currentData() or channels.OUTPUTS[0].id
-        self.unrouted_field.set_colour(icons.channel_icon_name(channel_id),
-                                       theme.channel_colour(channel_id))
 
     def _show_devices(self, outputs, inputs) -> None:
         self._outputs, self._inputs = list(outputs), list(inputs)

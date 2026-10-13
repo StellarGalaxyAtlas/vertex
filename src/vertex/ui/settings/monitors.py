@@ -152,7 +152,7 @@ class MonitorMap(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         frame = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        p.setPen(QPen(QColor(theme.ACCENT if self.hasFocus() else theme.SEAM), 1))
+        p.setPen(QPen(QColor(theme.SELECT if self.hasFocus() else theme.SEAM), 1))
         p.setBrush(QColor(theme.FIELD_BG))
         p.drawRoundedRect(frame, theme.RADIUS_CONTROL, theme.RADIUS_CONTROL)
         if not self.monitors:
