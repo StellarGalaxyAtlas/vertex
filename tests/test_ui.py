@@ -947,6 +947,69 @@ def glob_backups(path) -> list[str]:
     return glob.glob(f"{path}.*.bak")
 
 
+def test_control_api_drives_sonar(qapp, window, fake_audio):
+    import queue
+
+    from vertex.ui.control import Commands
+
+    context = window.context
+    commands = Commands(window, context)
+
+    def call(command, args=None):
+        box = []
+        commands._handle(command, args or {}, box)
+        return box[0]
+
+    def chat_volume():
+        return call("state")["data"]["sonar"]["channels"]["chat"]["volume"]
+
+    assert call("volume", {"channel": "chat", "action": "up"})["error"] == "sonar_off"
+    assert call("frobnicate")["error"] == "unknown_command"
+    assert call("volume", {"channel": "aux", "action": "up"})["error"] == "bad_argument"
+    assert call("save-clip", {"seconds": 45})["error"] == "bad_argument"
+    assert call("save-clip")["error"] == "replay_off"
+    assert call("ping")["data"]["api"] == 1
+
+    context.sonar.set_enabled(True)
+    assert wait_until(qapp, lambda: context.sonar.status.active)
+    events = commands.subscribers.add()
+
+    reply = call("volume", {"channel": "chat", "action": "set", "value": 40})
+    assert reply["ok"] and reply["data"]["volume"] == 40
+    assert wait_until(qapp, lambda: chat_volume() == 40)
+    assert call("volume", {"channel": "chat", "action": "up"})["data"]["volume"] == 45
+    assert call("mute", {"channel": "mic"})["data"]["muted"] is True
+    assert wait_until(qapp, lambda: call("state")["data"]["sonar"]["channels"]["mic"]["muted"])
+
+    # Next device: the other connected output, in Manual mode; then back again.
+    fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})
+    context.sonar.refresh_devices()
+    assert wait_until(qapp, lambda: len(context.sonar.outputs) == 2)
+    reply = call("device", {"action": "next"})
+    assert reply["ok"] and not context.config.sonar.output_auto
+    assert wait_until(qapp, lambda: context.sonar.status.output == "hw_speakers")
+    call("device", {"action": "next"})
+    assert wait_until(qapp, lambda: context.sonar.status.output == "hw_headset")
+    assert call("device", {"action": "next", "channel": "mic"})["error"] == "no_device"
+
+    # Subscribers heard the changes, and the notifications.
+    context.notify("clip_saved", "Clip saved", "a.mp4")
+    seen = []
+
+    def heard(predicate):
+        while True:
+            try:
+                seen.append(events.get_nowait())
+            except queue.Empty:
+                break
+        return any(predicate(event) for event in seen)
+    assert wait_until(qapp, lambda: heard(
+        lambda e: e["event"] == "state" and
+        e["data"]["sonar"]["channels"]["mic"]["muted"]))
+    assert heard(lambda e: e["event"] == "notice" and e["data"]["kind"] == "clip_saved")
+    commands.subscribers.remove(events)
+
+
 def test_control_commands(qapp, window):
     from vertex.ui.app import Commands
 

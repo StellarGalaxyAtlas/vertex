@@ -20,6 +20,12 @@ COMMANDS = (
          "Also: vertex replay start, vertex replay stop."),
     ]),
     ("Sonar", [
+        ("vertex volume game up", "Game volume up",
+         "Or down, or a volume: vertex volume game 40. Also chat, media and mic."),
+        ("vertex mute mic", "Mute your microphone",
+         "Mutes Vertex Mic; again to unmute. Any channel works."),
+        ("vertex device next", "Next output device",
+         "In the device manager's order. vertex device next mic for microphones."),
         ("vertex sonar up", "Turn Sonar on", ""),
         ("vertex sonar down", "Turn Sonar off", "Your previous default devices come back."),
     ]),
@@ -67,8 +73,8 @@ class ShortcutsPage:
         terminal = Section(
             "In a terminal",
             "The same commands work in a terminal, where they say what happened.")
-        for text in ("<code>vertex replay status</code> and <code>vertex sonar status</code> "
-                     "say what is running.",
+        for text in ("<code>vertex state</code> says what is running, with every volume and "
+                     "device; <code>vertex watch</code> follows changes as they happen.",
                      "<code>vertex doctor</code> checks that everything Vertex needs is "
                      "installed.",
                      "<code>vertex --help</code> lists every command."):

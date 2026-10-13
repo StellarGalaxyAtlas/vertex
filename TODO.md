@@ -265,7 +265,7 @@ Make the Games and People groups collapsible.
   still shows the row the library is filtered by, so the filter in use is
   always in view; no reference screenshot.
 
-**13.**
+**13.** ✅ Done
 **Control API (for a StreamController / Stream Deck plugin)**
 Let outside software control Vertex. The plugin itself is a separate project;
 this is the part that lives in this repo. The control socket and the `vertex`
@@ -281,6 +281,19 @@ command already handle `save-clip`, `replay start/stop/toggle/status` and
 - A subscription that pushes changes, so buttons update live without polling.
 - Every command also available as `vertex …`, so it can be bound to a desktop
   shortcut. Item 9's hotkeys can be built on the same commands.
+- Done: `vertex/control.py` describes the API in its docstring (the source
+  for `docs/CONTROL.md` when the docs are written) and holds the Qt-free
+  parts: API version 1, error codes (unknown_command, bad_argument,
+  replay_off, sonar_off, no_device, failed), argument checks, volume steps
+  and the state snapshot. Replies keep `ok` and `message` and add `data` or
+  `error`. New commands: `state`, `volume`, `mute`, `device`, `subscribe`;
+  `ping` reports the API version. `subscribe` answers with the state, then
+  streams `state` events (once a burst of changes settles, only when
+  something changed) and `notice` events; each subscriber has its own
+  queue, capped so a client that stops reading can't grow it. The commands
+  run in `ui/control.py`. The `vertex` command gained `volume`, `mute`,
+  `device`, `state [--json]` and `watch`, and the Shortcuts tab lists the
+  new ones worth binding.
 
 **17.** ✅ Done
 **Settings › Restructure the whole page**
@@ -410,12 +423,15 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
 configs, the 1.x library upgrade and an Aux lane (item 15). README still
 mentions picking the logo ink for your panel, and ARCHITECTURE lists
-`logo_variant` among the config keys (item 20).
+`logo_variant` among the config keys (item 20). Item 13 needs
+`docs/CONTROL.md` (from `vertex/control.py`'s docstring), README's list of
+`vertex` commands lacks volume, mute, device, state and watch, and
+ARCHITECTURE's control-socket paragraph predates subscriptions.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17, 19, 20 and the bugs 14, 16 and 18.
-Next: 13 (the maintainer's order, 2026-10-13; 9 is on hold), without
-`docs/CONTROL.md` for now (see Documentation). The notification stream
-(`Context.notified`) is ready for 13's subscription.
+**Progress.** Done: 1–8 (8a, 8b), 10–13, 15, 17, 19, 20 and the bugs 14, 16 and 18.
+Open: 9 (hotkeys), on hold until the maintainer says; it can be built on
+item 13's commands. The documentation is written at the end (see
+Documentation).
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
@@ -581,6 +597,14 @@ before building it.
   all.
 - Plugins are written in Python, so the plugin can talk to the socket
   directly; no extra dependency is needed on either side.
+- Decided (2026-10-13): mic mute is the Mic channel's mute. Next/previous
+  device picks the next connected, non-excluded device in the priority list;
+  in Auto it switches the mode to Manual (picking in Auto would put the
+  device on top, so cycling would bounce between two). Linked, it moves
+  every output channel; unlinked, every one too unless a channel is named
+  (`vertex device next chat`); the Mic channel cycles the microphones.
+  Volume steps are 5% (`--step` changes it). A subscription pushes the full
+  state whenever it changes, and every notification as it happens.
 
 **Item 11 (done).** The sideways scrolling at the minimum window width (980 px) is
 gone since 8a: Aux went and the columns may be a little narrower. The page now

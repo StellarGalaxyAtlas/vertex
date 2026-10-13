@@ -38,6 +38,23 @@ def choose(priority: list[str], excluded: list[str], connected: list[str], picke
     return ""
 
 
+def cycle(priority: list[str], excluded: list[str], connected: list[str], current: str,
+          step: int) -> str:
+    """The device `step` places on from `current` (1: next, -1: previous) among
+    the connected devices that aren't excluded, in priority order and wrapping
+    round; connected devices not in the list yet come last. "" when there is
+    no other device to go to."""
+    present = set(connected)
+    order = [name for name in priority if name in present and name not in excluded]
+    order += [name for name in connected if name not in order and name not in excluded]
+    if not order:
+        return ""
+    if current not in order:
+        return order[0] if step > 0 else order[-1]
+    following = order[(order.index(current) + step) % len(order)]
+    return "" if following == current else following
+
+
 def promote(priority: list[str], excluded: list[str], name: str) -> tuple[list[str], list[str]]:
     """`name` moved to the top of the priority list (out of excluded)."""
     return [name, *(n for n in priority if n != name)], [n for n in excluded if n != name]

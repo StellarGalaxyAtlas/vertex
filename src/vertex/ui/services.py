@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from vertex import fmt, notifications
-from vertex.audio import channels
+from vertex.audio import channels, devices
 from vertex.audio.pulse import AudioError, Pactl
 from vertex.audio.sonar import Sonar, SonarStatus
 from vertex.config import Config
@@ -111,6 +111,9 @@ class SonarController(QObject):
         self._busy = 0
         self._closed = False
         self._pending_volume: dict[str, float] = {}
+        # The real devices connected, as last seen.
+        self.outputs: list = []
+        self.inputs: list = []
 
         self._reconcile_timer = QTimer(self, singleShot=True, interval=700)
         self._reconcile_timer.timeout.connect(self._reconcile)
@@ -267,6 +270,7 @@ class SonarController(QObject):
         if not pair:
             return
         outputs, inputs = pair
+        self.outputs, self.inputs = list(outputs), list(inputs)
         # New devices join the device manager's lists, at the bottom.
         if self.sonar.learn_devices(outputs, inputs):
             self.context.save_config()
@@ -336,6 +340,44 @@ class SonarController(QObject):
 
     def set_also_second(self, channel_id: str, also: bool) -> None:
         self._job(lambda: self.sonar.set_also_second(channel_id, also), self._devices_changed)
+
+    def cycle_device(self, step: int, channel_id: str = "") -> list[tuple[str, str]]:
+        """Switch to the next (1) or previous (-1) connected device in the
+        device manager's list, skipping excluded ones. The shared output list
+        and the microphones go to Manual: in Auto, the device picked would go
+        to the top of the list and cycling would bounce between two. With no
+        channel, every output channel moves; unlinked, `channel_id` moves
+        alone. Returns (channel id or "outputs", device) for each switch."""
+        sonar, status = self.context.config.sonar, self.status
+        if channel_id == channels.MIC.id:
+            following = devices.cycle(sonar.mic_priority, sonar.mic_excluded,
+                                      [d.name for d in self.inputs], status.mic, step)
+            if not following:
+                return []
+            sonar.mic_auto = False
+            self.set_mic(following)
+            return [(channel_id, following)]
+        connected = [d.name for d in self.outputs]
+        if sonar.linked:
+            following = devices.cycle(sonar.output_priority, sonar.output_excluded,
+                                      connected, status.output, step)
+            if not following:
+                return []
+            sonar.output_auto = False
+            self.set_channel_output(channels.GAME.id, following)
+            return [("outputs", following)]
+        moved = []
+        for channel in channels.OUTPUTS:
+            if channel_id and channel.id != channel_id:
+                continue
+            entry = status.channels.get(channel.id)
+            current = (entry.output if entry is not None else "") or status.output
+            following = devices.cycle(sonar.output_priority, sonar.output_excluded,
+                                      connected, current, step)
+            if following:
+                self.set_channel_output(channel.id, following)
+                moved.append((channel.id, following))
+        return moved
 
     def _devices_changed(self, warnings) -> None:
         for text in warnings or []:
