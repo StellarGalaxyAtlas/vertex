@@ -152,6 +152,29 @@ class TestSonar:
         loops = [s for s in fake.inputs_ if "vertex.loopback" in s.properties]
         assert {s.sink for s in loops} == {fake._sink("hw_headset").index}
 
+    def test_streams_report_their_device_and_skip_non_apps(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        fake.play("Game", sink="hw_headset")
+        meter = fake.play("pavucontrol")
+        meter.properties["stream.monitor"] = "true"
+        streams = {s.key: s for s in sonar.streams()}
+        assert set(streams) == {"game"}           # loopbacks and meters left out
+        assert streams["game"].channel is None    # playing past every channel
+        assert streams["game"].device == "hw_headset"
+
+    def test_recorders(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        fake.record("Discord", "vertex_mic")
+        fake.record("OBS", "hw_mic")
+        fake.record("gpu-screen-recorder", "vertex_game.monitor")   # desktop audio
+        fake.record("pavucontrol", "hw_mic", props={"media.name": "Peak detect"})
+        found = {r.key: r for r in sonar.recorders()}
+        assert set(found) == {"discord", "obs"}
+        assert found["discord"].via_vertex and not found["obs"].via_vertex
+        assert found["obs"].device == "hw_mic"
+
     def test_volumes(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         sonar.config.channel("chat").volume = 0.25

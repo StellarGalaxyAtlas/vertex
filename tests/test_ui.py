@@ -137,6 +137,44 @@ def test_sonar_page_drives_the_fake_server(qapp, window, fake_audio):
                                             for s in fake_audio.sinks_))
 
 
+def test_sonar_lists_apps_under_channels_and_routes_drops(qapp, window, fake_audio):
+    window.navigate("sonar")
+    view = window.sonar_view
+    window.context.sonar.set_enabled(True)
+    assert wait_until(qapp, lambda: window.context.sonar.status.active)
+    fake_audio.play("Spotify")                         # lands on the default channel
+    fake_audio.play("Overwatch", sink="hw_headset")    # picked the headset itself
+    fake_audio.record("Discord", "vertex_mic")
+    window.context.sonar.refresh_streams()
+
+    def keys(channel_id):
+        layout = view.strips[channel_id].apps
+        return [layout.itemAt(i).widget().key for i in range(layout.count())
+                if hasattr(layout.itemAt(i).widget(), "key")]
+
+    assert wait_until(qapp, lambda: keys("game") == ["spotify"])
+    assert keys("mic") == ["discord"]
+    assert view.unrouted.isVisibleTo(view)
+    assert view.unrouted_flow.itemAt(0).widget().key == "overwatch"
+
+    view.route("spotify", "media")                     # what a drop onto Media does
+    assert wait_until(qapp, lambda: keys("media") == ["spotify"])
+    assert keys("game") == []
+    assert wait_until(qapp, lambda: Config.load().sonar.app_rules.get("spotify") == "media")
+
+    # Held back while dragging, applied once the drag ends.
+    view.drag_started()
+    view.route("overwatch", "game")
+    qapp.processEvents()
+    view.drag_finished()
+    assert wait_until(qapp, lambda: "overwatch" in keys("game"))
+    assert wait_until(qapp, lambda: not view.unrouted.isVisibleTo(view))
+
+    view.route("spotify", None)                        # "Use the default channel"
+    assert wait_until(qapp, lambda: "spotify" in keys("game"))
+    assert "spotify" not in window.context.config.sonar.app_rules
+
+
 def test_delete_clip(qapp, window, monkeypatch):
     state = window.state
     clip = state.find("Replay_2026-01-02_03-04-05.mp4")

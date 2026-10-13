@@ -88,16 +88,10 @@ GENERIC_BINARIES = frozenset({
 })
 
 
-@dataclass
-class Stream:
-    """An application's playback stream (a sink input)."""
+class _AppProperties:
+    """Who a stream belongs to, read from its PipeWire/Pulse properties."""
 
-    index: int
-    sink: int
-    owner_module: int | None = None
-    volume: float = 1.0
-    muted: bool = False
-    properties: dict = field(default_factory=dict)
+    properties: dict
 
     @property
     def app_name(self) -> str:
@@ -121,12 +115,49 @@ class Stream:
             return binary.casefold()
         return self.app_name.strip().casefold()
 
+    @property
+    def is_meter(self) -> bool:
+        """A volume meter (pavucontrol, panel applets) rather than a real stream."""
+        props = self.properties
+        return (str(props.get("stream.monitor", "")).lower() == "true"
+                or props.get("media.name") == "Peak detect")
+
+
+@dataclass
+class Stream(_AppProperties):
+    """An application's playback stream (a sink input)."""
+
+    index: int
+    sink: int
+    owner_module: int | None = None
+    volume: float = 1.0
+    muted: bool = False
+    properties: dict = field(default_factory=dict)
+
     @classmethod
     def from_json(cls, data: dict) -> Stream:
         return cls(
             index=int(data.get("index", -1)), sink=int(data.get("sink", -1)),
             owner_module=_int_or_none(data.get("owner_module")),
             volume=_volume(data.get("volume")), muted=bool(data.get("mute", False)),
+            properties=dict(data.get("properties") or {}),
+        )
+
+
+@dataclass
+class Capture(_AppProperties):
+    """An application's recording stream (a source output)."""
+
+    index: int
+    source: int
+    owner_module: int | None = None
+    properties: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_json(cls, data: dict) -> Capture:
+        return cls(
+            index=int(data.get("index", -1)), source=int(data.get("source", -1)),
+            owner_module=_int_or_none(data.get("owner_module")),
             properties=dict(data.get("properties") or {}),
         )
 
@@ -282,6 +313,9 @@ class Pactl:
 
     def sink_inputs(self) -> list[Stream]:
         return [Stream.from_json(item) for item in self.json("list", "sink-inputs") or []]
+
+    def source_outputs(self) -> list[Capture]:
+        return [Capture.from_json(item) for item in self.json("list", "source-outputs") or []]
 
     def modules(self) -> list[Module]:
         modules = []

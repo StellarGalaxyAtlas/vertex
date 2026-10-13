@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QMimeData, Qt, QTimer
+from PySide6.QtGui import QDrag, QIcon
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QScrollArea,
     QSlider,
     QVBoxLayout,
@@ -18,64 +21,178 @@ from PySide6.QtWidgets import (
 
 from vertex import paths
 from vertex.audio import channels
-from vertex.audio.sonar import AppStream, SonarStatus
+from vertex.audio.sonar import AppCapture, AppStream, SonarStatus
 from vertex.recorder import gsr
 from vertex.ui import icons, theme
-from vertex.ui.widgets import IconButton, Section, Toggle, label
+from vertex.ui.widgets import ElidedLabel, FlowLayout, IconButton, Section, Toggle, hline, label
+
+APP_MIME = "application/x-vertex-app"
 
 
-class ChannelStrip(QFrame):
-    """One channel: icon, name, a vertical fader, mute, and "in clips"."""
+def app_icon(icon_name: str, key: str, name: str, size: int = 22) -> QLabel:
+    """The app's own icon from the desktop's icon theme, or its initial."""
+    badge = QLabel()
+    badge.setFixedSize(size, size)
+    badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    for candidate in (icon_name, key):
+        icon = QIcon.fromTheme(candidate) if candidate else QIcon()
+        if not icon.isNull():
+            badge.setPixmap(icon.pixmap(size, size))
+            return badge
+    badge.setText((name[:1] or "?").upper())
+    badge.setStyleSheet(f"background: {theme.game_colour(key)}; border-radius: 6px; "
+                        f"color: white; font-weight: 700; font-size: 8pt;")
+    return badge
 
-    def __init__(self, controller, channel: channels.Channel, parent=None):
+
+class AppChip(QFrame):
+    """One application. Drag it onto a channel to send it there for good;
+    right-click for the same without dragging."""
+
+    def __init__(self, view, key: str, name: str, icon: str = "", note: str = "",
+                 rule: str | None = None, draggable: bool = True, dim: bool = False,
+                 tooltip: str = "", parent=None):
         super().__init__(parent)
+        self.view = view
+        self.key = key
+        self.name = name
+        self.rule = rule
+        self.draggable = draggable
+        self._press = None
+        self.setObjectName("AppChip")
+        self.setStyleSheet(
+            f"#AppChip {{ background: {theme.CARD_BG}; border-radius: 8px; }}"
+            f"#AppChip:hover {{ background: {theme.CARD_HOVER}; }}")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 5, 8, 5)
+        layout.setSpacing(8)
+        layout.addWidget(app_icon(icon, key, name))
+        text = QVBoxLayout()
+        text.setSpacing(0)
+        title = ElidedLabel(name)
+        if dim:
+            title.setStyleSheet(f"color: {theme.TEXT_DIM};")
+        text.addWidget(title)
+        if note:
+            detail = ElidedLabel(note)
+            detail.setObjectName("Dim")
+            text.addWidget(detail)
+        layout.addLayout(text, 1)
+        if draggable:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setToolTip(tooltip or (f"{name} ({key}) — drag onto another channel"
+                                    if draggable else f"{name} ({key})"))
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if not self.draggable or self._press is None or \
+                not event.buttons() & Qt.MouseButton.LeftButton:
+            return
+        if (event.position().toPoint() - self._press).manhattanLength() < \
+                QApplication.startDragDistance():
+            return
+        self._press = None
+        drag = QDrag(self)
+        data = QMimeData()
+        data.setData(APP_MIME, self.key.encode())
+        drag.setMimeData(data)
+        drag.setPixmap(self.grab())
+        drag.setHotSpot(event.position().toPoint())
+        self.view.drag_started()
+        try:
+            drag.exec(Qt.DropAction.MoveAction)
+        finally:
+            self.view.drag_finished()
+
+    def contextMenuEvent(self, event):
+        if not self.draggable:
+            return
+        menu = QMenu(self)
+        for output in channels.OUTPUTS:
+            action = menu.addAction(icons.icon(icons.channel_icon_name(output.id),
+                                               theme.channel_colour(output.id), 16),
+                                    f"Send to {output.label}")
+            action.triggered.connect(lambda _c=False, c=output.id: self.view.route(self.key, c))
+        if self.rule:
+            menu.addSeparator()
+            reset = menu.addAction("Use the default channel")
+            reset.setToolTip("Forget where this app was sent")
+            reset.triggered.connect(lambda: self.view.route(self.key, None))
+        menu.exec(event.globalPos())
+
+
+class ChannelColumn(QFrame):
+    """One channel: its volume, whether it is recorded, and the apps on it.
+    Output channels accept dropped apps."""
+
+    def __init__(self, view, controller, channel: channels.Channel, parent=None):
+        super().__init__(parent)
+        self.view = view
         self.controller = controller
         self.channel = channel
-        colour = theme.channel_colour(channel.id)
+        self.colour = theme.channel_colour(channel.id)
         self.setObjectName("Strip")
-        self.setStyleSheet(f"#Strip {{ background: {theme.SECTION_BG}; border-radius: 14px; }}")
-        self.setMinimumWidth(128)
+        self._paint_frame(False)
+        self.setMinimumWidth(170)
+        self.setAcceptDrops(channel.is_output)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 16, 14, 14)
-        layout.setSpacing(8)
-        layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
 
+        header = QHBoxLayout()
+        header.setSpacing(10)
         badge = QLabel()
-        badge.setFixedSize(40, 40)
+        badge.setFixedSize(34, 34)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setPixmap(icons.pixmap(icons.channel_icon_name(channel.id), colour, 22))
-        badge.setStyleSheet(f"background: {theme.shade(colour, 0.25)}; border-radius: 12px;")
-        layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignHCenter)
+        badge.setPixmap(icons.pixmap(icons.channel_icon_name(channel.id), self.colour, 20))
+        badge.setStyleSheet(f"background: {theme.shade(self.colour, 0.25)}; border-radius: 10px;")
+        header.addWidget(badge)
+        names = QVBoxLayout()
+        names.setSpacing(0)
         name = label(channel.label)
         name.setStyleSheet("font-weight: 600;")
-        name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(name)
+        names.addWidget(name)
         device = label(channel.description, "Dim")
-        device.setAlignment(Qt.AlignmentFlag.AlignCenter)
         device.setToolTip(f"{channel.blurb}\nDevice: {channel.node}")
-        layout.addWidget(device)
+        names.addWidget(device)
+        header.addLayout(names, 1)
+        layout.addLayout(header)
 
-        self.slider = QSlider(Qt.Orientation.Vertical)
-        self.slider.setRange(0, 100)
-        self.slider.setMinimumHeight(150)
-        self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.slider.setStyleSheet(
-            f"QSlider::add-page:vertical {{ background: {colour}; border-radius: 2px; }}")
-        self.slider.valueChanged.connect(self._on_slider)
-        layout.addWidget(self.slider, 1, Qt.AlignmentFlag.AlignHCenter)
-        self.readout = label("100%", "Muted")
-        self.readout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.readout)
-
-        self.mute = IconButton("volume", "Mute", 18, theme.TEXT_MUTED, kind="")
+        volume = QHBoxLayout()
+        volume.setSpacing(6)
+        self.mute = IconButton("volume", "Mute", 16, theme.TEXT_MUTED)
         self.mute.setCheckable(True)
         self.mute.toggled.connect(self._on_mute)
-        layout.addWidget(self.mute, 0, Qt.AlignmentFlag.AlignHCenter)
+        volume.addWidget(self.mute)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, 100)
+        self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.slider.setStyleSheet(
+            f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 2px; }}")
+        self.slider.valueChanged.connect(self._on_slider)
+        volume.addWidget(self.slider, 1)
+        self.readout = label("100%", "Muted")
+        self.readout.setFixedWidth(38)
+        self.readout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        volume.addWidget(self.readout)
+        layout.addLayout(volume)
 
         self.record = QCheckBox("In clips")
         self.record.setToolTip("Record this channel as its own track in every clip")
         self.record.toggled.connect(lambda on: controller.set_record(channel.id, on))
-        layout.addWidget(self.record, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self.record)
+
+        layout.addWidget(hline())
+        layout.addWidget(label("RECORDING FROM IT" if not channel.is_output else "APPS",
+                               "Group"))
+        self.apps = QVBoxLayout()
+        self.apps.setSpacing(6)
+        layout.addLayout(self.apps)
+        layout.addStretch(1)
 
         settings = controller.context.config.sonar.channel(channel.id)
         self._quiet = True
@@ -84,6 +201,9 @@ class ChannelStrip(QFrame):
         self.record.setChecked(settings.record)
         self._quiet = False
         self._paint_mute()
+        self.set_apps([])
+
+    # --- Volume ----------------------------------------------------------------
 
     def show_status(self, volume: float, muted: bool) -> None:
         """Follow the device — the system mixer can change it too."""
@@ -112,42 +232,44 @@ class ChannelStrip(QFrame):
                            theme.DANGER if muted else theme.TEXT_MUTED)
         self.mute.setToolTip("Unmute" if muted else "Mute")
 
+    # --- Apps ------------------------------------------------------------------
 
-class AppRow(QWidget):
-    def __init__(self, controller, key: str, name: str, channel: str | None,
-                 rule: str | None, playing: bool, parent=None):
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 2, 0, 2)
-        avatar = QLabel(name[:1].upper() or "?")
-        avatar.setFixedSize(30, 30)
-        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        avatar.setStyleSheet(f"background: {theme.game_colour(key)}; border-radius: 9px; "
-                             f"color: white; font-weight: 700;")
-        layout.addWidget(avatar)
-        text = QVBoxLayout()
-        text.setSpacing(0)
-        text.addWidget(label(name))
-        state = "Playing" if playing else "Not playing — the rule applies when it starts"
-        text.addWidget(label(f"{state} · {key}", "Dim"))
-        layout.addLayout(text, 1)
-        self.combo = QComboBox()
-        self.combo.addItem("Default channel", None)
-        for output in channels.OUTPUTS:
-            self.combo.addItem(icons.icon(icons.channel_icon_name(output.id),
-                                          theme.channel_colour(output.id), 16),
-                               output.label, output.id)
-        self.combo.setCurrentIndex(max(0, self.combo.findData(rule)))
-        self.combo.setMinimumWidth(170)
-        self.combo.currentIndexChanged.connect(
-            lambda _i: controller.route(key, self.combo.currentData()))
-        layout.addWidget(self.combo)
-        if not playing:
-            forget = IconButton("close", "Forget this rule", 14, theme.TEXT_MUTED)
-            forget.clicked.connect(lambda: controller.forget_rule(key))
-            layout.addWidget(forget)
-        elif channel and channel != (rule or controller.context.config.sonar.default_channel):
-            layout.addWidget(label(f"on {channels.BY_ID[channel].label}", "Dim"))
+    def set_apps(self, chips: list[QWidget]) -> None:
+        while self.apps.count():
+            item = self.apps.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
+        for chip in chips:
+            self.apps.addWidget(chip)
+        if not chips:
+            empty = ("Drop an app here" if self.channel.is_output
+                     else "No app is using the mic")
+            hint = label(empty, "Dim")
+            hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            hint.setMinimumHeight(36)
+            hint.setStyleSheet(f"color: {theme.TEXT_DIM}; border: 1px dashed {theme.SEAM}; "
+                               f"border-radius: 8px;")
+            self.apps.addWidget(hint)
+
+    def _paint_frame(self, highlight: bool) -> None:
+        border = self.colour if highlight else "transparent"
+        self.setStyleSheet(f"#Strip {{ background: {theme.SECTION_BG}; border-radius: 14px; "
+                           f"border: 2px solid {border}; }}")
+
+    def dragEnterEvent(self, event):
+        if self.channel.is_output and event.mimeData().hasFormat(APP_MIME):
+            event.acceptProposedAction()
+            self._paint_frame(True)
+
+    def dragLeaveEvent(self, event):
+        self._paint_frame(False)
+
+    def dropEvent(self, event):
+        self._paint_frame(False)
+        key = bytes(event.mimeData().data(APP_MIME)).decode()
+        if key:
+            event.acceptProposedAction()
+            self.view.route(key, self.channel.id)
 
 
 class SonarView(QWidget):
@@ -185,12 +307,23 @@ class SonarView(QWidget):
         strips = QHBoxLayout(self.strips_host)
         strips.setContentsMargins(0, 0, 0, 0)
         strips.setSpacing(12)
-        self.strips = {}
+        self.strips: dict[str, ChannelColumn] = {}
         for channel in channels.ALL:
-            strip = ChannelStrip(self.controller, channel)
-            strips.addWidget(strip)
-            self.strips[channel.id] = strip
+            column = ChannelColumn(self, self.controller, channel)
+            strips.addWidget(column, 1)
+            self.strips[channel.id] = column
         layout.addWidget(self.strips_host)
+
+        # Apps that picked an output themselves, past every channel. Only
+        # shown while there are any.
+        self.unrouted = Section("Not routed", "These apps play straight to a device instead "
+                                              "of the default, so no channel controls them. "
+                                              "Drag one onto a channel to route it.")
+        self.unrouted_host = QWidget()
+        self.unrouted_flow = FlowLayout(self.unrouted_host, spacing=8)
+        self.unrouted.add(self.unrouted_host)
+        self.unrouted.hide()
+        layout.addWidget(self.unrouted)
 
         devices = Section("Devices", "Where the channels play, and which microphone feeds "
                                      "Vertex Mic. Pick “Vertex Mic” as the input in Discord "
@@ -223,13 +356,6 @@ class SonarView(QWidget):
         self.default_channel.activated.connect(lambda _i: self.controller.set_default_channel(
             self.default_channel.currentData()))
 
-        self.apps = Section("Applications", "Send each app to a channel. The choice is "
-                                            "remembered and applied whenever it plays.")
-        self.apps_list = QVBoxLayout()
-        self.apps_list.setSpacing(4)
-        self.apps.body.addLayout(self.apps_list)
-        layout.addWidget(self.apps)
-
         self.clips = Section("In your clips", "")
         self.tracks_text = label("", "Muted", wrap=True)
         self.clips.add(self.tracks_text)
@@ -237,7 +363,10 @@ class SonarView(QWidget):
         layout.addStretch(1)
 
         self.controller.status_changed.connect(self._show_status)
-        self.controller.streams_changed.connect(self._show_streams)
+        self._dragging = False
+        self._pending: dict[str, list] = {}
+        self.controller.streams_changed.connect(lambda s: self._update("streams", s))
+        self.controller.recorders_changed.connect(lambda r: self._update("recorders", r))
         self.controller.devices_changed.connect(self._show_devices)
         context.config_changed.connect(self._show_tracks)
         context.recorder.info_changed.connect(lambda _i: self._show_tracks())
@@ -289,26 +418,84 @@ class SonarView(QWidget):
             combo.setCurrentIndex(max(0, combo.findData(current)))
             combo.blockSignals(False)
 
+    # --- Apps on channels --------------------------------------------------------
+
+    def route(self, key: str, channel_id: str | None) -> None:
+        """Send an app to a channel from now on (None: back to the default)."""
+        self.controller.route(key, channel_id)
+
+    def drag_started(self) -> None:
+        self._dragging = True
+
+    def drag_finished(self) -> None:
+        # Lists that changed mid-drag were held back: rebuilding them would
+        # have deleted the very chip being dragged.
+        self._dragging = False
+        pending, self._pending = self._pending, {}
+        for kind, items in pending.items():
+            self._update(kind, items)
+
+    def _update(self, kind: str, items: list) -> None:
+        if self._dragging:
+            self._pending[kind] = items
+        elif kind == "streams":
+            self._show_streams(items)
+        else:
+            self._show_recorders(items)
+
     def _show_streams(self, streams: list[AppStream]) -> None:
-        while self.apps_list.count():
-            item = self.apps_list.takeAt(0)
+        """Each app under the channel it plays on; apps with a rule that are
+        not playing are shown faintly under the channel they will go to."""
+        rules = dict(self.context.config.sonar.app_rules)
+        per_channel: dict[str, dict[str, AppChip]] = {c.id: {} for c in channels.OUTPUTS}
+        unrouted: dict[str, AppChip] = {}
+        playing = set()
+        for stream in streams:
+            playing.add(stream.key)
+            if stream.channel in per_channel:
+                bucket = per_channel[stream.channel]
+                if stream.key not in bucket:
+                    bucket[stream.key] = AppChip(self, stream.key, stream.name, stream.icon,
+                                                 rule=rules.get(stream.key))
+            elif stream.key not in unrouted:
+                unrouted[stream.key] = AppChip(
+                    self, stream.key, stream.name, stream.icon,
+                    note=f"on {stream.device}" if stream.device else "",
+                    rule=rules.get(stream.key))
+        for key, channel_id in sorted(rules.items()):
+            if key not in playing and channel_id in per_channel:
+                per_channel[channel_id][key] = AppChip(
+                    self, key, key, note="not playing", rule=channel_id, dim=True,
+                    tooltip=f"{key} goes to {channels.BY_ID[channel_id].label} whenever it "
+                            f"plays. Drag it to change that; right-click to reset it.")
+        for channel_id, chips in per_channel.items():
+            self.strips[channel_id].set_apps(list(chips.values()))
+
+        while self.unrouted_flow.count():
+            item = self.unrouted_flow.takeAt(0)
             if item.widget() is not None:
                 item.widget().deleteLater()
-        rules = dict(self.context.config.sonar.app_rules)
-        seen = set()
-        for stream in streams:
-            if stream.key in seen:
+        for chip in unrouted.values():
+            # A flow layout sizes children by their hint, and an eliding
+            # label hints next to nothing — give the chips a real width.
+            chip.setFixedWidth(240)
+            self.unrouted_flow.addWidget(chip)
+        self.unrouted.setVisible(bool(unrouted) and self.context.config.sonar.enabled)
+
+    def _show_recorders(self, recorders: list[AppCapture]) -> None:
+        """Apps recording the mic, under the Mic channel. One recording the
+        real mic directly is flagged: Vertex Mic's volume and mute don't reach it."""
+        chips: dict[str, AppChip] = {}
+        for capture in recorders:
+            if capture.key in chips:
                 continue
-            seen.add(stream.key)
-            self.apps_list.addWidget(AppRow(self.controller, stream.key, stream.name,
-                                            stream.channel, rules.get(stream.key), True))
-        for key, channel_id in sorted(rules.items()):
-            if key not in seen:
-                self.apps_list.addWidget(AppRow(self.controller, key, key, None, channel_id,
-                                                False))
-        if not seen and not rules:
-            self.apps_list.addWidget(label("Nothing is playing right now. Apps show up "
-                                           "here while they make sound.", "Dim", wrap=True))
+            note = "" if capture.via_vertex else f"direct from {capture.device}"
+            tip = (f"{capture.name} records Vertex Mic." if capture.via_vertex else
+                   f"{capture.name} records {capture.device} directly, so Vertex Mic's volume "
+                   f"and mute don't apply to it. Pick “Vertex Mic” as its input to change that.")
+            chips[capture.key] = AppChip(self, capture.key, capture.name, capture.icon,
+                                         note=note, draggable=False, tooltip=tip)
+        self.strips[channels.MIC.id].set_apps(list(chips.values()))
 
     def _show_tracks(self) -> None:
         config = self.context.config

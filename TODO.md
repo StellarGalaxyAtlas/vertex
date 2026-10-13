@@ -43,12 +43,15 @@ Move the explanations for "Output", "Microphone" and "Unrouted apps" from the
 right-hand side to directly above or below their drop-downs, possibly
 colour-coded.
 
-**7.**
+**7.** ✅ Done
 **Sonar › Channels**
 - Under each channel, list the apps currently playing through it, updating live
   as apps start and stop.
 - Under the microphone, list the apps currently recording from it.
 - Drag and drop an app from one channel to another, taking effect immediately.
+- Decided: a drop is remembered (right-click → "Use the default channel" undoes it);
+  apps that play straight to a device appear in a "Not routed" section; the Mic
+  list is read-only and flags apps recording a mic directly.
 
 **8.**
 **Sonar › Device manager**

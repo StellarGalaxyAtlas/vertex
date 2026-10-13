@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vertex.audio.pulse import AudioError, Device, Module, Stream, parse_modargs
+from vertex.audio.pulse import AudioError, Capture, Device, Module, Stream, parse_modargs
 
 
 class FakePactl:
@@ -12,6 +12,7 @@ class FakePactl:
         self.sinks_: list[Device] = []
         self.sources_: list[Device] = []
         self.inputs_: list[Stream] = []
+        self.outputs_: list[Capture] = []
         self.owner: dict[int, list] = {}
         self.calls: list[tuple] = []
         for name in sinks:
@@ -54,6 +55,15 @@ class FakePactl:
             "application.name": app, "application.process.binary": binary or app.lower()})
         self.inputs_.append(stream)
         return stream
+
+    def record(self, app, source, binary=None, props=None):
+        """An app recording from `source` (a device name)."""
+        device = self._device(source)
+        capture = Capture(self._id(), device.index, properties={
+            "application.name": app, "application.process.binary": binary or app.lower(),
+            **(props or {})})
+        self.outputs_.append(capture)
+        return capture
 
     def _sink(self, name) -> Device:
         for sink in self.sinks_:
@@ -98,6 +108,9 @@ class FakePactl:
 
     def sink_inputs(self):
         return list(self.inputs_)
+
+    def source_outputs(self):
+        return list(self.outputs_)
 
     def modules(self):
         return list(self.modules_)

@@ -54,6 +54,19 @@ class AppStream:
     icon: str
     channel: str | None          # the channel it is playing on, if one of ours
     rule: str | None             # the channel a rule sends it to, if any
+    device: str = ""             # what it is playing on, as the system names it
+
+
+@dataclass
+class AppCapture:
+    """An application recording from an input."""
+
+    index: int
+    key: str
+    name: str
+    icon: str
+    device: str                  # the input it records from
+    via_vertex: bool             # recording Vertex Mic, rather than a mic directly
 
 
 @dataclass
@@ -424,19 +437,43 @@ class Sonar:
         return "vertex.loopback" in stream.properties
 
     def streams(self) -> list[AppStream]:
-        """Every application currently playing, and which channel it is on."""
-        by_index = {sink.index: sink.name for sink in self.pactl.sinks()}
+        """Every application currently playing, and which channel it is on.
+
+        Streams created by modules (Vertex's own loopbacks, echo cancellers…)
+        and volume meters are not applications and are left out.
+        """
+        sinks = {sink.index: sink for sink in self.pactl.sinks()}
         result = []
         for stream in self.pactl.sink_inputs():
-            if self._is_loopback(stream):
+            if self._is_loopback(stream) or stream.owner_module is not None or stream.is_meter:
                 continue
-            node = by_index.get(stream.sink, "")
-            channel = channels.BY_NODE.get(node)
+            sink = sinks.get(stream.sink)
+            channel = channels.BY_NODE.get(sink.name) if sink else None
             result.append(AppStream(
                 index=stream.index, key=stream.key, name=stream.app_name, icon=stream.icon,
                 channel=channel.id if channel else None,
                 rule=self.config.app_rules.get(stream.key),
+                device=sink.label if sink else "",
             ))
+        return result
+
+    def recorders(self) -> list[AppCapture]:
+        """Every application recording from a microphone — through Vertex Mic
+        or straight from a device. Monitors (recordings of an output, which is
+        how a screen recorder takes desktop audio) and meters are left out."""
+        sources = {source.index: source for source in self.pactl.sources()}
+        result = []
+        for capture in self.pactl.source_outputs():
+            if capture.owner_module is not None or capture.is_meter or \
+                    "vertex.loopback" in capture.properties:
+                continue
+            source = sources.get(capture.source)
+            if source is None or source.is_monitor:
+                continue
+            result.append(AppCapture(
+                index=capture.index, key=capture.key, name=capture.app_name,
+                icon=capture.icon, device=source.label,
+                via_vertex=source.name == channels.MIC.node))
         return result
 
     def route(self, app_key: str, channel_id: str | None) -> int:

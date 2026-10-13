@@ -95,6 +95,7 @@ class SonarController(QObject):
 
     status_changed = Signal(object)      # SonarStatus
     streams_changed = Signal(list)       # [AppStream]
+    recorders_changed = Signal(list)     # [AppCapture]
     devices_changed = Signal(list, list)  # outputs, inputs
     warning = Signal(str)
     busy_changed = Signal(bool)
@@ -174,6 +175,9 @@ class SonarController(QObject):
                 self._job(lambda: self.sonar.apply_rules(event.index), quiet=True)
             self._streams_timer.start()
             return
+        if event.facility == "source-output":
+            self._streams_timer.start()
+            return
         if self.sonar.handle(event) == "reconcile":
             self._reconcile_timer.start()
             QTimer.singleShot(400, self.refresh_devices)
@@ -226,7 +230,15 @@ class SonarController(QObject):
         self.status_changed.emit(status)
 
     def refresh_streams(self) -> None:
-        self._job(self.sonar.streams, lambda s: self.streams_changed.emit(s or []), quiet=True)
+        """Who is playing where, and who is recording — one job, two signals."""
+        def done(result):
+            if result is None:
+                return
+            playing, recording = result
+            self.streams_changed.emit(playing)
+            self.recorders_changed.emit(recording)
+
+        self._job(lambda: (self.sonar.streams(), self.sonar.recorders()), done, quiet=True)
 
     def refresh_devices(self) -> None:
         self._job(lambda: (self.sonar.outputs(), self.sonar.inputs()),
