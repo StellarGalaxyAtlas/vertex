@@ -210,6 +210,24 @@ Asked 2026-10-13.
   a clip gets the clip's lanes numbered rather than one called Aux (or,
   guessed from its name, Microphone).
 
+**18.** ✅ Done (bug)
+**Dialogs › Text cut off**
+"Clear the cache?" showed its explanation's second line cut off at the
+bottom. Reported 2026-10-13, with a screenshot.
+- Cause: Qt sizes a window once, from its layout, and then leaves its height
+  alone. When the text wraps onto more lines than were counted (the dialog
+  shown at another width, in another font, on another screen), the last line
+  is cut. It didn't happen in the container, so the exact trigger on the
+  maintainer's desktop is a guess; changing the font after the dialog opens
+  reproduces it.
+- Fixed: `widgets.TextDialog` keeps a dialog's minimum height at what its
+  wrapped text needs at its current width, checked whenever it is shown,
+  resized or its contents change. The confirmation dialogs (`ChoiceDialog`,
+  used by Clear the cache, deleting a clip and unsaved settings) and Reset's
+  type-to-confirm dialog use it. Export, Copy clips and Tag import don't:
+  they hold lists and are meant to be resized, so their minimum height
+  shouldn't grow to their full height. Move them over if they show the same.
+
 **16.** ✅ Done (bug)
 **Library › Tagging a clip**
 The tag dialog suggests nothing, and doesn't apply the changes. Reported
@@ -349,7 +367,7 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
 configs, the 1.x library upgrade and an Aux lane (item 15).
 
-**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17 and the bugs 14 and 16. Next: 13,
+**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17 and the bugs 14, 16 and 18. Next: 13,
 unless the maintainer says otherwise (9 is on hold). Open question for 13:
 may `docs/CONTROL.md` be written, given the freeze on `docs/`? The
 notification stream (`Context.notified`) is ready for 13's subscription.

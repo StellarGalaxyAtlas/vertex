@@ -7,6 +7,7 @@ from typing import ClassVar
 from PySide6.QtCore import (
     Property,
     QEasingCurve,
+    QEvent,
     QPoint,
     QPropertyAnimation,
     QRect,
@@ -596,7 +597,26 @@ class Banner(QLabel):
             self._timer.start(ms)
 
 
-class ChoiceDialog(QDialog):
+class TextDialog(QDialog):
+    """A dialog of text and buttons, always as tall as its wrapped text needs
+    at the width it has.
+
+    Qt sizes a window once, from its layout, then leaves its height alone:
+    text that wraps onto more lines than were counted (shown at another
+    width, in another font, on another screen) is cut off at the bottom."""
+
+    def event(self, event):
+        handled = super().event(event)
+        if event.type() in (QEvent.Type.Show, QEvent.Type.Resize, QEvent.Type.LayoutRequest):
+            layout = self.layout()
+            if layout is not None and layout.hasHeightForWidth():
+                need = layout.totalHeightForWidth(self.width())
+                if self.minimumHeight() != need:
+                    self.setMinimumHeight(need)      # grows the window if it is shorter
+        return handled
+
+
+class ChoiceDialog(TextDialog):
     """A message with a set of choices; `ask` returns the chosen value or None."""
 
     def __init__(self, parent, title: str, message: str, detail: str = "",

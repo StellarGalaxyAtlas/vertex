@@ -9,10 +9,10 @@ from PySide6.QtWidgets import QDialog, QHBoxLayout, QLineEdit, QVBoxLayout
 
 from vertex.core import storage
 from vertex.ui import theme
-from vertex.ui.widgets import ChoiceDialog, Section, button, label
+from vertex.ui.widgets import ChoiceDialog, Section, TextDialog, button, label
 
 
-class TypeToConfirm(QDialog):
+class TypeToConfirm(TextDialog):
     """A red warning that lists what goes and what stays, and only lets the
     action through once `word` has been typed."""
 

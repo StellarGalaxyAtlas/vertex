@@ -780,6 +780,30 @@ def test_setup_runs_again_from_settings(qapp, window, monkeypatch):
     assert context.config.clip_path == before["clip_path"]
 
 
+def test_text_dialogs_grow_to_fit_their_wrapped_text(qapp, window):
+    from PySide6.QtWidgets import QLabel
+
+    from vertex.ui.widgets import ChoiceDialog
+
+    dialog = ChoiceDialog(window, "Clear the cache", "Clear the cache?",
+                          "Thumbnails and previews are deleted and made again as you browse.",
+                          [("Clear the cache", "clear", "danger")])
+    dialog.show()
+    detail = next(lab for lab in dialog.findChildren(QLabel) if "browse" in lab.text())
+
+    def fits():
+        qapp.processEvents()
+        return detail.height() >= detail.heightForWidth(detail.width())
+    assert fits()
+    # Its text grows after it was sized (another font, another screen)…
+    detail.setStyleSheet("font-size: 18pt;")
+    assert wait_until(qapp, fits, 3)
+    # …or it is narrower than planned.
+    dialog.resize(dialog.minimumWidth(), 10)
+    assert wait_until(qapp, fits, 3)
+    dialog.reject()
+
+
 def test_reset_confirms_by_typing_the_word(qapp, window):
     from vertex.ui.settings.reset import TypeToConfirm
 
