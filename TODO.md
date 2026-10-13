@@ -284,6 +284,18 @@ Asked 2026-10-13.
 
 Questions in the Notes.
 
+Progress:
+- Notifications, done: `vertex/notifications.py` lists the categories (Clips,
+  Sonar, Vertex) and every kind, with its default and level; config.json's
+  `notifications` keeps the switches changed from their default. Everything
+  goes through `Context.notify(kind, title, body)`, whose `notified` signal
+  is what item 13 can pass on. The window shows each notice in its message
+  bar, and pops it up through the tray when its kind is on and the window
+  isn't in front. New kinds: replay buffer started, stopped and restarted,
+  Sonar on or off, output device and microphone changed (all but the last
+  two off by default); the ones that only showed in the window (a track's
+  device missing, Sonar's and the library's problems) can now pop up too.
+
 ---
 
 ## Notes
@@ -410,6 +422,18 @@ with a bar.
   Notifications tab is built from that list, so a new type is one entry
   there and one call where it happens. Item 13's subscription can carry
   the same events.
+- Decided (2026-10-13): 17 before 13. Categories "Clips", "Sonar" and
+  "Vertex". The switches decide which desktop pop-ups appear; the in-app
+  message bar keeps showing everything while the window is open. "Saving a
+  clip" moves to a "Shortcuts" tab with copyable `vertex` commands (where
+  item 9's hotkeys can go later). The storage gauge is reworked in both
+  places (Recording and the rail): one slim bar in the accent colour, with
+  "Room for about N more clips · X free of Y". Library, State and Cache fold
+  away under "Advanced" in Folders. "Run first-run setup again" opens setup
+  with the current settings, after a warning; Cancel changes nothing and
+  nothing is deleted. Resetting the config or the database moves the file to
+  the Trash after a red dialog where you type a word to confirm; clearing the
+  cache asks plainly. Resetting the config opens first-run setup.
 
 **Order.** Do item 13 before or together with item 9. Any action exposed as a
 `vertex …` command can be bound to a desktop keyboard shortcut, which is the

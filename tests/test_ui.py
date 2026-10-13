@@ -370,17 +370,18 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     assert wait_until(qapp, lambda: recorder.phase == "running")
     assert "-w DP-1" in " ".join(recorder.argv())
 
-    states, messages = [], []
+    states, notices = [], []
     recorder.state_changed.connect(lambda state, _error: states.append(state))
-    context.message.connect(lambda text, _level: messages.append(text))
+    context.notified.connect(notices.append)
     card = window.rail.recorder_card
     recorder.restart_if_running()
     assert card.detail.text() == "Restarting…"
-    assert wait_until(qapp, lambda: recorder.phase == "running" and messages)
+    assert wait_until(qapp, lambda: recorder.phase == "running" and notices)
     # No "Off" or "Starting…" flashing past in between.
     assert states == ["restarting", "running"]
     assert card.detail.text().startswith("On")
-    assert messages == ["Replay buffer restarted with the new settings. It starts empty."]
+    assert [(n.kind, n.title) for n in notices] == [("replay_restarted",
+                                                     "Replay buffer restarted")]
 
     # Sonar's devices coming or going switches tracks to or from their stand-ins.
     from vertex.audio.sonar import SonarStatus
@@ -651,6 +652,54 @@ def test_first_run_writes_config(qapp, tmp_path, fake_audio):
     futures.wait([win.start_menu_job], timeout=30)    # see the window fixture
     win._quitting = True
     context.shutdown()
+
+
+def test_notifications_pop_up_by_kind_when_the_window_is_not_in_front(
+        qapp, window, monkeypatch):
+    from types import SimpleNamespace
+
+    from vertex import notifications
+    from vertex.audio.sonar import SonarStatus
+    from vertex.ui.app import Commands
+
+    context, settings = window.context, window.settings_view
+    popped = []
+    monkeypatch.setattr(window, "tray", SimpleNamespace(pop_up=popped.append))
+    monkeypatch.setattr(window, "isActiveWindow", lambda: False)
+
+    context.notify("clip_saved", "Clip saved", "a.mp4")
+    assert window.banner.text() == "Clip saved: a.mp4"
+    assert [n.kind for n in popped] == ["clip_saved"]
+    context.notify("replay_started", "Replay buffer on")          # off by default
+    assert window.banner.text() == "Replay buffer on"
+    assert len(popped) == 1
+
+    # The tab has a switch for every kind; Save keeps the ones changed.
+    assert set(settings.notifications.switches) == set(notifications.BY_ID)
+    settings.notifications.switches["replay_started"].setChecked(True)
+    settings.notifications.switches["clip_saved"].setChecked(False)
+    assert settings.save()
+    assert Config.load().notifications == {"replay_started": True, "clip_saved": False}
+    context.notify("clip_saved", "Clip saved", "b.mp4")
+    context.notify("replay_started", "Replay buffer on")
+    assert [n.kind for n in popped] == ["clip_saved", "replay_started"]
+
+    # A save asked for from a shortcut, with the buffer off, says so.
+    reply = Commands(window, context)._run("save-clip", {})
+    assert not reply["ok"] and popped[-1].kind == "clip_not_saved"
+    # Sonar switching device.
+    context.config.sonar.device_names["hw_b"] = "USB headset"
+    context.sonar._got_status(SonarStatus(active=True, output="hw_a", mic="mic_a"))
+    context.sonar._got_status(SonarStatus(active=True, output="hw_b", mic="mic_a"))
+    assert (popped[-1].kind, popped[-1].body) == ("output_changed", "USB headset")
+
+    # With the window in front, only the bar at its bottom shows it.
+    monkeypatch.setattr(window, "isActiveWindow", lambda: True)
+    count = len(popped)
+    context.notify("replay_started", "Replay buffer on")
+    assert len(popped) == count
+    with pytest.raises(KeyError):
+        context.notify("no_such_kind", "?")
 
 
 def test_control_commands(qapp, window):

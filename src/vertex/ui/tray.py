@@ -6,7 +6,8 @@ from __future__ import annotations
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
-from vertex import APP_NAME
+from vertex import APP_NAME, notifications
+from vertex.recorder.replay import RecorderError
 from vertex.ui import icons
 
 
@@ -55,8 +56,8 @@ class Tray(QSystemTrayIcon):
     def _save(self, seconds) -> None:
         try:
             self.context.recorder.save(seconds)
-        except Exception as exc:     # shown to the user
-            self.showMessage(APP_NAME, str(exc), QSystemTrayIcon.MessageIcon.Warning, 4000)
+        except RecorderError:
+            pass         # the recorder has told the user
 
     def _recorder_state(self, state: str, error: str) -> None:
         running = state == "running"
@@ -69,13 +70,17 @@ class Tray(QSystemTrayIcon):
                "restarting": "restarting the replay buffer",
                "failed": "replay buffer stopped"}.get(state, "replay buffer off")
         self.setToolTip(f"{APP_NAME} — {tip}")
-        if state == "failed" and error:
-            self.showMessage(f"{APP_NAME}: replay buffer stopped", error,
-                             QSystemTrayIcon.MessageIcon.Warning, 8000)
 
     def _sonar_state(self) -> None:
         self.sonar_action.setChecked(self.context.config.sonar.enabled)
 
-    def notify_saved(self, name: str) -> None:
-        self.showMessage("Clip saved", name, icons.app_icon(self.context.config.logo_variant),
-                         4000)
+    def pop_up(self, notice: notifications.Notice) -> None:
+        """Show a notice on the desktop."""
+        level = notifications.BY_ID[notice.kind].level
+        title = notice.title or APP_NAME
+        if level in ("warn", "error"):
+            self.showMessage(title, notice.body, QSystemTrayIcon.MessageIcon.Warning,
+                             8000 if level == "error" else 6000)
+        else:
+            self.showMessage(title, notice.body,
+                             icons.app_icon(self.context.config.logo_variant), 4000)

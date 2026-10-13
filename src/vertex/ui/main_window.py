@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop
+from vertex import APP_NAME, desktop, notifications
 from vertex.config import Config
 from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
@@ -74,10 +74,9 @@ class MainWindow(QMainWindow):
         self.first_run: FirstRunView | None = None
 
         context.message.connect(self.banner.show_message)
+        context.notified.connect(self._notified)
         self.state.status.connect(self.banner.show_message)
         context.recorder.saved.connect(self._clip_saved)
-        context.recorder.state_changed.connect(self._recorder_state)
-        context.sonar.warning.connect(lambda text: self.banner.show_message(text, "warn"))
         context.library_reset.connect(self._watch_folder)
 
         self.watcher = QFileSystemWatcher(self)
@@ -154,7 +153,7 @@ class MainWindow(QMainWindow):
         failed = context.config.ensure_dirs()
         context.save_config()
         if failed:
-            self.banner.show_message(f"Could not create {failed[0]}", "error")
+            context.notify("vertex_problem", "Could not create a folder", failed[0])
         page, self.first_run = self.first_run, None
         self._remove_page(page)
         self.settings_view.load()
@@ -254,15 +253,19 @@ class MainWindow(QMainWindow):
             self.state.reload()
 
     def _clip_saved(self, path: str) -> None:
-        name = os.path.basename(path)
         self.state.reload()
-        self.banner.show_message(f"Clip saved: {name}", "ok")
-        if self.tray is not None and not self.isActiveWindow():
-            self.tray.notify_saved(name)
+        self.context.notify("clip_saved", "Clip saved", os.path.basename(path))
 
-    def _recorder_state(self, state: str, error: str) -> None:
-        if state == "failed" and error:
-            self.banner.show_message(error, "error", 12000)
+    def _notified(self, notice: notifications.Notice) -> None:
+        """Every notice shows at the bottom of the window. It pops up on the
+        desktop too, if its kind is switched on and the window isn't in front."""
+        kind = notifications.BY_ID[notice.kind]
+        self.banner.show_message(notice.line, kind.level, 12000 if kind.level == "error"
+                                 else 6000)
+        in_front = self.isVisible() and self.isActiveWindow() and not self.isMinimized()
+        if self.tray is not None and not in_front and not self._quitting and \
+                notifications.enabled(self.context.config.notifications, kind.id):
+            self.tray.pop_up(notice)
 
     # --- Window -------------------------------------------------------------------
 
@@ -281,8 +284,8 @@ class MainWindow(QMainWindow):
             self.hide()
             if not self._told_about_tray:
                 self._told_about_tray = True
-                self.tray.showMessage(APP_NAME, "Still running in the tray. Quit from its "
-                                                "menu.", icons.app_icon(), 4000)
+                self.context.notify("in_tray", "Still running in the tray",
+                                    "Quit from its menu.")
             return
         if not self._quitting:
             event.ignore()

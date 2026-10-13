@@ -1,4 +1,4 @@
-"""Settings: folders and app behaviour, recording, import."""
+"""Settings: folders and app behaviour, recording, notifications, import."""
 
 from __future__ import annotations
 
@@ -40,6 +40,7 @@ from vertex.recorder import gsr, monitors, presets
 from vertex.ui import screens, theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.settings import monitors as monitor_map
+from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.widgets import (
     Banner,
     Disclosure,
@@ -121,7 +122,8 @@ class SettingsView(QWidget):
         header.setContentsMargins(0, 0, 12, 0)
         layout.addLayout(header)
         self.tabs = Segmented([("general", "General"), ("recording", "Recording"),
-                               ("import", "Import")], "general")
+                               ("notifications", "Notifications"), ("import", "Import")],
+                              "general")
         self.tabs.changed.connect(lambda key, _d: self.show_page(key))
         layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
         self.stack = QStackedWidget()
@@ -140,6 +142,9 @@ class SettingsView(QWidget):
         self._audio_devices: list[tuple[str, str]] = []
         self._build_general()
         self._build_recording()
+        self.notifications = NotificationsPage()
+        self.pages["notifications"] = scroll_page(*self.notifications.sections)
+        self.stack.addWidget(self.pages["notifications"])
         self._build_import()
         self.load()
 
@@ -393,6 +398,7 @@ class SettingsView(QWidget):
         self.close_to_tray.setChecked(config.close_to_tray)
         self.autostart.setChecked(desktop.autostart_enabled())
         self.logo.set_current(config.logo_variant)
+        self.notifications.load(config.notifications)
 
         rec = config.recorder
         self.command.setText(rec.command)
@@ -428,6 +434,7 @@ class SettingsView(QWidget):
         config.cache_path = self.cache_path.value()
         config.close_to_tray = self.close_to_tray.isChecked()
         config.logo_variant = self.logo.current
+        config.notifications = self.notifications.choices()
         rec = config.recorder
         rec.command = self.command.text().strip() or "gpu-screen-recorder"
         rec.autostart = self.rec_autostart.isChecked()
@@ -486,7 +493,7 @@ class SettingsView(QWidget):
             variant = new.logo_variant
             workers.run(lambda: desktop.update_icons(variant), None, lambda _exc: None)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
-                    "close_to_tray", "logo_variant"):
+                    "close_to_tray", "logo_variant", "notifications"):
             setattr(old, key, getattr(new, key))
         old.recorder = new.recorder
         old.ensure_dirs()

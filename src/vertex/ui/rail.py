@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import fmt, paths
+from vertex.recorder.replay import RecorderError
 from vertex.ui import icons, theme
 from vertex.ui.library.state import Facet, LibraryState
 from vertex.ui.widgets import IconButton, StorageGauge, label
@@ -172,8 +173,8 @@ class RecorderCard(QFrame):
     def _save(self) -> None:
         try:
             self.context.message.emit(self.context.recorder.save(), "info")
-        except Exception as exc:     # shown to the user
-            self.context.message.emit(str(exc), "error")
+        except RecorderError:
+            pass         # the recorder has told the user
 
     def update_state(self, state: str, error: str) -> None:
         seconds = self.context.config.recorder.replay_seconds

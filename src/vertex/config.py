@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vertex import APP_NAME, paths
+from vertex import APP_NAME, notifications, paths
 from vertex.audio import channels
 
 # Subfolder of the user's videos dir that clips are recorded into by default.
@@ -144,6 +144,8 @@ class Config:
     logo_variant: str = paths.DEFAULT_LOGO_VARIANT
     close_to_tray: bool = True
     rail_collapsed: list[str] = field(default_factory=list)   # folded groups: games, people
+    # Desktop pop-ups switched away from their default, by kind (see notifications).
+    notifications: dict[str, bool] = field(default_factory=dict)
 
     recorder: RecorderConfig = field(default_factory=RecorderConfig)
     sonar: SonarConfig = field(default_factory=SonarConfig)
@@ -218,6 +220,8 @@ class Config:
     def from_dict(cls, data: dict[str, Any]) -> Config:
         config = _fill(cls(), data, skip=("recorder", "sonar"))
         config.logo_variant = paths.logo_variant(config.logo_variant)
+        config.notifications = notifications.changed_choices(
+            {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
         config.sonar = _load_sonar(data.get("sonar"))
         return config
