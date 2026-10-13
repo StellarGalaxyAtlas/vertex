@@ -29,9 +29,10 @@ def test_v1_config_loads_unchanged(tmp_path):
 def test_round_trip_with_new_sections(tmp_path):
     cfg = config.default_config()
     cfg.sonar.enabled = True
-    cfg.sonar.channel("media").record = False
+    cfg.sonar.channel("media").volume = 0.5
     cfg.sonar.app_rules["spotify"] = "media"
-    cfg.recorder.audio_sources = ["default_output"]
+    cfg.recorder.chat_audio = ""
+    cfg.recorder.mic_audio = "device:alsa_input.usb-mic"
     path = tmp_path / "config.json"
     cfg.save(path)
     again = config.Config.load(path)

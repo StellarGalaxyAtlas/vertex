@@ -57,7 +57,7 @@ and the entry is named just "Vertex".
   ("Game Clip Recorder"), so menus show just "Vertex". Changing the logo ink
   redraws the start-menu icon on Save.
 
-**4.**
+**4.** ✅ Done
 **Settings › Recording › Audio**
 Three drop-downs choose what goes into clips, one track each:
 - Game audio device
@@ -67,8 +67,16 @@ Three drop-downs choose what goes into clips, one track each:
 This replaces choosing tracks on the Sonar page (see 5). Media is no longer
 recorded by default because it is not one of the three; that was this item's
 old aim ("Media not in clips by default"). Questions in the Notes.
+- Done: the three drop-downs sit under "Record the cursor". Recording no
+  longer depends on Sonar: each track is the device picked, Sonar's channels
+  among them. Defaults: Vertex Game, Vertex Chat, Vertex Mic. While a device
+  picked is missing (Sonar off or crashed, a headset unplugged), Game and
+  Chat record the default output and the microphone the default input; the
+  pick is kept and used again once the device is back. The buffer restarts
+  by itself when Sonar's devices come or go. "Saving a clip" moved below
+  Recording Settings.
 
-**5.**
+**5.** ✅ Done
 **Sonar › Channels**
 Remove the "In clips" checkbox under each channel, and the "In your clips"
 text that refers to it. Do this after 4: until then the checkbox is the only
@@ -171,9 +179,11 @@ already behind: README still says to set *Capture* to *Portal* if recording a
 monitor fails, shows the old Recording page, and has people run `vertex
 install-desktop` (still works, but no longer needed); `docs/ARCHITECTURE.md`
 doesn't describe the monitor map, the primary-monitor fallback, the
-"Restarting…" state, `recorder/presets.py` or the start-menu marker.
+"Restarting…" state, `recorder/presets.py`, the start-menu marker or the
+recorded tracks no longer depending on Sonar (it still says channels are
+ticked "In clips").
 
-**Progress.** Done: 1, 2, 3, 6 and 7. Next: 4, unless the maintainer says otherwise.
+**Progress.** Done: 1–7. Next: 8a, unless the maintainer says otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
@@ -258,7 +268,14 @@ with a bar.
 `vertex …` command can be bound to a desktop keyboard shortcut, which is the
 simplest reliable way to get global hotkeys on Wayland.
 
-**Item 4.** To settle before building:
+**Item 4 (done).** Settled on 2026-10-13: the maintainer wants recording
+decoupled from Sonar, with the device settings on the Recording page. The
+stand-ins (default output for Game and Chat, default input for the mic) are
+the maintainer's. Each track is titled by its role ("Vertex Game"), so the
+editor names its lane Game whatever device it came from (GSR 5.15+; older
+versions title tracks after the device). A missing Sonar channel is stood in
+for silently, as it is the plan while Sonar is off; any other missing device
+gets a message. The questions below were answered by that:
 - What each drop-down offers. Proposal: "None" (no track), the Vertex
   channels (Vertex Game, Chat, Media, Aux; Vertex Mic for the microphone) and
   the real devices. Defaults with Sonar on: Vertex Game, Vertex Chat, Vertex

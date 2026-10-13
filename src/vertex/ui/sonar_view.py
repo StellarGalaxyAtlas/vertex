@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QMimeData, Qt, QTimer
+from PySide6.QtCore import QMimeData, Qt
 from PySide6.QtGui import QDrag, QIcon
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -18,10 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import paths
 from vertex.audio import channels
 from vertex.audio.sonar import AppCapture, AppStream, SonarStatus
-from vertex.recorder import gsr
 from vertex.ui import icons, theme
 from vertex.ui.widgets import ElidedLabel, FlowLayout, IconButton, Section, Toggle, hline, label
 
@@ -127,8 +124,8 @@ class AppChip(QFrame):
 
 
 class ChannelColumn(QFrame):
-    """One channel: its volume, whether it is recorded, and the apps on it.
-    Output channels accept dropped apps."""
+    """One channel: its volume and the apps on it. Output channels accept
+    dropped apps."""
 
     def __init__(self, view, controller, channel: channels.Channel, parent=None):
         super().__init__(parent)
@@ -182,11 +179,6 @@ class ChannelColumn(QFrame):
         volume.addWidget(self.readout)
         layout.addLayout(volume)
 
-        self.record = QCheckBox("In clips")
-        self.record.setToolTip("Record this channel as its own track in every clip")
-        self.record.toggled.connect(lambda on: controller.set_record(channel.id, on))
-        layout.addWidget(self.record)
-
         layout.addWidget(hline())
         layout.addWidget(label("RECORDING FROM IT" if not channel.is_output else "APPS",
                                "Group"))
@@ -199,7 +191,6 @@ class ChannelColumn(QFrame):
         self._quiet = True
         self.slider.setValue(round(settings.volume * 100))
         self.mute.setChecked(settings.muted)
-        self.record.setChecked(settings.record)
         self._quiet = False
         self._paint_mute()
         self.set_apps([])
@@ -395,10 +386,6 @@ class SonarView(QWidget):
             self.mic.currentData() or ""))
         self.default_channel.activated.connect(self._on_default_channel)
 
-        self.clips = Section("In your clips", "")
-        self.tracks_text = label("", "Muted", wrap=True)
-        self.clips.add(self.tracks_text)
-        layout.addWidget(self.clips)
         layout.addStretch(1)
 
         self.controller.status_changed.connect(self._show_status)
@@ -407,17 +394,13 @@ class SonarView(QWidget):
         self.controller.streams_changed.connect(lambda s: self._update("streams", s))
         self.controller.recorders_changed.connect(lambda r: self._update("recorders", r))
         self.controller.devices_changed.connect(self._show_devices)
-        context.config_changed.connect(self._show_tracks)
-        context.recorder.info_changed.connect(lambda _i: self._show_tracks())
         self._show_status(self.controller.status)
-        self._show_tracks()
 
     def showEvent(self, event):
         super().showEvent(event)
         self.controller.refresh()
         self.controller.refresh_streams()
         self.controller.refresh_devices()
-        QTimer.singleShot(0, self._show_tracks)
 
     def _show_status(self, status: SonarStatus) -> None:
         enabled = self.context.config.sonar.enabled
@@ -556,23 +539,3 @@ class SonarView(QWidget):
             chips[capture.key] = AppChip(self, capture.key, capture.name, capture.icon,
                                          note=note, draggable=False, tooltip=tip)
         self.strips[channels.MIC.id].set_apps(list(chips.values()))
-
-    def _show_tracks(self) -> None:
-        config = self.context.config
-        tracks = gsr.audio_tracks(config)
-        if config.sonar.enabled:
-            names = " · ".join(track.title for track in tracks) or "no audio"
-            text = (f"New clips get one track per channel: {names}. Untick “In clips” on a "
-                    f"channel to leave it out.")
-            info = self.context.recorder.info
-            if info.available and not info.supports_track_names:
-                text += (f" GPU Screen Recorder {info.version_text} names tracks after the "
-                         f"device (“Monitor of Vertex Game”); 5.15 or newer names them by "
-                         f"channel. Vertex recognises both.")
-        else:
-            sources = ", ".join(track.source for track in tracks) or "no audio"
-            text = (f"With Sonar off, clips record: {sources} (set in Settings → Recording). "
-                    f"Turn Sonar on to give every clip the same Game, Chat, Media and Mic "
-                    f"tracks.")
-        self.tracks_text.setText(text)
-        self.clips.setToolTip(paths.tilde(config.resolved_recording_dir()))

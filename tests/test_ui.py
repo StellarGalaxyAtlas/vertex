@@ -208,7 +208,8 @@ def test_clip_settings_follow_the_recorded_monitor(qapp, window, monkeypatch):
     settings.resolution.setCurrentIndex(settings.resolution.findData("720p"))
     assert "-s 720x1280" in settings.preview.toPlainText()
     assert settings.video_quality.currentText() == "High · 11 Mbps"
-    assert settings.clip_size.text() == "About 81 MB per clip"
+    # 11 Mbps of video and three AAC tracks, for a minute.
+    assert settings.clip_size.text() == "About 82 MB per clip"
     assert wait_until(qapp, lambda: "more clips" in settings.disk_room.text())
 
     # A bitrate set by hand shows as Custom; picking a level drops it.
@@ -228,6 +229,53 @@ def test_clip_settings_follow_the_recorded_monitor(qapp, window, monkeypatch):
     assert settings.duration.currentText() == "45 seconds"
     assert settings.fps.currentText() == "144 fps"
     assert not settings.is_dirty()
+
+
+def test_tracks_are_chosen_on_the_recording_page(qapp, window, monkeypatch):
+    from PySide6.QtWidgets import QCheckBox
+
+    from vertex.recorder import gsr
+
+    window.navigate("settings")
+    settings = window.settings_view
+    settings.show_page("recording")
+    assert wait_until(qapp, lambda: "not installed" in settings.gsr_status.text())
+    # Sonar's devices by default; nothing about recording on the Sonar page.
+    rec = settings.collect().recorder
+    assert (rec.game_audio, rec.chat_audio, rec.mic_audio) == (
+        "device:vertex_game.monitor", "device:vertex_chat.monitor", "device:vertex_mic")
+    assert not window.sonar_view.findChildren(QCheckBox)
+
+    devices = [("default_output", "Default output"), ("default_input", "Default input"),
+               ("alsa_output.usb-headset.monitor", "Monitor of Arctis Nova Pro"),
+               ("alsa_input.usb-headset", "Arctis Nova Pro Mono")]
+    info = gsr.GsrInfo("gsr", True, (5, 15, 1), "5.15.1")
+    window.context.recorder.info = info          # names tracks in the preview
+    settings._show_recorder((info, [], devices))
+    qapp.processEvents()
+
+    def texts(widget):
+        return [widget.itemText(i) for i in range(widget.count())]
+
+    # Sonar is off here: its channels say what records instead.
+    assert texts(settings.chat_audio) == [
+        "None", "Default output", "Vertex Game (Sonar off: default output)",
+        "Vertex Chat (Sonar off: default output)", "Vertex Media (Sonar off: default output)",
+        "Vertex Aux (Sonar off: default output)", "Arctis Nova Pro"]
+    assert texts(settings.mic_audio) == [
+        "None", "Default microphone", "Vertex Mic (Sonar off: default microphone)",
+        "Arctis Nova Pro Mono"]
+    preview = settings.preview.toPlainText()
+    assert "name:Vertex Chat|default_output" in preview
+    assert "name:Vertex Mic|default_input" in preview
+
+    settings.chat_audio.setCurrentIndex(settings.chat_audio.findData(""))
+    settings.mic_audio.setCurrentIndex(settings.mic_audio.findData("device:alsa_input.usb-headset"))
+    assert "Vertex Chat" not in settings.preview.toPlainText()
+    assert "name:Vertex Mic|device:alsa_input.usb-headset" in settings.preview.toPlainText()
+    assert settings.save()
+    saved = Config.load().recorder
+    assert (saved.chat_audio, saved.mic_audio) == ("", "device:alsa_input.usb-headset")
 
 
 def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, monkeypatch):
@@ -261,6 +309,20 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     assert states == ["restarting", "running"]
     assert card.detail.text().startswith("On")
     assert messages == ["Replay buffer restarted with the new settings. It starts empty."]
+
+    # Sonar's devices coming or going switches tracks to or from their stand-ins.
+    from vertex.audio.sonar import SonarStatus
+    recorder._sonar_active = False
+    for active in (True, False):
+        states.clear()
+        context.sonar.status_changed.emit(SonarStatus(active=active))
+        assert wait_until(qapp, lambda: recorder.phase == "running" and len(states) >= 2)
+        assert states == ["restarting", "running"]
+    # Nothing changed: no restart.
+    states.clear()
+    context.sonar.status_changed.emit(SonarStatus(active=False))
+    qapp.processEvents()
+    assert states == []
 
     # Stopping in the middle of a restart stops it for good.
     recorder.restart_if_running()

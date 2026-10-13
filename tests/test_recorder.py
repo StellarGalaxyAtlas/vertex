@@ -20,7 +20,7 @@ FAKE_GSR = textwrap.dedent('''\
     if args == ["--version"]:
         print("5.15.1"); sys.exit(0)
     if args == ["--list-audio-devices"]:
-        print("default_output|Default output")
+        print("default_output|Default output"); print("default_input|Default input")
         print("vertex_game.monitor|Monitor of Vertex Game"); sys.exit(0)
     if args == ["--list-capture-options"]:
         print("window"); print("focused"); print("DP-1|2560x1440"); print("region")
@@ -72,12 +72,11 @@ class TestArgv:
         assert pairs["-bm"] == "cbr" and pairs["-q"] == "20000" and pairs["-v"] == "no"
         assert "-restore-portal-session" not in argv and "-ab" not in argv
 
-    def test_sonar_tracks_are_named_on_new_recorders(self):
+    def test_tracks_are_named_on_new_recorders(self):
+        # Sonar's Game, Chat and Mic by default, Sonar on or not.
         config = Config()
-        config.sonar.enabled = True
-        config.sonar.channel("aux").record = False
         tracks = gsr.audio_tracks(config)
-        assert [t.channel for t in tracks] == ["game", "chat", "media", "mic"]
+        assert [t.channel for t in tracks] == ["game", "chat", "mic"]
         new = gsr.GsrInfo("gsr", True, (5, 15, 1))
         old = gsr.GsrInfo("gsr", True, (5, 10, 2))
         argv = gsr.build_argv(config.recorder, tracks, "/c", new)
@@ -87,10 +86,34 @@ class TestArgv:
         assert "device:vertex_game.monitor" in argv
         assert not [a for a in argv if a.startswith("name:")]
 
-    def test_without_sonar_uses_configured_sources(self):
+    def test_tracks_are_the_devices_chosen_titled_by_role(self):
         config = Config()
-        config.recorder.audio_sources = ["default_output", " ", "app:firefox"]
-        assert [t.source for t in gsr.audio_tracks(config)] == ["default_output", "app:firefox"]
+        config.recorder.game_audio = "default_output"
+        config.recorder.chat_audio = " "
+        config.recorder.mic_audio = "device:alsa_input.usb-mic"
+        assert [(t.source, t.title, t.channel) for t in gsr.audio_tracks(config)] == [
+            ("default_output", "Vertex Game", "game"),
+            ("device:alsa_input.usb-mic", "Vertex Mic", "mic")]
+
+    def test_missing_devices_are_stood_in_for(self):
+        tracks = gsr.audio_tracks(Config())
+        # Sonar off: its channels are missing, the defaults stand in.
+        devices = ["default_output", "default_input", "alsa_output.x.monitor"]
+        usable, stood_in = gsr.available_tracks(tracks, devices)
+        assert [(t.source, t.title) for t in usable] == [
+            ("default_output", "Vertex Game"), ("default_output", "Vertex Chat"),
+            ("default_input", "Vertex Mic")]
+        assert [(t.channel, instead) for t, instead in stood_in] == [
+            ("game", "default_output"), ("chat", "default_output"), ("mic", "default_input")]
+        # Sonar on: the devices chosen, untouched.
+        devices += ["vertex_game.monitor", "vertex_chat.monitor", "vertex_mic"]
+        assert gsr.available_tracks(tracks, devices) == (tracks, [])
+        # Not even a default input: that track is left out.
+        usable, stood_in = gsr.available_tracks(tracks, ["default_output"])
+        assert [t.channel for t in usable] == ["game", "chat"]
+        assert stood_in[-1][1] == ""
+        # Nothing known about the devices: everything as chosen.
+        assert gsr.available_tracks(tracks, []) == (tracks, [])
 
     def test_options(self):
         rec = RecorderConfig(command="flatpak run --command=gpu-screen-recorder x.y",

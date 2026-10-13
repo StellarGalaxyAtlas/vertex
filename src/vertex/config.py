@@ -72,9 +72,13 @@ class RecorderConfig:
     keyframe_interval: float = 2.0
     restore_portal_session: bool = True
     output_dir: str = ""             # "" = the clip folder
-    # Audio tracks when Sonar is off: raw `-a` values, one track each.
-    audio_sources: list[str] = field(
-        default_factory=lambda: ["default_output", "default_input"])
+    # The clip's audio tracks, as GSR's -a takes them ("default_output",
+    # "default_input", "device:<node>"); "" = no such track. Sonar's channels
+    # are devices like any other: while one is missing (Sonar off), its track
+    # records the default output or input instead (gsr.available_tracks).
+    game_audio: str = f"device:{channels.GAME.record_source}"
+    chat_audio: str = f"device:{channels.CHAT.record_source}"
+    mic_audio: str = f"device:{channels.MIC.record_source}"
     extra_args: str = ""
     # Tag a new clip with the app playing on the Game channel when it is saved.
     tag_from_game_channel: bool = True
@@ -86,11 +90,10 @@ class RecorderConfig:
 class ChannelSettings:
     volume: float = 1.0      # 0..1, applied to the virtual device
     muted: bool = False
-    record: bool = True      # whether the recorder captures this channel
 
 
 def _default_channels() -> dict[str, ChannelSettings]:
-    return {c.id: ChannelSettings(record=c.record) for c in channels.ALL}
+    return {c.id: ChannelSettings() for c in channels.ALL}
 
 
 @dataclass
@@ -109,8 +112,7 @@ class SonarConfig:
     def channel(self, channel_id: str) -> ChannelSettings:
         settings = self.channels.get(channel_id)
         if settings is None:
-            known = channels.get(channel_id)
-            settings = ChannelSettings(record=known.record if known else False)
+            settings = ChannelSettings()
             self.channels[channel_id] = settings
         return settings
 

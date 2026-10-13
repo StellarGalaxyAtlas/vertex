@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import desktop, fmt, paths
+from vertex.audio import channels
 from vertex.config import (
     AUDIO_CODECS,
     BITRATE_MODES,
@@ -135,6 +136,8 @@ class SettingsView(QWidget):
         self._capture = "screen"
         # The disk the clips go to, once measured.
         self._storage: storage.StorageStats | None = None
+        # The audio devices GSR said it can record: (name, description).
+        self._audio_devices: list[tuple[str, str]] = []
         self._build_general()
         self._build_recording()
         self._build_devices()
@@ -234,6 +237,17 @@ class SettingsView(QWidget):
         clips.add(grid)
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
+        self.game_audio = QComboBox()
+        self.chat_audio = QComboBox()
+        self.mic_audio = QComboBox()
+        tracks = FieldGrid(field_width=190)
+        for title, widget in (("Game audio", self.game_audio), ("Chat audio", self.chat_audio),
+                              ("Microphone", self.mic_audio)):
+            tracks.add(title, widget)
+        clips.add(tracks)
+        clips.add(label("Each is its own track in your clips. While Sonar is off, its "
+                        "channels record the default output and microphone instead.",
+                        "Dim", wrap=True))
         clips.add(self._build_estimate())
 
         advanced = Disclosure("Advanced", "Bitrate, codecs, audio, where clips go, and the "
@@ -274,8 +288,8 @@ class SettingsView(QWidget):
                        "folder set under General")
         self.clip_path.changed.connect(self._show_clips_folder)
 
-        audio = Section("Audio", "With Sonar on, every recorded channel is its own track — "
-                                 "choose which on the Sonar page.")
+        audio = Section("Audio", "How the tracks chosen under Recording Settings are "
+                                 "encoded.")
         self.audio_codec = combo(AUDIO_CODECS, "aac")
         audio.add_row("Codec", self.audio_codec)
         self.audio_bitrate = QSpinBox()
@@ -283,15 +297,6 @@ class SettingsView(QWidget):
         self.audio_bitrate.setSpecialValueText("Automatic")
         self.audio_bitrate.setSuffix(" kbps")
         audio.add_row("Bitrate", self.audio_bitrate)
-        self.audio_sources = QPlainTextEdit()
-        self.audio_sources.setPlaceholderText("default_output\ndefault_input")
-        self.audio_sources.setFixedHeight(84)
-        self.audio_sources.setMinimumWidth(320)
-        audio.add_row("Tracks without Sonar", self.audio_sources,
-                      "One per line: default_output, default_input, device:<name>, "
-                      "app:<name>; join sources into one track with |")
-        self.audio_devices = label("", "Dim", wrap=True)
-        audio.add(self.audio_devices)
 
         recorder = Section("Recorder")
         self.command = QLineEdit()
@@ -320,7 +325,8 @@ class SettingsView(QWidget):
         self.video_quality.activated.connect(self._pick_quality)
         for widget in (self.bitrate, self.audio_bitrate):
             widget.valueChanged.connect(self._clip_settings_changed)
-        self.audio_sources.textChanged.connect(self._clip_settings_changed)
+        for widget in (self.game_audio, self.chat_audio, self.mic_audio):
+            widget.currentIndexChanged.connect(self._clip_settings_changed)
         for widget in (self.command, self.extra_args):
             widget.textChanged.connect(self._update_preview)
         self.keyint.valueChanged.connect(self._update_preview)
@@ -329,7 +335,7 @@ class SettingsView(QWidget):
             widget.currentIndexChanged.connect(self._update_preview)
         self.cursor.toggled.connect(self._update_preview)
 
-        self.pages["recording"] = scroll_page(status, hotkey, clips, advanced)
+        self.pages["recording"] = scroll_page(status, clips, hotkey, advanced)
         self.stack.addWidget(self.pages["recording"])
 
     def _build_estimate(self) -> QWidget:
@@ -426,7 +432,6 @@ class SettingsView(QWidget):
         self._show_clips_folder(config.resolved_clip_dir())
         _set_combo(self.audio_codec, rec.audio_codec)
         self.audio_bitrate.setValue(rec.audio_bitrate)
-        self.audio_sources.setPlainText("\n".join(rec.audio_sources))
         self.extra_args.setText(rec.extra_args)
         for key, field in self.legacy.items():
             field.setEditText(getattr(config, key))
@@ -468,8 +473,10 @@ class SettingsView(QWidget):
         rec.output_dir = self.output_dir.value()
         rec.audio_codec = self.audio_codec.currentData()
         rec.audio_bitrate = self.audio_bitrate.value()
-        rec.audio_sources = [line.strip() for line in
-                             self.audio_sources.toPlainText().splitlines() if line.strip()]
+        for widget, name in ((self.game_audio, "game_audio"), (self.chat_audio, "chat_audio"),
+                             (self.mic_audio, "mic_audio")):
+            if widget.currentData() is not None:
+                setattr(rec, name, widget.currentData())
         rec.extra_args = self.extra_args.text().strip()
         for key, field in self.legacy.items():
             setattr(config, key, field.currentText().strip())
@@ -536,19 +543,16 @@ class SettingsView(QWidget):
         info, captures, devices = result
         if info.available:
             note = "" if info.supports_track_names else \
-                " — update to 5.15+ to name clip tracks by Sonar channel"
+                " — update to 5.15+ so clip tracks are named Game, Chat and Microphone"
             self.gsr_status.setText(f"Found GPU Screen Recorder {info.version_text}{note}.")
             self.gsr_status.setStyleSheet(f"color: {theme.OK if not note else theme.WARN};")
         else:
             self.gsr_status.setText(info.error)
             self.gsr_status.setStyleSheet(f"color: {theme.WARN};")
         self._capture_options = captures
+        self._audio_devices = devices
         self._show_capture()
         self._clip_settings_changed()
-        if devices:
-            names = ", ".join(name for name, _desc in devices[:12])
-            self.audio_devices.setText(f"Devices GPU Screen Recorder can record: {names}"
-                                       f"{'…' if len(devices) > 12 else ''}")
         sources = [name for name, _desc in devices if name.endswith(".monitor") or
                    not name.startswith("default_")]
         for field in self.legacy.values():
@@ -656,6 +660,43 @@ class SettingsView(QWidget):
             levels.append(("custom", f"Custom · {mbps(rec.bitrate_kbps)}"))
             current = "custom"
         _fill(self.video_quality, levels, current, lambda q: q.replace("_", " ").capitalize())
+        self._show_audio_choices(rec)
+
+    def _show_audio_choices(self, rec) -> None:
+        """Each track's devices: none, the default, Sonar's channels (always:
+        Sonar may just be off), then the real devices GSR can record. One
+        missing now says what records in its place."""
+        known = {name for name, _d in self._audio_devices}
+        outputs, inputs = [], []
+        for name, description in self._audio_devices:
+            if name.startswith("default_") or name.startswith(channels.NODE_PREFIX):
+                continue
+            if name.endswith(".monitor"):
+                outputs.append((f"device:{name}", description.removeprefix("Monitor of ")))
+            else:
+                inputs.append((f"device:{name}", description))
+
+        def options(role, default_text, own, real):
+            fallback = gsr.fallback_source(role)
+            instead = "default output" if fallback == "default_output" else "default microphone"
+            items = [("", "None"), (fallback, default_text)]
+            for channel in own:
+                text = channel.description
+                if known and channel.record_source not in known:
+                    text += f" (Sonar off: {instead})"
+                items.append((f"device:{channel.record_source}", text))
+            return items + real, (lambda value: f"{value.removeprefix('device:')} "
+                                                f"(not available: {instead})")
+
+        for widget, setting, role, default_text, own, real in (
+                (self.game_audio, "game_audio", channels.GAME.id, "Default output",
+                 channels.OUTPUTS, outputs),
+                (self.chat_audio, "chat_audio", channels.CHAT.id, "Default output",
+                 channels.OUTPUTS, outputs),
+                (self.mic_audio, "mic_audio", channels.MIC.id, "Default microphone",
+                 (channels.MIC,), inputs)):
+            items, describe = options(role, default_text, own, real)
+            _fill(widget, items, getattr(rec, setting), describe)
 
     def _show_estimate(self) -> None:
         config = self.collect()
@@ -697,7 +738,10 @@ class SettingsView(QWidget):
     def _update_preview(self) -> None:
         try:
             config = self.collect()
-            argv = gsr.build_argv(self._as_recorded(config.recorder), gsr.audio_tracks(config),
+            # What will record, with stand-ins for devices that are missing now.
+            tracks, _stood_in = gsr.available_tracks(
+                gsr.audio_tracks(config), [name for name, _d in self._audio_devices])
+            argv = gsr.build_argv(self._as_recorded(config.recorder), tracks,
                                   config.resolved_recording_dir(), self.context.recorder.info)
             self.preview.setPlainText(shlex.join(argv))
         except ValueError as exc:

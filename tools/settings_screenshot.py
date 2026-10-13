@@ -53,8 +53,14 @@ def fake_recorder_and_monitors() -> None:
 
     gsr.detect = lambda command: gsr.GsrInfo(command, True, (5, 15, 1), "5.15.1")
     gsr.list_capture_options = lambda command: gsr.parse_capture_options(CAPTURE_OPTIONS)
-    gsr.list_audio_devices = lambda command: [("default_output", "Default output"),
-                                              ("default_input", "Default input")]
+    gsr.list_audio_devices = lambda command: [
+        ("default_output", "Default output"), ("default_input", "Default input"),
+        ("vertex_game.monitor", "Monitor of Vertex Game"),
+        ("vertex_chat.monitor", "Monitor of Vertex Chat"),
+        ("vertex_media.monitor", "Monitor of Vertex Media"),
+        ("vertex_aux.monitor", "Monitor of Vertex Aux"), ("vertex_mic", "Vertex Mic"),
+        ("alsa_output.usb-headset.monitor", "Monitor of Arctis Nova Pro Wireless"),
+        ("alsa_input.usb-headset", "Arctis Nova Pro Wireless Mono")]
     screens.desktop_screens = lambda: [
         monitors.Screen("HDMI-A-1", -1920, 360, 1920, 1080, "LG ULTRAGEAR", (1920, 1080)),
         monitors.Screen("DP-1", 0, 240, 2560, 1440, "DELL S2721DGF", (2560, 1440),

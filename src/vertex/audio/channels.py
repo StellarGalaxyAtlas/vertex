@@ -27,7 +27,6 @@ class Channel:
     label: str
     kind: str          # "output" (a virtual sink) or "input" (a virtual source)
     icon: str          # freedesktop icon name, for the system mixer and our UI
-    record: bool       # recorded into clips unless the user says otherwise
     blurb: str
 
     @property
@@ -55,15 +54,15 @@ class Channel:
         return self.description
 
 
-GAME = Channel("game", "Game", "output", "input-gaming", True,
+GAME = Channel("game", "Game", "output", "input-gaming",
                "Games. The default for anything not routed elsewhere.")
-CHAT = Channel("chat", "Chat", "output", "internet-group-chat", True,
+CHAT = Channel("chat", "Chat", "output", "internet-group-chat",
                "Voice chat — Discord, TeamSpeak, Mumble.")
-MEDIA = Channel("media", "Media", "output", "audio-x-generic", True,
+MEDIA = Channel("media", "Media", "output", "audio-x-generic",
                 "Music and video — Spotify, the browser.")
-AUX = Channel("aux", "Aux", "output", "audio-card", False,
+AUX = Channel("aux", "Aux", "output", "audio-card",
               "Anything you want kept apart from the rest.")
-MIC = Channel("mic", "Mic", "input", "audio-input-microphone", True,
+MIC = Channel("mic", "Mic", "input", "audio-input-microphone",
               "Your microphone, as one device every chat app can pick.")
 
 OUTPUTS: tuple[Channel, ...] = (GAME, CHAT, MEDIA, AUX)

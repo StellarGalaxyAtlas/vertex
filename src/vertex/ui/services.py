@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from vertex import fmt
+from vertex.audio import channels
 from vertex.audio.pulse import AudioError, Pactl
 from vertex.audio.sonar import Sonar, SonarStatus
 from vertex.config import Config
@@ -270,11 +271,6 @@ class SonarController(QObject):
         self._job(lambda: self.sonar.set_muted(channel_id, muted), quiet=True)
         self.context.save_config_later()
 
-    def set_record(self, channel_id: str, record: bool) -> None:
-        self.context.config.sonar.channel(channel_id).record = record
-        self.context.save_config()
-        self.context.recorder.restart_if_running()
-
     def set_output(self, device: str) -> None:
         self.context.config.sonar.output_device = device
         self.context.save_config()
@@ -339,6 +335,9 @@ class RecorderController(QObject):
         # False once stopped, so a start still finding GSR or Sonar doesn't
         # launch after all.
         self._wanted = False
+        # Whether Sonar's devices were all there when last seen.
+        self._sonar_active: bool | None = None
+        context.sonar.status_changed.connect(self._sonar_status)
         # What GSR said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
 
@@ -416,8 +415,31 @@ class RecorderController(QObject):
     def _launch(self) -> None:
         if self.running or not self._wanted:
             return
+        # Asked now, with Sonar up: its channels are only devices while it runs.
+        command = self.context.config.recorder.command
+        workers.run(lambda: [name for name, _d in gsr.list_audio_devices(command)],
+                    self._launch_with, lambda _exc: self._launch_with([]))
+
+    def _launch_with(self, devices: list[str]) -> None:
+        if self.running or not self._wanted:
+            return
+        config = self.context.config
+        tracks, stood_in = gsr.available_tracks(gsr.audio_tracks(config), devices)
+        for track, instead in stood_in:
+            device = track.source.removeprefix("device:")
+            if instead and channels.BY_NODE.get(device.removesuffix(".monitor")):
+                continue     # Sonar is off: its channels standing in is the plan
+            role = track.title.removeprefix("Vertex ")
+            what = {"default_output": "the default output",
+                    "default_input": "the default microphone"}.get(instead)
+            self.context.message.emit(
+                f"{role} audio: {device} isn't available, so " +
+                (f"clips record {what} until it is." if what else
+                 "clips are recorded without that track."), "warn")
         try:
-            self.recorder.start(self.argv(), self.context.config.resolved_recording_dir())
+            self.recorder.start(gsr.build_argv(self._as_recorded(), tracks,
+                                               config.resolved_recording_dir(), self.info),
+                                config.resolved_recording_dir())
         except RecorderError as exc:
             self._on_state((State.FAILED, str(exc)))
 
@@ -431,6 +453,22 @@ class RecorderController(QObject):
         if self.running or self._restarting:
             self.stop()
         else:
+            self.start()
+
+    def _sonar_status(self, status: SonarStatus) -> None:
+        """Sonar's devices came or went (turned off, crashed, back): tracks
+        recording one switch between it and its stand-in, which takes a
+        restart. A buffer that died with them starts again."""
+        was, self._sonar_active = self._sonar_active, status.active
+        if was is None or was == status.active:
+            return
+        nodes = {channel.node for channel in channels.ALL}
+        if not any(track.source.removeprefix("device:").removesuffix(".monitor") in nodes
+                   for track in gsr.audio_tracks(self.context.config)):
+            return
+        if self.running:
+            self.restart_if_running()
+        elif self._wanted and self.state == State.FAILED:
             self.start()
 
     def restart_if_running(self) -> None:
