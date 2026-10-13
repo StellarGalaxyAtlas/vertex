@@ -7,7 +7,9 @@ import time
 import pytest
 
 from vertex.config import Config, RecorderConfig
-from vertex.recorder import gsr
+from vertex.recorder import gsr, monitors
+from vertex.recorder.gsr import CaptureOption
+from vertex.recorder.monitors import Screen
 from vertex.recorder.replay import RecorderError, ReplayRecorder, State
 
 FAKE_GSR = textwrap.dedent('''\
@@ -21,7 +23,8 @@ FAKE_GSR = textwrap.dedent('''\
         print("default_output|Default output")
         print("vertex_game.monitor|Monitor of Vertex Game"); sys.exit(0)
     if args == ["--list-capture-options"]:
-        print("window"); print("DP-1|2560x1440@0x0"); print("portal"); sys.exit(0)
+        print("window"); print("focused"); print("DP-1|2560x1440"); print("region")
+        print("portal"); sys.exit(0)
     if "bad" in args:
         print("gsr error: invalid capture target", file=sys.stderr); sys.exit(2)
     out = args[args.index("-o") + 1]
@@ -133,11 +136,87 @@ class TestDetection:
         assert info.available and info.version == (5, 15, 1) and info.supports_track_names
         assert ("vertex_game.monitor", "Monitor of Vertex Game") in \
             gsr.list_audio_devices(fake_gsr)
-        assert gsr.list_capture_options(fake_gsr) == ["window", "DP-1", "portal"]
+        assert [o.value for o in gsr.list_capture_options(fake_gsr)] == \
+            ["window", "focused", "DP-1", "region", "portal"]
 
     def test_missing(self, tmp_path):
         info = gsr.detect(str(tmp_path / "nope"))
         assert not info.available and "not installed" in info.error
+        assert gsr.list_capture_options(str(tmp_path / "nope")) == []
+
+    def test_capture_options(self):
+        # As GSR 5.15 prints them: bare options, monitors with their size
+        # (turned with a rotated monitor), cameras once per mode.
+        text = ("window\nfocused\nDP-1|2560x1440\nHDMI-A-1|1080x1920\nregion\n"
+                "/dev/video0|1920x1080@30hz|mjpeg\n/dev/video0|640x480@30hz|yuyv\n"
+                "portal\n\n")
+        assert gsr.parse_capture_options(text) == [
+            CaptureOption("window", "window"),
+            CaptureOption("focused", "focused"),
+            CaptureOption("DP-1", "monitor", 2560, 1440),
+            CaptureOption("HDMI-A-1", "monitor", 1080, 1920),
+            CaptureOption("region", "region"),
+            CaptureOption("/dev/video0", "camera"),
+            CaptureOption("portal", "portal"),
+        ]
+        assert gsr.parse_capture_options("DP-1|odd") == [CaptureOption("DP-1", "monitor")]
+
+
+class TestMonitors:
+    LANDSCAPE = Screen("DP-1", 0, 240, 2560, 1440, "Dell", (2560, 1440))
+    VERTICAL = Screen("DP-2", 2560, 0, 1080, 1920, "AOC", (1080, 1920))
+
+    def test_placed_where_the_desktop_has_them_in_gsrs_order(self):
+        options = [CaptureOption("DP-2", "monitor", 1080, 1920),
+                   CaptureOption("DP-1", "monitor", 2560, 1440), CaptureOption("portal", "portal")]
+        arranged = monitors.arrange(options, [self.LANDSCAPE, self.VERTICAL])
+        assert [m.name for m in arranged] == ["DP-2", "DP-1"]
+        vertical = arranged[0]
+        assert (vertical.x, vertical.y, vertical.width, vertical.height) == (2560, 0, 1080, 1920)
+        assert vertical.pixels == (1080, 1920) and vertical.model == "AOC" and vertical.placed
+
+    def test_gsr_decides_what_is_listed(self):
+        # A screen GSR can't record is left out; one the desktop doesn't know
+        # by that name is put to the right of the rest.
+        options = [CaptureOption("DP-1", "monitor", 2560, 1440),
+                   CaptureOption("DP-3", "monitor", 1920, 1080)]
+        arranged = monitors.arrange(options, [self.LANDSCAPE, self.VERTICAL])
+        assert [m.name for m in arranged] == ["DP-1", "DP-3"]
+        loose = arranged[1]
+        assert not loose.placed
+        assert (loose.x, loose.y, loose.width, loose.height) == (2560, 240, 1920, 1080)
+
+    def test_without_gsr_the_desktops_monitors_stand_in(self):
+        arranged = monitors.arrange([CaptureOption("portal", "portal")],
+                                    [self.LANDSCAPE, self.VERTICAL])
+        assert [(m.name, m.pixels) for m in arranged] == [("DP-1", (2560, 1440)),
+                                                          ("DP-2", (1080, 1920))]
+        assert monitors.arrange([], []) == []
+
+    def test_resolution_falls_back_to_the_desktops(self):
+        arranged = monitors.arrange([CaptureOption("DP-1", "monitor")], [self.LANDSCAPE])
+        assert arranged[0].pixels == (2560, 1440)
+        loose = monitors.arrange([CaptureOption("X-1", "monitor")], [])[0]
+        assert loose.pixels == (0, 0) and (loose.width, loose.height) == (1920, 1080)
+
+    def test_fit_keeps_proportions_and_centres(self):
+        arranged = monitors.arrange([], [self.LANDSCAPE, self.VERTICAL])
+        boxes = monitors.fit(arranged, 400, 200, margin=10)
+        # 3640 × 1920 desktop units into 380 × 180: height decides the scale.
+        scale = 180 / 1920
+        (lx, ly, lw, lh), (vx, vy, vw, vh) = boxes
+        assert vh == pytest.approx(180) and vw == pytest.approx(1080 * scale)
+        assert lw == pytest.approx(2560 * scale) and lh == pytest.approx(1440 * scale)
+        assert vy == pytest.approx(10) and ly == pytest.approx(10 + 240 * scale)
+        assert vx == pytest.approx(lx + lw)            # touching on the desktop, touching here
+        assert lx == pytest.approx((400 - 3640 * scale) / 2)
+        assert monitors.fit([], 400, 200) == []
+        assert monitors.fit(arranged, 10, 10, margin=10) == [(5, 5, 0, 0), (5, 5, 0, 0)]
+
+    def test_reading_order(self):
+        left = Screen("HDMI-A-1", -1920, 360, 1920, 1080)
+        arranged = monitors.arrange([], [self.VERTICAL, self.LANDSCAPE, left])
+        assert [m.name for m in monitors.reading_order(arranged)] == ["HDMI-A-1", "DP-1", "DP-2"]
 
 
 class TestReplayRecorder:

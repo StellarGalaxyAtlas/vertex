@@ -141,7 +141,8 @@ _N_ seconds of your screen in memory (or on disk) and writes them to a clip on
 demand, encoded on the GPU so games don't notice. Every recorder option —
 capture target, frame rate, codec, quality, bitrate mode, replay length, audio
 codec, cursor, and more — is a setting in Vertex, and the Recording page shows
-the exact command it will run.
+the exact command it will run. Pick the monitor to record on a map of your
+monitors, laid out the way your desktop arranges them.
 
 - **Saving a clip.** Bind `vertex save-clip` to a key in your desktop's
   keyboard settings (see [Install](#bind-a-key-to-save-clips)), use **Save
@@ -295,7 +296,7 @@ GPU Screen Recorder is also available as a Flatpak
 (`com.dec05eba.gpu_screen_recorder`); set its command under
 *Settings → Recording → Command* to
 `flatpak run --command=gpu-screen-recorder com.dec05eba.gpu_screen_recorder`.
-The native package is the tested setup. If whole-screen capture fails on
+The native package is the tested setup. If recording a monitor fails on
 Wayland, set *Capture* to *Portal*.
 
 ### 2. Vertex

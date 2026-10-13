@@ -42,6 +42,9 @@ open questions. Read it before starting an item.
   `xvfb-run -a python tools/sonar_screenshot.py /tmp/shot` screenshots the
   Sonar page against the fake server at the default and minimum window sizes.
   Read the PNGs, and send the maintainer the final one.
+  `xvfb-run -a python tools/settings_screenshot.py /tmp/shot` does the same for
+  Settings › Recording, with a fake recorder and three fake monitors (one
+  standing up).
 - Workflow agents with `isolation: "worktree"` get a worktree made from the
   repository's default branch (the old 1.x code), not the working branch. Have
   them `git reset --hard` to the working branch's commit first.

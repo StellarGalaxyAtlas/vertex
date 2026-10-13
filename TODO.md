@@ -4,11 +4,16 @@ One item at a time, top to bottom unless we decide otherwise.
 
 ---
 
-**1.**
+**1.** ✅ Done
 **Settings › Recording › Video › Capture**
 Add a preview for choosing the monitor. If that turns out to be too difficult, at
 least offer a drop-down with every capture option GPU Screen Recorder reports
 (each monitor by name, focused monitor/window, portal, region, …).
+- Done as a map of the monitors, laid out the way the desktop arranges them (a
+  vertical monitor stands up), under a drop-down with every capture option GPU
+  Screen Recorder reports. Click a monitor, or use the arrow keys, to record it.
+- Decided: a diagram rather than pictures of each screen. Moments shows
+  pictures, but they get vertical monitors wrong.
 
 **2.**
 **Settings › Recording**
@@ -136,7 +141,7 @@ command already handle `save-clip`, `replay start/stop/toggle/status` and
 
 Decisions already made, and questions to settle when their item comes up.
 
-**Progress.** Done: 6 and 7. Next: 1, unless the maintainer says otherwise.
+**Progress.** Done: 1, 6 and 7. Next: 2, unless the maintainer says otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
@@ -176,6 +181,14 @@ behaviour. The "In clips" checkbox goes (5) and three drop-downs in Settings ›
 Recording choose the clip tracks instead (4). Each channel shows its device,
 with a chain link for "same device everywhere" (8a), opening the device manager
 (8b). Keybinds are left out for now.
+
+**Item 1 (done).** GPU Screen Recorder lists each monitor's name and size but
+not where it sits, so positions come from the desktop (Qt's screens) and are
+matched to GSR's monitors by name. "Whole screen" became "Automatic": GSR's
+`screen` records the first monitor it finds, not all of them. GSR has no
+"focused monitor" option, so there is none. `window` is left out of the list
+because it needs a window id, which changes every time the window opens.
+Cameras GSR reports are listed as "Camera /dev/videoN".
 
 **Order.** Do item 13 before or together with item 9. Any action exposed as a
 `vertex …` command can be bound to a desktop keyboard shortcut, which is the

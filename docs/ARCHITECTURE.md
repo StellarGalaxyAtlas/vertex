@@ -36,6 +36,7 @@ src/vertex/
 │   └── sonar.py       device lifecycle, routing rules, reconciliation
 ├── recorder/          GPU Screen Recorder
 │   ├── gsr.py         detection, capability listing, argv builder, validation
+│   ├── monitors.py    GSR's monitors placed where the desktop has them
 │   └── replay.py      the replay-buffer child process
 └── ui/                PySide6
     ├── app.py         QApplication, control commands, startup
@@ -45,7 +46,7 @@ src/vertex/
     ├── library/       state (filter/sort/edits), model, delegate, view
     ├── editor/        mpv render widget, timeline, mixer rows, editor view
     ├── dialogs/       tags, export, import
-    ├── settings/      the Settings page
+    ├── settings/      the Settings page and its monitor map
     ├── theme.py, icons.py, widgets.py
 ```
 
@@ -129,6 +130,14 @@ line as a pure function, validated beforehand (`gsr.validate`). With Sonar on,
 `name:<title>|device:<node>`, which titles the track "Vertex Game"; older
 versions title it "Devices: Monitor of Vertex Game". `media/tracks.py`
 recognises both, so labelling never depends on the recorder version.
+
+What can be recorded comes from `gpu-screen-recorder --list-capture-options`
+(`gsr.parse_capture_options`): each monitor by name with its size, plus the
+portal, region, cameras and so on. GSR doesn't say where a monitor sits, so
+`recorder/monitors.py` places GSR's monitors where the desktop has them, matched
+by name; the UI passes the desktop's arrangement in as plain `Screen`s read from
+Qt. Settings draws the result as a map to click, a vertical monitor standing
+up. GSR decides what is listed; the desktop only says where.
 
 `recorder/replay.py` runs GSR in its own session (signals reach a wrapper's
 children too) with `PR_SET_PDEATHSIG`, so it never outlives Vertex. It saves

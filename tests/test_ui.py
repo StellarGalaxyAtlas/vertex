@@ -122,6 +122,54 @@ def test_pages_and_settings_save(qapp, window):
     assert "-r 45" in settings.preview.toPlainText()
 
 
+def test_capture_is_picked_on_the_monitor_map(qapp, window, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from vertex.recorder import gsr, monitors
+    from vertex.ui.settings import monitors as monitor_map
+
+    monkeypatch.setattr(monitor_map, "desktop_screens", lambda: [
+        monitors.Screen("DP-1", 0, 240, 2560, 1440, "Dell", (2560, 1440)),
+        monitors.Screen("DP-2", 2560, 0, 1080, 1920, "AOC", (1080, 1920))])
+    window.navigate("settings")
+    settings = window.settings_view
+    settings.show_page("recording")
+    # The fixture's recorder doesn't exist; let that answer arrive first.
+    assert wait_until(qapp, lambda: "not installed" in settings.gsr_status.text())
+    values = [settings.capture.itemData(i) for i in range(settings.capture.count())]
+    assert values == ["screen", "DP-1", "DP-2", "portal", "focused", "region"]
+
+    options = gsr.parse_capture_options("DP-1|2560x1440\nDP-2|1080x1920\nregion\n"
+                                        "/dev/video0|640x480@30hz|yuyv\nportal\n")
+    settings._show_recorder((gsr.GsrInfo("gsr", True, (5, 15, 1), "5.15.1"), options, []))
+    qapp.processEvents()
+    values = [settings.capture.itemData(i) for i in range(settings.capture.count())]
+    assert values == ["screen", "DP-1", "DP-2", "region", "/dev/video0", "portal"]
+    assert settings.capture.currentText() == "Automatic"
+    assert settings.capture.itemText(2) == "Monitor DP-2 (1080 × 1920)"
+
+    the_map = settings.monitor_map
+    assert [m.name for m in the_map.monitors] == ["DP-1", "DP-2"]
+    vertical = the_map.rect_of("DP-2")
+    assert vertical.height() > vertical.width()
+    QTest.mouseClick(the_map, Qt.MouseButton.LeftButton, pos=vertical.center().toPoint())
+    assert settings.capture.currentData() == "DP-2"
+    assert settings.collect().recorder.capture == "DP-2"
+    assert "-w DP-2" in settings.preview.toPlainText()
+    QTest.keyClick(the_map, Qt.Key.Key_Left)
+    assert settings.capture.currentData() == "DP-1" and the_map.current == "DP-1"
+
+    settings.capture.setCurrentIndex(settings.capture.findData("portal"))
+    assert the_map.current == "portal"
+    assert settings.save()
+    assert Config.load().recorder.capture == "portal"
+    # A monitor that isn't plugged in stays chosen, and says so.
+    settings._show_capture("HDMI-A-1")
+    assert settings.capture.currentText() == "HDMI-A-1 (not found)"
+    assert settings.collect().recorder.capture == "HDMI-A-1"
+
+
 def test_sonar_page_drives_the_fake_server(qapp, window, fake_audio):
     window.navigate("sonar")
     window.sonar_view.toggle.setChecked(True)

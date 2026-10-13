@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import shlex
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFontDatabase, QGuiApplication
 from PySide6.QtWidgets import (
     QComboBox,
@@ -34,9 +34,10 @@ from vertex.config import (
     VIDEO_CODECS,
     Config,
 )
-from vertex.recorder import gsr
+from vertex.recorder import gsr, monitors
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
+from vertex.ui.settings import monitors as monitor_map
 from vertex.ui.widgets import (
     Banner,
     PathField,
@@ -54,7 +55,7 @@ LABELS = {
     "auto": "Automatic", "aac": "AAC", "opus": "Opus", "mp4": "MP4", "mkv": "MKV",
     "hevc": "HEVC", "av1": "AV1", "h264": "H.264", "vp8": "VP8", "vp9": "VP9",
     "hevc_10bit": "HEVC 10-bit", "av1_10bit": "AV1 10-bit", "hevc_hdr": "HEVC HDR",
-    "av1_hdr": "AV1 HDR", "screen": "Whole screen", "portal": "Portal (asks once)",
+    "av1_hdr": "AV1 HDR", "screen": "Automatic", "portal": "Portal (asks once)",
     "focused": "Focused window (X11)", "region": "Region", "limited": "Limited",
     "full": "Full",
 }
@@ -116,6 +117,8 @@ class SettingsView(QWidget):
         self.banner = Banner()
         layout.addWidget(self.banner)
         self.pages = {}
+        # What GSR said it can record; empty until asked, or if it can't be run.
+        self._capture_options: list[gsr.CaptureOption] = []
         self._build_general()
         self._build_recording()
         self._build_devices()
@@ -199,11 +202,22 @@ class SettingsView(QWidget):
                        "Needs Sonar. Only when exactly one app is playing there.")
 
         video = Section("Video")
-        self.capture = combo(["screen", "portal", "focused", "region"], "screen")
-        self.capture.setEditable(True)
-        self.capture.setMinimumWidth(220)
-        video.add_row("Capture", self.capture, "Whole screen uses KMS; portal works "
-                      "everywhere on Wayland and asks once. Monitor names work too.")
+        self.capture = QComboBox()
+        self.capture.setMinimumWidth(260)
+        video.add_row("Capture", self.capture, "Click a monitor to record it. Automatic "
+                      "records the first monitor GPU Screen Recorder finds; portal works "
+                      "on any Wayland desktop and asks once which screen to share.")
+        self.monitor_map = monitor_map.MonitorMap()
+        self.monitor_map.picked.connect(self._pick_monitor)
+        self.capture.currentIndexChanged.connect(
+            lambda _i: self.monitor_map.set_current(self.capture.currentData() or ""))
+        video.add(self.monitor_map)
+        # Plugging in, unplugging or rearranging monitors redraws the map.
+        app = QGuiApplication.instance()
+        app.screenAdded.connect(self._watch_screen)
+        app.screenRemoved.connect(self._screens_changed)
+        for screen in app.screens():
+            self._watch_screen(screen, initial=True)
         self.region = QLineEdit()
         self.region.setPlaceholderText("1920x1080+0+0")
         video.add_row("Region", self.region, "Only for Region capture: WxH+X+Y")
@@ -348,7 +362,7 @@ class SettingsView(QWidget):
         self.command.setText(rec.command)
         self.rec_autostart.setChecked(rec.autostart)
         self.tag_from_game.setChecked(rec.tag_from_game_channel)
-        _set_combo(self.capture, rec.capture)
+        self._show_capture(rec.capture)
         self.region.setText(rec.region)
         self.resolution.setText(rec.resolution)
         self.fps.setValue(rec.fps)
@@ -387,9 +401,7 @@ class SettingsView(QWidget):
         rec.command = self.command.text().strip() or "gpu-screen-recorder"
         rec.autostart = self.rec_autostart.isChecked()
         rec.tag_from_game_channel = self.tag_from_game.isChecked()
-        text = self.capture.currentText().strip()
-        index = self.capture.findText(text)
-        rec.capture = (self.capture.itemData(index) if index >= 0 else text) or "screen"
+        rec.capture = self.capture.currentData() or "screen"
         rec.region = self.region.text().strip()
         rec.resolution = self.resolution.text().strip()
         rec.fps = self.fps.value()
@@ -476,12 +488,8 @@ class SettingsView(QWidget):
         else:
             self.gsr_status.setText(info.error)
             self.gsr_status.setStyleSheet(f"color: {theme.WARN};")
-        current = self.capture.currentText()
-        known = {self.capture.itemData(i) for i in range(self.capture.count())}
-        for option in captures:
-            if option not in known and option != "window":
-                self.capture.addItem(LABELS.get(option, f"Monitor {option}"), option)
-        self.capture.setEditText(current)
+        self._capture_options = captures
+        self._show_capture(self.capture.currentData() or "screen")
         if devices:
             names = ", ".join(name for name, _desc in devices[:12])
             self.audio_devices.setText(f"Devices GPU Screen Recorder can record: {names}"
@@ -493,6 +501,56 @@ class SettingsView(QWidget):
             field.clear()
             field.addItems(sources)
             field.setEditText(text)
+
+    # --- Capture --------------------------------------------------------------------
+
+    def _show_capture(self, current: str) -> None:
+        """Draw the monitors and list every capture option, keeping `current`."""
+        arranged = monitors.arrange(self._capture_options, monitor_map.desktop_screens())
+        self.monitor_map.set_monitors(arranged)
+        items = [("screen", LABELS["screen"])]
+        for monitor in arranged:
+            size = monitor_map.resolution(monitor)
+            items.append((monitor.name, f"Monitor {monitor.name} ({size})" if size
+                          else f"Monitor {monitor.name}"))
+        if self._capture_options:
+            # A window is recorded by its id, which changes every time it opens.
+            others = [o for o in self._capture_options
+                      if o.kind not in ("monitor", "window", "screen")]
+        else:
+            others = [gsr.CaptureOption(value, value) for value in ("portal", "focused", "region")]
+        for option in others:
+            text = f"Camera {option.value}" if option.kind == "camera" else \
+                LABELS.get(option.value, option.value)
+            items.append((option.value, text))
+        if current and current not in [value for value, _text in items]:
+            items.append((current, LABELS.get(current) or f"{current} (not found)"))
+        self.capture.blockSignals(True)
+        self.capture.clear()
+        for value, text in items:
+            self.capture.addItem(text, value)
+        self.capture.setCurrentIndex(max(0, self.capture.findData(current)))
+        self.capture.blockSignals(False)
+        self.monitor_map.set_current(self.capture.currentData() or "")
+
+    def _pick_monitor(self, name: str) -> None:
+        index = self.capture.findData(name)
+        if index >= 0:
+            self.capture.setCurrentIndex(index)
+
+    def _watch_screen(self, screen, initial: bool = False) -> None:
+        screen.geometryChanged.connect(self._screens_changed)
+        if not initial:
+            self._screens_changed()
+
+    def _screens_changed(self, *_args) -> None:
+        # Qt may still list a screen while announcing its removal; look once it's gone.
+        QTimer.singleShot(0, self._rearrange)
+
+    def _rearrange(self) -> None:
+        self._show_capture(self.capture.currentData() or "screen")
+        if self.stack.currentWidget() is self.pages.get("recording"):
+            self._refresh_recorder()     # GSR's list changes with the monitors
 
     def _update_preview(self) -> None:
         try:

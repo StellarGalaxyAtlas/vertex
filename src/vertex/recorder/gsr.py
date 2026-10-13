@@ -112,18 +112,45 @@ def list_audio_devices(command: str) -> list[tuple[str, str]]:
     return devices
 
 
-def list_capture_options(command: str) -> list[str]:
-    """Capture targets this machine offers: 'screen', 'portal', monitor names…"""
+@dataclass(frozen=True)
+class CaptureOption:
+    """Something GSR can record, as `--list-capture-options` reports it."""
+
+    value: str           # what `-w` takes: "DP-1", "portal", "/dev/video0", …
+    kind: str            # "monitor", "camera", or the option itself: "portal", "region", …
+    width: int = 0       # a monitor's size in pixels, turned with it if it is rotated
+    height: int = 0
+
+
+def parse_capture_options(text: str) -> list[CaptureOption]:
+    """Bare options ("window", "focused", "region", "portal"), monitors as
+    NAME|WxH, and cameras as /dev/videoN|WxH@30hz|format, once per mode."""
+    options: list[CaptureOption] = []
+    seen = set()
+    for line in text.splitlines():
+        value, bar, detail = line.partition("|")
+        value = value.strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        if value.startswith("/dev/video"):
+            options.append(CaptureOption(value, "camera"))
+        elif bar:
+            size = re.match(r"\s*(\d+)x(\d+)", detail)
+            width, height = (int(size[1]), int(size[2])) if size else (0, 0)
+            options.append(CaptureOption(value, "monitor", width, height))
+        else:
+            options.append(CaptureOption(value, value))
+    return options
+
+
+def list_capture_options(command: str) -> list[CaptureOption]:
+    """What this machine can record: its monitors, the portal, cameras…"""
     try:
         out = _query(command, "--list-capture-options")
     except (OSError, subprocess.SubprocessError):
         return []
-    options = []
-    for line in out.splitlines():
-        option = line.split("|", 1)[0].strip()
-        if option and option not in options:
-            options.append(option)
-    return options
+    return parse_capture_options(out)
 
 
 @dataclass(frozen=True)
