@@ -195,3 +195,15 @@ class TestWithFfmpeg:
         assert len(frames) >= 10
         assert cache.prune([]) >= 2
         assert cache.cached_thumbnail(sample_clip) is None
+
+    def test_thumbnails_are_made_again_at_another_size(self, sample_clip, tmp_path,
+                                                         monkeypatch):
+        from PySide6.QtGui import QImage
+
+        cache = thumbnails.ThumbnailCache(str(tmp_path))
+        thumb = cache.thumbnail(sample_clip)
+        assert QImage(thumb).width() == thumbnails.THUMB_WIDTH
+        monkeypatch.setattr(thumbnails, "THUMB_WIDTH", 640)
+        assert cache.cached_thumbnail(sample_clip) is None     # another size: made again
+        assert QImage(cache.thumbnail(sample_clip)).width() == 640
+        assert cache.prune([sample_clip]) == 1                 # the old one goes

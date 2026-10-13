@@ -179,6 +179,44 @@ def test_rail_groups_fold_and_keep_the_filter_in_view(qapp, window):
     assert window.context.config.rail_collapsed == []
 
 
+def test_library_cards_fill_their_row_at_any_size(qapp, window):
+    from vertex.config import CARD_WIDTH_DEFAULT
+
+    view = window.library_view
+    grid, model = view.grid, view.grid.model()
+    assert not grid.verticalScrollBar().isVisible()     # two clips: no scroll bar
+    # Every size whose row holds both clips must show them side by side; the
+    # grid used to plan one column more than Qt lays out without a scroll bar.
+    for width in range(200, 641, 7):
+        grid.set_card_width(width)
+        qapp.processEvents()
+        cell = view.delegate.cell.width()
+        assert cell >= width
+        if grid.layout_width() // width >= 2:
+            first, second = (grid.visualRect(model.index(i, 0)) for i in (0, 1))
+            assert first.y() == second.y(), width
+            assert second.right() < grid.viewport().width()
+
+    # Thumbnails load at about the cards' size: sharp, without holding more
+    # memory than needed.
+    grid.set_card_width(600)
+    big = view.model.thumb_size.width()
+    assert big >= view.delegate.cell.width() - 20 or big == 960
+    grid.set_card_width(200)
+    assert view.model.thumb_size.width() < big
+
+    # The header slider, Ctrl+scroll and the shortcuts set it, and it is kept.
+    view.card_size.setValue(400)
+    assert grid.card_width == 400 and window.context.config.card_width == 400
+    view.zoom(1)
+    assert window.context.config.card_width == 420
+    view.zoom(-3)
+    assert window.context.config.card_width == 360
+    window.context.save_config()
+    assert Config.load().card_width == 360
+    view.card_size.setValue(CARD_WIDTH_DEFAULT)
+
+
 def test_first_run_adds_the_start_menu_entry(qapp, window):
     from vertex import desktop
 

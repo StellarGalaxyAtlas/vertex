@@ -28,6 +28,11 @@ REQUIRED_FIELDS = ("clip_path", "export_path", "data_path", "state_path", "cache
 CHECKED_DIRS = ("clip_path", "data_path")
 
 
+# The library's card size: the narrowest a card may be, in pixels, before a row
+# holds one card fewer. Cards stretch to fill their row.
+CARD_WIDTH_RANGE = (200, 640)
+CARD_WIDTH_DEFAULT = 290
+
 # --- Recorder ---------------------------------------------------------------
 # Option values offered for GPU Screen Recorder. Kept here rather than in the
 # recorder module because the settings UI and validation both need them.
@@ -144,6 +149,7 @@ class Config:
     logo_variant: str = paths.DEFAULT_LOGO_VARIANT
     close_to_tray: bool = True
     rail_collapsed: list[str] = field(default_factory=list)   # folded groups: games, people
+    card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
     # Desktop pop-ups switched away from their default, by kind (see notifications).
     notifications: dict[str, bool] = field(default_factory=dict)
 
@@ -222,6 +228,7 @@ class Config:
         config.logo_variant = paths.logo_variant(config.logo_variant)
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
+        config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
         config.sonar = _load_sonar(data.get("sonar"))
         return config

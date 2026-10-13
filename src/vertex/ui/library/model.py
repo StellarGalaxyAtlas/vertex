@@ -7,14 +7,17 @@ from collections import OrderedDict
 from PySide6.QtCore import QAbstractListModel, QSize, Qt
 from PySide6.QtGui import QImage, QPixmap
 
+from vertex.media.thumbnails import THUMB_WIDTH
 from vertex.ui.library.state import LibraryState, is_settling
 
 ClipRole = Qt.ItemDataRole.UserRole + 1
 
 # Thumbnails are kept at the size cards draw them, and only so many of them:
 # a full-resolution pixmap per clip is half a megabyte, times a library.
-THUMB_CACHE = 240
-THUMB_SIZE = QSize(480, 270)
+# Decoded thumbnails kept in memory, by their pixels: 240 of 480×270 (about
+# 120 MB), fewer when the cards, and so their thumbnails, are bigger.
+THUMB_CACHE_PIXELS = 240 * 480 * 270
+THUMB_STEP = 160        # thumbnails load at the cards' width, rounded up to this
 
 
 class ClipModel(QAbstractListModel):
@@ -23,6 +26,7 @@ class ClipModel(QAbstractListModel):
         self.state = state
         self.context = context
         self._thumbs: OrderedDict[tuple, QPixmap] = OrderedDict()
+        self.thumb_size = QSize(480, 270)
         self._missing: set[tuple] = set()    # generation failed for this version of a file
         self._asked: set[str] = set()
         self._durations_asked: set[tuple] = set()
@@ -125,12 +129,22 @@ class ClipModel(QAbstractListModel):
             self._missing.add(key)
             return None
         pixmap = QPixmap.fromImage(image.scaled(
-            THUMB_SIZE, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            self.thumb_size, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
             Qt.TransformationMode.SmoothTransformation))
         self._thumbs[key] = pixmap
-        while len(self._thumbs) > THUMB_CACHE:
+        area = self.thumb_size.width() * self.thumb_size.height()
+        while len(self._thumbs) * area > THUMB_CACHE_PIXELS:
             self._thumbs.popitem(last=False)
         return pixmap
+
+    def set_thumb_width(self, pixels: int) -> None:
+        """Load thumbnails `pixels` wide: the cards' width on screen. Rounded up,
+        so moving the size slider doesn't reload them at every step."""
+        width = min(-(-max(1, pixels) // THUMB_STEP) * THUMB_STEP, THUMB_WIDTH)
+        size = QSize(width, width * 9 // 16)
+        if size != self.thumb_size:
+            self.thumb_size = size
+            self._thumbs.clear()       # reloaded at the new size as they are drawn
 
     def _thumbnail_ready(self, clip_path: str, image_path: str) -> None:
         self._asked.discard(clip_path)

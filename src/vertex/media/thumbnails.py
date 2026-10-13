@@ -17,9 +17,9 @@ from vertex.media.ffmpeg import BASE
 from vertex.media.probe import duration as probe_duration
 
 SEEK_SECONDS = 1.0      # skip the black intro frame most recordings open on
-THUMB_WIDTH = 480
+THUMB_WIDTH = 960       # sharp on the library's largest cards
 PREVIEW_FRAMES = 20
-PREVIEW_WIDTH = 480
+PREVIEW_WIDTH = 960
 
 
 class ThumbnailCache:
@@ -36,6 +36,9 @@ class ThumbnailCache:
             key = f"{os.path.abspath(clip_path)}:{stat.st_mtime_ns}:{stat.st_size}"
         except OSError:
             key = os.path.abspath(clip_path)
+        # The image sizes are part of the key: images of another size are made
+        # again when next shown, and prune() drops the old ones.
+        key += f":{THUMB_WIDTH}:{PREVIEW_WIDTH}"
         return hashlib.sha1(key.encode()).hexdigest()
 
     def thumb_path(self, clip_path: str) -> str:

@@ -6,35 +6,41 @@ import os
 import subprocess
 
 from PySide6.QtCore import QModelIndex, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication
+from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
+    QLabel,
     QListView,
     QMenu,
+    QSlider,
     QStackedWidget,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
 
 from vertex import fmt, paths
+from vertex.config import CARD_WIDTH_DEFAULT, CARD_WIDTH_RANGE
 from vertex.core import storage
-from vertex.ui import theme
+from vertex.ui import icons, theme
 from vertex.ui.dialogs.tags import TagDialog
 from vertex.ui.library.delegate import INFO_H, PAD, ClipDelegate
 from vertex.ui.library.model import ClipModel, ClipRole
 from vertex.ui.library.state import LibraryState
 from vertex.ui.widgets import ChoiceDialog, IconButton, Segmented, button, label
 
-CARD_MIN_WIDTH = 290
+CARD_STEP = 20           # how much one notch of the size slider or Ctrl+scroll changes
 PREVIEW_DELAY_MS = 450
 PREVIEW_FRAME_MS = 330
 
 
 class ClipGrid(QListView):
-    """A virtualised grid: only the cards on screen are ever painted."""
+    """A virtualised grid: only the cards on screen are ever painted. Cards are
+    at least `card_width` wide, and stretch to fill their row."""
 
     hovered_row = Signal(int)
+    zoomed = Signal(int)             # Ctrl+scroll: notches, + for bigger cards
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,6 +58,7 @@ class ClipGrid(QListView):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover)
         self._hovered = -1
+        self.card_width = CARD_WIDTH_DEFAULT
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -59,18 +66,47 @@ class ClipGrid(QListView):
         if isinstance(delegate, ClipDelegate):
             self.fit_cells(delegate)
 
+    def set_card_width(self, width: int) -> None:
+        self.card_width = width
+        delegate = self.itemDelegate()
+        if isinstance(delegate, ClipDelegate):
+            self.fit_cells(delegate)
+
+    def layout_width(self) -> int:
+        """The width QListView lays the cards out in. With the scroll bar shown
+        as needed, it keeps room for one whether or not it shows: cells that
+        fill the viewport when there is none would lose their last column."""
+        width = self.maximumViewportSize().width()
+        if self.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded:
+            style = self.style()
+            width -= style.pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent, None,
+                                       self.verticalScrollBar())
+            if style.styleHint(QStyle.StyleHint.SH_ScrollView_FrameOnlyAroundContents):
+                width -= 2 * style.pixelMetric(QStyle.PixelMetric.PM_DefaultFrameWidth)
+        return width - 1             # a row wraps once a cell reaches its last pixel
+
     def fit_cells(self, delegate: ClipDelegate) -> None:
-        # QListView wraps a row a few pixels before the edge, so cells that
-        # add up to exactly the viewport width would lose their last column.
-        width = max(1, self.viewport().width() - 8)
-        columns = max(1, width // CARD_MIN_WIDTH)
+        width = max(1, self.layout_width())
+        columns = max(1, width // self.card_width)
         cell_w = width // columns
         thumb_h = (cell_w - 2 * PAD) * 9 // 16
         cell = QSize(cell_w, thumb_h + INFO_H + 2 * PAD)
+        model = self.model()
+        if isinstance(model, ClipModel):
+            model.set_thumb_width(round((cell_w - 2 * PAD) * self.devicePixelRatioF()))
         if cell != delegate.cell:
             delegate.cell = cell
             self.setGridSize(cell)
             self.doItemsLayout()
+
+    def wheelEvent(self, event):
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            notches = event.angleDelta().y() // 120
+            if notches:
+                self.zoomed.emit(notches)
+            event.accept()
+            return
+        super().wheelEvent(event)
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
@@ -104,6 +140,8 @@ class LibraryView(QWidget):
         header.addWidget(self.title)
         header.addWidget(self.count, 0, Qt.AlignmentFlag.AlignBottom)
         header.addStretch(1)
+        header.addWidget(self._build_card_size())
+        header.addSpacing(12)
         self.sort = Segmented([("date", "Date"), ("game", "Game")], "date", directional=True)
         self.sort.changed.connect(state.set_sort)
         header.addWidget(self.sort)
@@ -130,6 +168,14 @@ class LibraryView(QWidget):
         self.delegate.rename_requested.connect(self.grid.edit)
         self.grid.customContextMenuRequested.connect(self._menu)
         self.grid.hovered_row.connect(self._hover)
+        self.grid.zoomed.connect(self.zoom)
+        self.grid.set_card_width(self.card_size.value())
+        for keys, notches in (("Ctrl++", 1), ("Ctrl+=", 1), ("Ctrl+-", -1)):
+            QShortcut(QKeySequence(keys), self, lambda n=notches: self.zoom(n),
+                      context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        QShortcut(QKeySequence("Ctrl+0"), self,
+                  lambda: self.card_size.setValue(CARD_WIDTH_DEFAULT),
+                  context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
         state.reset.connect(self._after_reset)
 
@@ -144,6 +190,37 @@ class LibraryView(QWidget):
     def _connect_previews(self) -> None:
         if self.context.thumbs is not None:
             self.context.thumbs.preview_ready.connect(self._preview_ready)
+
+    def _build_card_size(self) -> QWidget:
+        """Small cards to big ones: a slider between a small and a large grid."""
+        box = QWidget()
+        box.setToolTip("Card size (Ctrl+scroll, Ctrl+plus/minus; Ctrl+0 resets)")
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        small, large = QLabel(), QLabel()
+        small.setPixmap(icons.pixmap("library", theme.TEXT_DIM, 12))
+        large.setPixmap(icons.pixmap("library", theme.TEXT_DIM, 18))
+        self.card_size = QSlider(Qt.Orientation.Horizontal)
+        self.card_size.setRange(*CARD_WIDTH_RANGE)
+        self.card_size.setSingleStep(CARD_STEP)
+        self.card_size.setPageStep(2 * CARD_STEP)
+        self.card_size.setFixedWidth(120)
+        self.card_size.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.card_size.setValue(self.context.config.card_width)
+        self.card_size.valueChanged.connect(self._card_size_changed)
+        for widget in (small, self.card_size, large):
+            row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        return box
+
+    def zoom(self, notches: int) -> None:
+        """Bigger (+) or smaller (-) cards, a slider step per notch."""
+        self.card_size.setValue(self.card_size.value() + notches * CARD_STEP)
+
+    def _card_size_changed(self, width: int) -> None:
+        self.grid.set_card_width(width)
+        self.context.config.card_width = width
+        self.context.save_config_later()
 
     def _build_empty(self) -> QWidget:
         page = QWidget()

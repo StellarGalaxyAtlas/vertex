@@ -45,6 +45,7 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
         "clip_path": 5,
         "logo_variant": "neon",
         "rail_collapsed": ["games", 3],
+        "card_width": 5000,
         "recorder": {"fps": "sixty", "cursor": "yes", "replay_seconds": 30},
         "sonar": {
             "default_channel": "mic",
@@ -56,6 +57,7 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     assert loaded.clip_path == ""
     assert loaded.logo_variant == paths.DEFAULT_LOGO_VARIANT
     assert loaded.rail_collapsed == ["games"]
+    assert loaded.card_width == config.CARD_WIDTH_RANGE[1]
     assert loaded.recorder.fps == 60 and loaded.recorder.cursor is True
     assert loaded.recorder.replay_seconds == 30
     assert loaded.sonar.default_channel == "game"     # mic is not an output
