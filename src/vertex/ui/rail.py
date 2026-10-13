@@ -114,7 +114,7 @@ class RecorderCard(QFrame):
         layout.addWidget(self.toggle)
         context.recorder.state_changed.connect(self.update_state)
         context.config_changed.connect(lambda: self.update_state(
-            context.recorder.state.value, ""))
+            context.recorder.phase, ""))
         self.update_state("stopped", "")
 
     def _save(self) -> None:
@@ -126,17 +126,19 @@ class RecorderCard(QFrame):
     def update_state(self, state: str, error: str) -> None:
         seconds = self.context.config.recorder.replay_seconds
         running = state == "running"
-        colour = {"running": theme.RECORDING, "starting": theme.WARN,
+        colour = {"running": theme.RECORDING, "starting": theme.WARN, "restarting": theme.WARN,
                   "failed": theme.DANGER}.get(state, theme.TEXT_DIM)
         self.dot.setStyleSheet(f"background: {colour}; border-radius: 4px;")
         self.detail.setText({
             "running": f"On · last {fmt.duration(seconds)}",
             "starting": "Starting…",
+            "restarting": "Restarting…",
             "failed": "Stopped",
         }.get(state, "Off"))
-        self.detail.setToolTip(error)
+        self.detail.setToolTip(error or ("Restarting to use the new settings. It starts "
+                                         "empty." if state == "restarting" else ""))
         self.save.setEnabled(running)
-        self.toggle.set_icon("stop" if running or state == "starting" else "record",
+        self.toggle.set_icon("stop" if running or state in ("starting", "restarting") else "record",
                              theme.TEXT if running else theme.RECORDING)
         self.toggle.setToolTip("Stop the replay buffer" if running else
                                "Start the replay buffer")
@@ -190,7 +192,8 @@ class Rail(QFrame):
             self.nav_buttons[key] = row
             layout.addWidget(row)
 
-        layout.addWidget(RecorderCard(context))
+        self.recorder_card = RecorderCard(context)
+        layout.addWidget(self.recorder_card)
 
         self.facets_host = QWidget()
         self.facets = QVBoxLayout(self.facets_host)

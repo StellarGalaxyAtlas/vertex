@@ -49,15 +49,16 @@ def isolate() -> str:
 
 def fake_recorder_and_monitors() -> None:
     from vertex.recorder import gsr, monitors
-    from vertex.ui.settings import monitors as monitor_map
+    from vertex.ui import screens
 
     gsr.detect = lambda command: gsr.GsrInfo(command, True, (5, 15, 1), "5.15.1")
     gsr.list_capture_options = lambda command: gsr.parse_capture_options(CAPTURE_OPTIONS)
     gsr.list_audio_devices = lambda command: [("default_output", "Default output"),
                                               ("default_input", "Default input")]
-    monitor_map.desktop_screens = lambda: [
+    screens.desktop_screens = lambda: [
         monitors.Screen("HDMI-A-1", -1920, 360, 1920, 1080, "LG ULTRAGEAR", (1920, 1080)),
-        monitors.Screen("DP-1", 0, 240, 2560, 1440, "DELL S2721DGF", (2560, 1440)),
+        monitors.Screen("DP-1", 0, 240, 2560, 1440, "DELL S2721DGF", (2560, 1440),
+                        primary=True),
         monitors.Screen("DP-2", 2560, 0, 1080, 1920, "AOC 24G2W1G4", (1080, 1920)),
     ]
 

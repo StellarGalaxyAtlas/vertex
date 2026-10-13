@@ -60,11 +60,13 @@ class Tray(QSystemTrayIcon):
 
     def _recorder_state(self, state: str, error: str) -> None:
         running = state == "running"
-        self.replay_action.setText("Stop replay buffer" if running or state == "starting"
+        self.replay_action.setText("Stop replay buffer"
+                                   if running or state in ("starting", "restarting")
                                    else "Start replay buffer")
         self.save_action.setEnabled(running)
         self.save_30_action.setEnabled(running)
         tip = {"running": "replay buffer on", "starting": "starting the replay buffer",
+               "restarting": "restarting the replay buffer",
                "failed": "replay buffer stopped"}.get(state, "replay buffer off")
         self.setToolTip(f"{APP_NAME} — {tip}")
         if state == "failed" and error:

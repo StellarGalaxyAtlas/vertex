@@ -4,11 +4,13 @@ GPU Screen Recorder lists each monitor's name and size but not where it sits,
 so the desktop's own arrangement — read by the UI toolkit, and passed in here
 as plain `Screen`s — is joined to GSR's list by name. Settings draws the result
 as a map to pick from, with a vertical monitor standing up as it does on the
-desk.
+desk. A recording always captures one monitor: the one picked, or the primary
+one while that isn't connected or none has been picked.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from vertex.recorder.gsr import CaptureOption
@@ -25,6 +27,7 @@ class Screen:
     height: int
     model: str = ""
     pixels: tuple[int, int] = (0, 0)   # its resolution, which scaling can make differ
+    primary: bool = False
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,7 @@ class Monitor:
     pixels: tuple[int, int] = (0, 0)   # resolution as GSR reports it; (0, 0) = not known
     model: str = ""
     placed: bool = True    # False: the desktop didn't say where it is, so it was put aside
+    primary: bool = False
 
 
 def arrange(options: list[CaptureOption], screens: list[Screen]) -> list[Monitor]:
@@ -51,8 +55,8 @@ def arrange(options: list[CaptureOption], screens: list[Screen]) -> list[Monitor
     """
     reported = [option for option in options if option.kind == "monitor"]
     if not reported:
-        return [Monitor(s.name, s.x, s.y, s.width, s.height, s.pixels, s.model)
-                for s in screens]
+        return [Monitor(s.name, s.x, s.y, s.width, s.height, s.pixels, s.model,
+                        primary=s.primary) for s in screens]
     by_name = {screen.name: screen for screen in screens}
     placed = [by_name[o.value] for o in reported if o.value in by_name]
     right = max((s.x + s.width for s in placed), default=0)
@@ -64,13 +68,41 @@ def arrange(options: list[CaptureOption], screens: list[Screen]) -> list[Monitor
         if screen is not None:
             pixels = pixels if option.width and option.height else screen.pixels
             monitors.append(Monitor(option.value, screen.x, screen.y, screen.width,
-                                    screen.height, pixels, screen.model))
+                                    screen.height, pixels, screen.model,
+                                    primary=screen.primary))
             continue
         width, height = (option.width, option.height) if option.width and option.height \
             else (1920, 1080)
         monitors.append(Monitor(option.value, right, top, width, height, pixels, placed=False))
         right += width
     return monitors
+
+
+# What GSR's -w takes besides a monitor's name: its own picks ("screen" is the
+# first monitor it finds) and its other kinds of source.
+GSR_KEYWORDS = ("screen", "screen-direct", "screen-direct-force", "focused", "portal", "region")
+
+
+def names_monitor(capture: str) -> bool:
+    """Whether a -w value names one monitor, by GSR's own reading of it: not
+    a keyword, a camera, a region (WxH+X+Y) or a window id (hexadecimal)."""
+    if not capture or capture in GSR_KEYWORDS or capture.startswith("/dev/video"):
+        return False
+    if re.fullmatch(r"\d+x\d+\+\d+\+\d+", capture):
+        return False
+    return not re.fullmatch(r"(0x)?[0-9a-fA-F]+", capture)
+
+
+def target(capture: str, monitors: list[Monitor]) -> str:
+    """The monitor a recording captures: the one picked while it is connected,
+    else the primary one, else the first. Older settings (GSR's "screen",
+    "portal", a region…) count as nothing picked. The pick itself is kept, so
+    it is used again once its monitor is back."""
+    names = [m.name for m in monitors]
+    if capture in names:
+        return capture
+    primary = next((m.name for m in monitors if m.primary), "")
+    return primary or (names[0] if names else capture or "screen")
 
 
 def fit(monitors: list[Monitor], width: float, height: float,

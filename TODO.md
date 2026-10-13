@@ -14,9 +14,11 @@ least offer a drop-down with every capture option GPU Screen Recorder reports
   Screen Recorder reports. Click a monitor, or use the arrow keys, to record it.
 - Decided: a diagram rather than pictures of each screen. Moments shows
   pictures, but they get vertical monitors wrong.
-- Follow-up, to do: the drop-down lists monitors only: no Automatic, portal,
-  region, focused window or cameras. Until a monitor is picked (and for old
-  settings naming one of those), Vertex records the desktop's primary monitor.
+- Follow-up, done: only monitors can be picked, on the map; the drop-down
+  went, as the map does its job. No Automatic, portal, region, focused window
+  or cameras. Until a monitor is picked (and for old settings naming one of
+  those), and while the picked one isn't connected, Vertex records the
+  desktop's primary monitor. A line above the map names the monitor recorded.
 
 **2.**
 **Settings › Recording**
@@ -150,6 +152,13 @@ command already handle `save-clip`, `replay start/stop/toggle/status` and
 
 Decisions already made, and questions to settle when their item comes up.
 
+**Documentation.** Don't touch the repo's documentation (README, `docs/`, the
+screenshots in it) until the maintainer says so (2026-10-13). Screenshots
+taken to check UI work are fine; they are never committed. Some of it is
+already behind: README still says to set *Capture* to *Portal* if recording a
+monitor fails, and `docs/ARCHITECTURE.md` doesn't describe the monitor map,
+the primary-monitor fallback or the "Restarting…" state.
+
 **Progress.** Done: 1, 6 and 7. Next: 2, unless the maintainer says otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
@@ -193,11 +202,11 @@ with a chain link for "same device everywhere" (8a), opening the device manager
 
 **Item 1 (done).** GPU Screen Recorder lists each monitor's name and size but
 not where it sits, so positions come from the desktop (Qt's screens) and are
-matched to GSR's monitors by name. "Whole screen" became "Automatic": GSR's
-`screen` records the first monitor it finds, not all of them. GSR has no
-"focused monitor" option, so there is none. `window` is left out of the list
-because it needs a window id, which changes every time the window opens.
-Cameras GSR reports are listed as "Camera /dev/videoN".
+matched to GSR's monitors by name. The maintainer wants one monitor picked and
+nothing else: GSR's `screen` (the first monitor it finds), portal, region,
+focused window and cameras are not offered. Still to check on the
+maintainer's system: that Qt and GSR name the monitors alike (commands sent
+on 2026-10-13); if not, a monitor is drawn to the side instead of in place.
 
 **Item 2.** Decided on 2026-10-13:
 - Video quality at 1080p60 (H.264): Low 8, Medium 12, High 20, Ultra 35 Mbps,
@@ -212,8 +221,10 @@ Cameras GSR reports are listed as "Camera /dev/videoN".
   stays selected and is shown as it is.
 - No migration for the new defaults: 2.0 isn't released, and the maintainer
   resets the recording settings of their test install with the next update.
-- Open: should changes apply on Save (as now: one restart of the replay
-  buffer per Save), or as soon as they are made? A restart empties the buffer.
+- Changes apply on Save, as now: one restart of the replay buffer per Save.
+- Done already (2026-10-13): a restart shows as "Restarting…" in the rail and
+  tray until the buffer runs again, Save says it is restarting, and a message
+  says when it has.
 
 Reference (Moments › Settings › Clips): a "Clip settings" row of four
 drop-downs with labels above (Duration "1 Minute", Video quality "High",

@@ -7,6 +7,7 @@ through Qt signals on the UI thread.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -21,9 +22,9 @@ from vertex.core.naming import game_from_app
 from vertex.library import Library
 from vertex.media import probe
 from vertex.media.thumbnails import ThumbnailCache
-from vertex.recorder import gsr
+from vertex.recorder import gsr, monitors
 from vertex.recorder.replay import RecorderError, ReplayRecorder, State
-from vertex.ui import workers
+from vertex.ui import screens, workers
 
 
 class ThumbnailService(QObject):
@@ -320,7 +321,9 @@ class SonarController(QObject):
 
 
 class RecorderController(QObject):
-    state_changed = Signal(str, str)     # State value, error text
+    # A State value, or "restarting" from a restart's stop until it runs again
+    # (or fails); and error text.
+    state_changed = Signal(str, str)
     saved = Signal(str)                  # path of the new clip
     info_changed = Signal(object)        # GsrInfo
 
@@ -333,41 +336,70 @@ class RecorderController(QObject):
             on_saved=lambda path: workers.post(self._on_saved, path))
         self._game_hint: tuple[float, str] = (0.0, "")
         self._restart_pending = False
+        self._restarting = False
+        # False once stopped, so a start still finding GSR or Sonar doesn't
+        # launch after all.
+        self._wanted = False
+        # What GSR said it can record when last asked: its monitors' names.
+        self.capture_options: list[gsr.CaptureOption] = []
 
     @property
     def state(self) -> State:
         return self.recorder.state
 
     @property
+    def phase(self) -> str:
+        """What to show: the state, or "restarting" while a restart is underway."""
+        return "restarting" if self._restarting else self.recorder.state.value
+
+    @property
     def running(self) -> bool:
         return self.recorder.running
 
     def detect(self, then=None) -> None:
+        """Find GSR and ask what it can record, off the UI thread."""
         command = self.context.config.recorder.command
 
-        def done(info):
-            self.info = info
-            self.info_changed.emit(info)
-            if then is not None:
-                then(info)
+        def probe():
+            info = gsr.detect(command)
+            return info, gsr.list_capture_options(command) if info.available else []
 
-        workers.run(lambda: gsr.detect(command), done)
+        def done(result):
+            self.info, self.capture_options = result
+            self.info_changed.emit(self.info)
+            if then is not None:
+                then(self.info)
+
+        def failed(exc):
+            done((gsr.GsrInfo(command, error=f"Could not run GPU Screen Recorder: {exc}"), []))
+
+        workers.run(probe, done, failed)
 
     def problems(self) -> list[str]:
         if not self.info.available:
             return [self.info.error or "GPU Screen Recorder is not installed."]
         if self.info.too_old:
             return [self.info.error]
-        return gsr.validate(self.context.config.recorder)
+        return gsr.validate(self._as_recorded())
+
+    def capture_target(self) -> str:
+        """The monitor a recording captures now: the one picked, or the
+        primary one while that isn't connected or none has been picked."""
+        arranged = monitors.arrange(self.capture_options, screens.desktop_screens())
+        return monitors.target(self.context.config.recorder.capture, arranged)
+
+    def _as_recorded(self):
+        return dataclasses.replace(self.context.config.recorder, capture=self.capture_target())
 
     def argv(self) -> list[str]:
         config = self.context.config
-        return gsr.build_argv(config.recorder, gsr.audio_tracks(config),
+        return gsr.build_argv(self._as_recorded(), gsr.audio_tracks(config),
                               config.resolved_recording_dir(), self.info)
 
     def start(self) -> None:
         if self.running:
             return
+        self._wanted = True
 
         def go(_info=None):
             problems = self.problems()
@@ -376,13 +408,11 @@ class RecorderController(QObject):
                 return
             self.context.sonar.ensure_up(self._launch)
 
-        if not self.info.available or self.info.command != self.context.config.recorder.command:
-            self.detect(go)
-        else:
-            go()
+        # Asked every time: monitors come and go between starts.
+        self.detect(go)
 
     def _launch(self) -> None:
-        if self.running:
+        if self.running or not self._wanted:
             return
         try:
             self.recorder.start(self.argv(), self.context.config.resolved_recording_dir())
@@ -390,20 +420,26 @@ class RecorderController(QObject):
             self._on_state((State.FAILED, str(exc)))
 
     def stop(self) -> None:
+        self._wanted = False
         self._restart_pending = False
+        self._restarting = False
         workers.run(self.recorder.stop)
 
     def toggle(self) -> None:
-        if self.running:
+        if self.running or self._restarting:
             self.stop()
         else:
             self.start()
 
     def restart_if_running(self) -> None:
-        """Pick up changed settings or tracks by restarting the buffer."""
+        """Pick up changed settings or tracks by restarting the buffer. It shows
+        as restarting until it runs again: on its own, the stop and start flash
+        past as "Off" and "Starting…" too quickly to notice."""
         if not self.running:
             return
         self._restart_pending = True
+        self._restarting = True
+        self.state_changed.emit("restarting", "")
         workers.run(self.recorder.stop, lambda _v: self._restart())
 
     def _restart(self) -> None:
@@ -429,6 +465,13 @@ class RecorderController(QObject):
 
     def _on_state(self, payload) -> None:
         state, error = payload
+        if self._restarting:
+            if state in (State.STOPPED, State.STARTING):
+                return
+            self._restarting = False
+            if state == State.RUNNING:
+                self.context.message.emit("Replay buffer restarted with the new settings. "
+                                          "It starts empty.", "ok")
         self.state_changed.emit(state.value, error or "")
 
     def _on_saved(self, path: str) -> None:

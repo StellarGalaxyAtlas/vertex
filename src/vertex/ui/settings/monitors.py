@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
 from vertex.recorder import monitors
@@ -13,19 +13,6 @@ from vertex.ui import theme
 # Room around the arrangement, and between monitors that touch on the desktop.
 MARGIN = 14
 GAP = 3
-
-
-def desktop_screens() -> list[monitors.Screen]:
-    """The monitors as the desktop arranges them, as Qt reports them."""
-    screens = []
-    for screen in QGuiApplication.screens():
-        geometry = screen.geometry()
-        ratio = screen.devicePixelRatio()
-        screens.append(monitors.Screen(
-            screen.name(), geometry.x(), geometry.y(), geometry.width(), geometry.height(),
-            screen.model().strip() or screen.manufacturer().strip(),
-            (round(geometry.width() * ratio), round(geometry.height() * ratio))))
-    return screens
 
 
 def resolution(monitor: Monitor) -> str:
@@ -145,6 +132,8 @@ class MonitorMap(QWidget):
         lines = [" — ".join(part for part in (monitor.name, monitor.model) if part)]
         if resolution(monitor):
             lines.append(resolution(monitor))
+        if monitor.primary:
+            lines.append("The primary monitor")
         if not monitor.placed:
             lines.append("The desktop didn't say where this monitor is, so it is drawn "
                          "to the side.")

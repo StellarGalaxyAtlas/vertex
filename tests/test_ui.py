@@ -127,47 +127,89 @@ def test_capture_is_picked_on_the_monitor_map(qapp, window, monkeypatch):
     from PySide6.QtTest import QTest
 
     from vertex.recorder import gsr, monitors
-    from vertex.ui.settings import monitors as monitor_map
+    from vertex.ui import screens
 
-    monkeypatch.setattr(monitor_map, "desktop_screens", lambda: [
-        monitors.Screen("DP-1", 0, 240, 2560, 1440, "Dell", (2560, 1440)),
+    monkeypatch.setattr(screens, "desktop_screens", lambda: [
+        monitors.Screen("DP-1", 0, 240, 2560, 1440, "Dell", (2560, 1440), primary=True),
         monitors.Screen("DP-2", 2560, 0, 1080, 1920, "AOC", (1080, 1920))])
     window.navigate("settings")
     settings = window.settings_view
     settings.show_page("recording")
     # The fixture's recorder doesn't exist; let that answer arrive first.
     assert wait_until(qapp, lambda: "not installed" in settings.gsr_status.text())
-    values = [settings.capture.itemData(i) for i in range(settings.capture.count())]
-    assert values == ["screen", "DP-1", "DP-2", "portal", "focused", "region"]
-
-    options = gsr.parse_capture_options("DP-1|2560x1440\nDP-2|1080x1920\nregion\n"
-                                        "/dev/video0|640x480@30hz|yuyv\nportal\n")
-    settings._show_recorder((gsr.GsrInfo("gsr", True, (5, 15, 1), "5.15.1"), options, []))
-    qapp.processEvents()
-    values = [settings.capture.itemData(i) for i in range(settings.capture.count())]
-    assert values == ["screen", "DP-1", "DP-2", "region", "/dev/video0", "portal"]
-    assert settings.capture.currentText() == "Automatic"
-    assert settings.capture.itemText(2) == "Monitor DP-2 (1080 × 1920)"
-
     the_map = settings.monitor_map
     assert [m.name for m in the_map.monitors] == ["DP-1", "DP-2"]
+    # Nothing picked yet (the default, "screen"): the primary monitor is recorded.
+    assert the_map.current == "DP-1"
+    assert settings.capture_note.text() == "DP-1 · primary monitor"
+    assert "-w DP-1" in settings.preview.toPlainText()
+    assert not settings.is_dirty()
+
+    options = gsr.parse_capture_options("DP-1|2560x1440\nDP-2|1080x1920\nportal\n")
+    settings._show_recorder((gsr.GsrInfo("gsr", True, (5, 15, 1), "5.15.1"), options, []))
+    qapp.processEvents()
     vertical = the_map.rect_of("DP-2")
     assert vertical.height() > vertical.width()
     QTest.mouseClick(the_map, Qt.MouseButton.LeftButton, pos=vertical.center().toPoint())
-    assert settings.capture.currentData() == "DP-2"
     assert settings.collect().recorder.capture == "DP-2"
+    assert settings.capture_note.text() == "DP-2 · 1080 × 1920"
     assert "-w DP-2" in settings.preview.toPlainText()
     QTest.keyClick(the_map, Qt.Key.Key_Left)
-    assert settings.capture.currentData() == "DP-1" and the_map.current == "DP-1"
-
-    settings.capture.setCurrentIndex(settings.capture.findData("portal"))
-    assert the_map.current == "portal"
+    assert settings.collect().recorder.capture == "DP-1" and the_map.current == "DP-1"
     assert settings.save()
-    assert Config.load().recorder.capture == "portal"
-    # A monitor that isn't plugged in stays chosen, and says so.
-    settings._show_capture("HDMI-A-1")
-    assert settings.capture.currentText() == "HDMI-A-1 (not found)"
+    assert Config.load().recorder.capture == "DP-1"
+
+    # A picked monitor that isn't connected stays picked; the primary one
+    # is recorded meanwhile, by Settings' preview and the recorder alike.
+    window.context.config.recorder.capture = "HDMI-A-1"
+    settings.load()
+    assert the_map.current == "DP-1"
+    assert settings.capture_note.text() == "HDMI-A-1 isn't connected · recording DP-1"
     assert settings.collect().recorder.capture == "HDMI-A-1"
+    assert "-w DP-1" in settings.preview.toPlainText()
+    assert window.context.recorder.capture_target() == "DP-1"
+
+
+def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, monkeypatch):
+    import stat
+    import sys
+
+    from test_recorder import FAKE_GSR
+    from vertex.recorder import monitors
+    from vertex.ui import screens
+
+    fake_gsr = tmp_path / "gpu-screen-recorder"
+    fake_gsr.write_text(FAKE_GSR.format(python=sys.executable))
+    fake_gsr.chmod(fake_gsr.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setattr(screens, "desktop_screens", lambda: [
+        monitors.Screen("DP-1", 0, 0, 2560, 1440, primary=True)])
+    context = window.context
+    context.config.recorder.command = str(fake_gsr)
+    recorder = context.recorder
+    recorder.start()
+    assert wait_until(qapp, lambda: recorder.phase == "running")
+    assert "-w DP-1" in " ".join(recorder.argv())
+
+    states, messages = [], []
+    recorder.state_changed.connect(lambda state, _error: states.append(state))
+    context.message.connect(lambda text, _level: messages.append(text))
+    card = window.rail.recorder_card
+    recorder.restart_if_running()
+    assert card.detail.text() == "Restarting…"
+    assert wait_until(qapp, lambda: recorder.phase == "running" and messages)
+    # No "Off" or "Starting…" flashing past in between.
+    assert states == ["restarting", "running"]
+    assert card.detail.text().startswith("On")
+    assert messages == ["Replay buffer restarted with the new settings. It starts empty."]
+
+    # Stopping in the middle of a restart stops it for good.
+    recorder.restart_if_running()
+    recorder.toggle()
+    assert wait_until(qapp, lambda: recorder.phase == "stopped")
+    qapp.processEvents()
+    time.sleep(0.5)
+    qapp.processEvents()
+    assert recorder.phase == "stopped" and card.detail.text() == "Off"
 
 
 def test_sonar_page_drives_the_fake_server(qapp, window, fake_audio):

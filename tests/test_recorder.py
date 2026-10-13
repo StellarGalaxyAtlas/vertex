@@ -213,6 +213,24 @@ class TestMonitors:
         assert monitors.fit([], 400, 200) == []
         assert monitors.fit(arranged, 10, 10, margin=10) == [(5, 5, 0, 0), (5, 5, 0, 0)]
 
+    def test_the_monitor_recorded(self):
+        arranged = monitors.arrange([], [self.LANDSCAPE, Screen("DP-3", 0, 0, 800, 600,
+                                                                primary=True)])
+        assert monitors.target("DP-1", arranged) == "DP-1"
+        # Not connected, or nothing picked: the primary monitor, else the first.
+        assert monitors.target("HDMI-A-1", arranged) == "DP-3"
+        assert monitors.target("screen", arranged) == "DP-3"
+        assert monitors.target("portal", arranged[:1]) == "DP-1"
+        assert monitors.target("DP-1", []) == "DP-1"
+        assert monitors.target("", []) == "screen"
+
+    def test_names_monitor_reads_values_as_gsr_does(self):
+        for value in ("DP-1", "HDMI-A-1", "eDP-1", "DVI-D-0"):
+            assert monitors.names_monitor(value), value
+        for value in ("", "screen", "screen-direct", "portal", "focused", "region",
+                      "/dev/video0", "1920x1080+0+0", "0x3a00007", "12345"):
+            assert not monitors.names_monitor(value), value
+
     def test_reading_order(self):
         left = Screen("HDMI-A-1", -1920, 360, 1920, 1080)
         arranged = monitors.arrange([], [self.VERTICAL, self.LANDSCAPE, left])
