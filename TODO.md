@@ -264,6 +264,26 @@ command already handle `save-clip`, `replay start/stop/toggle/status` and
 - Every command also available as `vertex …`, so it can be bound to a desktop
   shortcut. Item 9's hotkeys can be built on the same commands.
 
+**17.**
+**Settings › Restructure the whole page**
+Asked 2026-10-13.
+- General: Folders stay as they are, with Library, State and Cache marked as
+  advanced. Behaviour (tray, start at login) stays.
+- Recording: "Saving a clip" goes, to another tab (advanced settings or
+  whatever fits) that can also show how to control Vertex from the command
+  line. The storage gauge goes or is reworked: it is an eyesore.
+- Notifications, a new tab: switches for which notifications are shown, such
+  as "Vertex is running in the tray" and "Clip captured", grouped into
+  recording, Sonar, and system/logging/errors (names to be suggested).
+  Built to grow: hotkeys (9) and the control API (13) will bring many more
+  notifications, so adding one must be easy.
+- Import becomes "Import and setup", with a way to run first-run setup again
+  (with warnings).
+- Reset and delete, a new tab: reset the config, the database and the cache,
+  with very clear warnings and confirmations.
+
+Questions in the Notes.
+
 ---
 
 ## Notes
@@ -365,6 +385,31 @@ Resolution "1080p", FPS "30"), a line saying lower settings mean smaller
 files, then two halves: "Clip size estimate: up to 180 MB each, based on clip
 settings" and "Hard drive space: 0 B of clips, 139.81 GB free on C:\", each
 with a bar.
+
+**Item 17.** What there is today (2026-10-13):
+- Settings tabs: General (Folders, Behaviour, Appearance), Recording (GPU
+  Screen Recorder, Recording Settings, Saving a clip, Advanced), Import (Copy
+  clips in, Tag from file names). "Saving a clip" also holds the switch
+  "Tag new clips with the game on the Game channel".
+- The storage gauge is `widgets.StorageGauge`, the yellow and green bar
+  under "Disk space" on the Recording page; the same widget sits at the
+  bottom of the rail.
+- Desktop notifications (the tray's pop-ups): "Still running in the tray"
+  (once per run, on closing the window), "Clip saved" (only while the window
+  isn't in front), "Replay buffer stopped" with GSR's error, and a failed
+  save from the tray menu. Nothing can switch them off.
+- In-app messages (the bar at the bottom of the window): clip saved, replay
+  buffer restarted, a clip track's device missing, Sonar's warnings (no
+  output device, no microphone, a failed change), clips tagged from file
+  names, deleted or trimmed clips and their errors, Settings saved or not
+  valid, the library or settings not saved or opened, a folder not created.
+- Plan for growth (maintainer, 2026-10-13): one list of notification types,
+  outside the UI (Qt-free), each with an id, its category, a name, a
+  description and whether it is on by default. Everything that notifies
+  goes through one place, which checks the setting and shows it. The
+  Notifications tab is built from that list, so a new type is one entry
+  there and one call where it happens. Item 13's subscription can carry
+  the same events.
 
 **Order.** Do item 13 before or together with item 9. Any action exposed as a
 `vertex …` command can be bound to a desktop keyboard shortcut, which is the
