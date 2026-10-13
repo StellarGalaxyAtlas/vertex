@@ -264,7 +264,7 @@ command already handle `save-clip`, `replay start/stop/toggle/status` and
 - Every command also available as `vertex …`, so it can be bound to a desktop
   shortcut. Item 9's hotkeys can be built on the same commands.
 
-**17.**
+**17.** ✅ Done
 **Settings › Restructure the whole page**
 Asked 2026-10-13.
 - General: Folders stay as they are, with Library, State and Cache marked as
@@ -316,6 +316,18 @@ Progress:
   the running Vertex the way Settings and the Sonar page do (library
   reopened if folders moved, Sonar switched or its devices picked, buffer
   restarted if its settings changed) instead of starting anything twice.
+- Reset and delete, done: "Reset settings…" and "Reset the library…" open a
+  red dialog listing what goes and what stays, with the action enabled only
+  once RESET or DELETE is typed; "Clear the cache…" asks plainly. Settings:
+  the buffer stops, Sonar goes down (the system's default devices come
+  back), config.json goes to the Trash (or a dated .bak beside it without
+  one), the settings return to defaults in place, and first-run setup opens.
+  Library: the database and its journal go the same way and a fresh one
+  opens; games come back from Moments-style names. Cache: only its
+  thumbnails and previews folders are removed. Danger buttons now look like
+  buttons (red label on the usual background) rather than links.
+- Tabs: General · Recording · Notifications · Shortcuts · Import and setup ·
+  Reset and delete; they fit the minimum window width.
 
 ---
 
@@ -337,8 +349,10 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
 configs, the 1.x library upgrade and an Aux lane (item 15).
 
-**Progress.** Done: 1–8 (8a, 8b), 10–12, 15 and the bugs 14 and 16. Next: 13, unless
-the maintainer says otherwise (9 is on hold).
+**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17 and the bugs 14 and 16. Next: 13,
+unless the maintainer says otherwise (9 is on hold). Open question for 13:
+may `docs/CONTROL.md` be written, given the freeze on `docs/`? The
+notification stream (`Context.notified`) is ready for 13's subscription.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).

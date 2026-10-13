@@ -191,7 +191,8 @@ class SonarController(QObject):
             return
         self._job(self.sonar.reconcile, self._after_change, quiet=True)
 
-    def set_enabled(self, enabled: bool) -> None:
+    def set_enabled(self, enabled: bool, then=None) -> None:
+        """Bring Sonar up or down; `then()` runs once it has."""
         self.context.config.sonar.enabled = enabled
         self.context.save_config()
 
@@ -207,6 +208,8 @@ class SonarController(QObject):
                 self.context.notify("sonar_problem", "Sonar", text)
             self._after_change(None)
             self.context.recorder.restart_if_running()
+            if then is not None:
+                then()
 
         self._job(work, done)
 

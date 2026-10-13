@@ -114,6 +114,13 @@ class ThumbnailCache:
         _remove(self.thumb_path(clip_path))
         shutil.rmtree(self.preview_dir(clip_path), ignore_errors=True)
 
+    def clear(self) -> None:
+        """Delete every cached image. Only the cache's own folders: the cache
+        folder itself may be anywhere, shared with anything."""
+        for folder in (self.thumb_dir, self.preview_root):
+            shutil.rmtree(folder, ignore_errors=True)
+        os.makedirs(self.thumb_dir, exist_ok=True)
+
     def prune(self, clip_paths) -> int:
         """Delete cached images for clips that no longer exist. Returns count."""
         keep = {self.digest(path) for path in clip_paths}

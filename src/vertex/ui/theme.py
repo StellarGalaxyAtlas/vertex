@@ -161,8 +161,9 @@ QPushButton[kind="primary"]:hover {{ background: {ACCENT_HOVER}; }}
 QPushButton[kind="primary"]:disabled {{
     background: {ACCENT_SOFT}; border-color: {ACCENT_SOFT}; color: {TEXT_MUTED};
 }}
-QPushButton[kind="danger"] {{ background: transparent; color: {DANGER}; }}
+QPushButton[kind="danger"] {{ color: {DANGER}; }}
 QPushButton[kind="danger"]:hover {{ background: {DANGER}; color: white; }}
+QPushButton[kind="danger"]:disabled {{ color: {TEXT_DIM}; background: {SECTION_BG}; }}
 QPushButton[kind="ghost"], QToolButton[kind="ghost"] {{ background: transparent; }}
 QPushButton[kind="ghost"]:hover, QToolButton[kind="ghost"]:hover {{ background: {CARD_HOVER}; }}
 QToolButton {{ padding: 6px; }}

@@ -17,9 +17,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop, notifications
+from vertex import APP_NAME, desktop, notifications, reset
 from vertex.audio import channels
 from vertex.config import Config
+from vertex.media.thumbnails import ThumbnailCache
 from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView
@@ -72,6 +73,7 @@ class MainWindow(QMainWindow):
         self.settings_view.saved.connect(self._settings_saved)
         self.settings_view.imported.connect(self.state.reload)
         self.settings_view.setup_requested.connect(self.run_setup_again)
+        self.settings_view.reset_requested.connect(self.reset)
         for page in (self.library_view, self.sonar_view, self.settings_view):
             self.stack.addWidget(page)
         self.editor: EditorView | None = None
@@ -186,12 +188,13 @@ class MainWindow(QMainWindow):
         self._remove_page(page)
         self.settings_view.load()
         if self._services_started:
-            self._apply_setup_again(before, config, enable_sonar)
+            self._apply_setup_again(before, config, enable_sonar, start_recorder)
         else:
             self.start_services(enable_sonar=enable_sonar, start_recorder=start_recorder)
         self.navigate("library")
 
-    def _apply_setup_again(self, before: Config, config: Config, enable_sonar: bool) -> None:
+    def _apply_setup_again(self, before: Config, config: Config, enable_sonar: bool,
+                           start_recorder: bool) -> None:
         """Setup ran again on a running Vertex: change what it changed, the way
         Settings and the Sonar page do, rather than starting anything twice."""
         context = self.context
@@ -215,6 +218,68 @@ class MainWindow(QMainWindow):
         if context.config.recorder != before.recorder:
             context.recorder.detect()
             context.recorder.restart_if_running()
+        if start_recorder and not before.recorder.autostart:
+            context.recorder.start()      # just asked to start with Vertex: now, too
+
+    # --- Reset and delete -----------------------------------------------------------
+
+    def reset(self, what: str) -> None:
+        """Settings, the library or the cache back to a fresh install's, once
+        Settings › Reset and delete has had it confirmed."""
+        {"settings": self.reset_settings, "library": self.reset_library,
+         "cache": self.clear_cache}[what]()
+
+    def reset_settings(self) -> None:
+        """Stop the buffer and take Sonar down (giving back the system's default
+        devices), put the settings file away, then first-run setup."""
+        context = self.context
+        self._close_editor()
+        context.recorder.stop()
+
+        def sonar_down(_value=None):
+            try:
+                where = reset.discard_settings()
+            except OSError as exc:
+                context.notify("vertex_problem", "Could not reset settings", str(exc))
+                return
+            # In place: Sonar and the recorder hold on to the settings' parts.
+            reset.reset_in_place(context.config, Config())
+            self.settings_view.load()
+            self.rail.rebuild_facets()
+            self.show_setup()
+            self.banner.show_message(f"Settings reset. {_kept(where, 'old ones are')}", "ok",
+                                     10000)
+
+        if context.sonar.enabled:
+            context.sonar.set_enabled(False, then=sonar_down)
+        else:
+            sonar_down()
+
+    def reset_library(self) -> None:
+        context = self.context
+        self._close_editor()
+        if context.library is not None:
+            context.library.close()
+        try:
+            where = reset.discard_library(context.config.resolved_data_dir())
+        except OSError as exc:
+            context.notify("vertex_problem", "Could not reset the library", str(exc))
+            where = None
+        context.open_library()
+        self.state.reload()
+        if where is not None:
+            self.settings_view.banner.show_message(
+                f"Library reset. {_kept(where, 'old one is')}", "ok", 10000)
+
+    def clear_cache(self) -> None:
+        context = self.context
+        if context.thumbs is not None:
+            context.thumbs.shutdown()
+        ThumbnailCache(context.config.resolved_cache_dir()).clear()
+        context.open_library()
+        self.state.reload()
+        self.settings_view.banner.show_message("Cache cleared. Thumbnails come back as you "
+                                               "browse.", "ok")
 
     def start_services(self, enable_sonar: bool | None = None,
                        start_recorder: bool | None = None) -> None:
@@ -357,4 +422,13 @@ class MainWindow(QMainWindow):
         self._close_editor()
         self.close()
         QApplication.instance().quit()
+
+
+def _kept(where: str, subject: str) -> str:
+    """Where a reset put the file it replaced, as a sentence."""
+    if not where:
+        return ""
+    if where == "the Trash":
+        return f"The {subject} in the Trash."
+    return f"The {subject} kept as {where}."
 

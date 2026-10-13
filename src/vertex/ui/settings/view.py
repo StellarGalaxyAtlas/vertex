@@ -1,4 +1,5 @@
-"""Settings: folders and app behaviour, recording, notifications, shortcuts, import."""
+"""Settings: folders and app behaviour, recording, notifications, shortcuts, import
+and setup, reset."""
 
 from __future__ import annotations
 
@@ -41,6 +42,7 @@ from vertex.ui import screens, theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.settings import monitors as monitor_map
 from vertex.ui.settings.notifications import NotificationsPage
+from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.shortcuts import ShortcutsPage
 from vertex.ui.widgets import (
     Banner,
@@ -108,6 +110,7 @@ class SettingsView(QWidget):
     saved = Signal(bool)             # folders changed
     imported = Signal()
     setup_requested = Signal()       # run first-run setup again
+    reset_requested = Signal(str)    # settings | library | cache, confirmed
 
     def __init__(self, context, parent=None):
         super().__init__(parent)
@@ -126,7 +129,8 @@ class SettingsView(QWidget):
         layout.addLayout(header)
         self.tabs = Segmented([("general", "General"), ("recording", "Recording"),
                                ("notifications", "Notifications"), ("shortcuts", "Shortcuts"),
-                               ("import", "Import and setup")], "general")
+                               ("import", "Import and setup"), ("reset", "Reset and delete")],
+                              "general")
         self.tabs.changed.connect(lambda key, _d: self.show_page(key))
         layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
         self.stack = QStackedWidget()
@@ -151,6 +155,10 @@ class SettingsView(QWidget):
         self.pages["shortcuts"] = scroll_page(*ShortcutsPage().sections)
         self.stack.addWidget(self.pages["shortcuts"])
         self._build_import()
+        resets = ResetPage(self)
+        resets.reset_requested.connect(self.reset_requested)
+        self.pages["reset"] = scroll_page(*resets.sections)
+        self.stack.addWidget(self.pages["reset"])
         self.load()
 
     def show_page(self, key: str) -> None:

@@ -780,6 +780,97 @@ def test_setup_runs_again_from_settings(qapp, window, monkeypatch):
     assert context.config.clip_path == before["clip_path"]
 
 
+def test_reset_confirms_by_typing_the_word(qapp, window):
+    from vertex.ui.settings.reset import TypeToConfirm
+
+    dialog = TypeToConfirm(window, "Reset", "Reset?", ["Everything."], "Clips stay.",
+                           "RESET", "Reset settings")
+    assert not dialog.confirm.isEnabled()
+    dialog.field.setText("reset")
+    assert not dialog.confirm.isEnabled()
+    dialog.field.setText("RESET")
+    assert dialog.confirm.isEnabled()
+    dialog.reject()
+
+
+def test_reset_library_and_cache(qapp, window, monkeypatch):
+    import glob
+
+    from vertex.core import storage
+
+    monkeypatch.setattr(storage, "send2trash", None)
+    context, state = window.context, window.state
+    clip = state.find("Replay_2026-01-02_03-04-05.mp4")
+    state.set_tags(clip, "The Finals", ["Anna"])
+    data = context.config.resolved_data_dir()
+
+    window.reset("library")
+    assert state.tags_of(clip) == ("", [])
+    assert ("Apex Legends", 1) in state.games()       # read from its file name again
+    assert glob.glob(f"{data}/library.db.*.bak")
+    assert "kept as" in window.settings_view.banner.text()
+
+    thumbs = os.path.join(context.config.resolved_cache_dir(), "thumbnails")
+    open(os.path.join(thumbs, "old.jpg"), "w").close()
+    window.reset("cache")
+    assert not os.path.exists(os.path.join(thumbs, "old.jpg"))
+    assert window.settings_view.banner.text().startswith("Cache cleared")
+
+
+def test_reset_settings_then_setup(qapp, window, monkeypatch, tmp_path):
+    from vertex import paths
+    from vertex.core import storage
+    from vertex.ui import main_window
+
+    monkeypatch.setattr(storage, "send2trash", None)
+    context = window.context
+    sonar_settings = context.config.sonar
+    context.config.recorder.replay_seconds = 120
+    context.config.notifications = {"replay_started": True}
+    context.save_config()
+
+    window.reset("settings")
+    assert not paths.config_path().exists()
+    assert glob_backups(paths.config_path())
+    assert context.config == Config() and context.config.sonar is sonar_settings
+    setup = window.first_run
+    assert setup is not None and not setup.again
+
+    monkeypatch.setattr(main_window.MainWindow, "start_services",
+                        lambda *_a, **_k: pytest.fail("services started twice"))
+    setup.clip_path.set_value(str(tmp_path / "new clips"))
+    setup.sonar_enabled.setChecked(False)
+    for _ in range(len(setup.steps)):
+        setup._go(1)
+    assert window.first_run is None
+    saved = Config.load()
+    assert saved.is_complete() and saved.clip_path == str(tmp_path / "new clips")
+    assert saved.notifications == {} and saved.recorder.replay_seconds == 60
+
+
+def test_reset_settings_takes_sonar_down_first(qapp, window, fake_audio, monkeypatch):
+    from vertex.core import storage
+
+    monkeypatch.setattr(storage, "send2trash", None)
+    context = window.context
+    context.sonar.set_enabled(True)
+    assert wait_until(qapp, lambda: context.sonar.status.active)
+
+    def vertex_sinks():
+        return [sink.name for sink in fake_audio.sinks() if sink.name.startswith("vertex_")]
+    assert vertex_sinks()
+    window.reset("settings")
+    assert wait_until(qapp, lambda: window.first_run is not None)
+    assert not context.config.sonar.enabled
+    assert not vertex_sinks()
+
+
+def glob_backups(path) -> list[str]:
+    import glob
+
+    return glob.glob(f"{path}.*.bak")
+
+
 def test_control_commands(qapp, window):
     from vertex.ui.app import Commands
 
