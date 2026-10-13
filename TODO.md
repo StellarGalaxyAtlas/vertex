@@ -394,7 +394,10 @@ dark on dark. Asked 2026-10-13.
 Decisions already made, and questions to settle when their item comes up.
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`, the
-screenshots in it) until the maintainer says so (2026-10-13). Screenshots
+screenshots in it) until the maintainer says so (2026-10-13). Confirmed again
+later that day: the docs are written at the end, item 13's `docs/CONTROL.md`
+included; until then the control protocol is described in its module's
+docstring. Screenshots
 taken to check UI work are fine; they are never committed. Some of it is
 already behind: README still says to set *Capture* to *Portal* if recording a
 monitor fails, shows the old Recording page, and has people run `vertex
@@ -410,9 +413,9 @@ mentions picking the logo ink for your panel, and ARCHITECTURE lists
 `logo_variant` among the config keys (item 20).
 
 **Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17, 19, 20 and the bugs 14, 16 and 18.
-Next: 13 (the maintainer's order, 2026-10-13; 9 is on hold). Open question for 13:
-may `docs/CONTROL.md` be written, given the freeze on `docs/`? The
-notification stream (`Context.notified`) is ready for 13's subscription.
+Next: 13 (the maintainer's order, 2026-10-13; 9 is on hold), without
+`docs/CONTROL.md` for now (see Documentation). The notification stream
+(`Context.notified`) is ready for 13's subscription.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
