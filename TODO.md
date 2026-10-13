@@ -73,7 +73,3 @@ Overhaul the Sonar page's UI and UX, bringing items 4–10 together.
 **12.**
 **Rail (left-hand menu) › Games / People**
 Make the Games and People groups collapsible.
-
-**13.**
-**Recording**
-_(to be filled in)_
