@@ -81,3 +81,20 @@ Overhaul the Sonar page's UI and UX, bringing items 4–10 together.
 **12.**
 **Rail (left-hand menu) › Games / People**
 Make the Games and People groups collapsible.
+
+**13.**
+**Control API (for a StreamController / Stream Deck plugin)**
+Let outside software control Vertex. The plugin itself is a separate project;
+this is the part that lives in this repo. The control socket and the `vertex`
+command already handle `save-clip`, `replay start/stop/toggle/status` and
+`sonar up/down/status`, but replies are plain sentences meant for people.
+- A documented, versioned API on the existing control socket
+  (`docs/CONTROL.md`), with structured replies (fields, not sentences) and
+  error codes.
+- More commands: per-channel volume up/down/set and mute, next/previous
+  device, mic mute, and saving clips of a set length.
+- State queries for button faces: volume, muted, current device, replay
+  buffer running.
+- A subscription that pushes changes, so buttons update live without polling.
+- Every command also available as `vertex …`, so it can be bound to a desktop
+  shortcut. Item 9's hotkeys can be built on the same commands.
