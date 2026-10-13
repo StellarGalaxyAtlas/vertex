@@ -55,15 +55,15 @@ colour-coded.
 
 **8.**
 **Sonar › Device manager**
-A device manager like SteelSeries Sonar's, opened per channel:
-- An ordered list of the channel's devices, reordered by dragging. The current
-  device is marked and has its own volume; the ones before and after it are
-  "previous" and "next", the order device hotkeys cycle through.
+A device manager like SteelSeries Sonar's. Two buttons on the Sonar page, one
+for the output devices (shared by all output channels) and one for the input,
+each open a panel over the page:
+- An ordered list of devices, reordered by dragging. The current device is
+  marked and has its own volume; the ones before and after it are "previous"
+  and "next", the order device hotkeys cycle through.
 - An "Excluded devices" column for devices kept out of the cycle.
-- The channel's format (e.g. 24 bit / 96 kHz), shown for information.
-- The channel's shortcuts: previous/next device, volume up/down, mute (see 9).
-- To decide: does each channel get its own device, or do all channels share one
-  list as now?
+- The format (e.g. 24 bit / 96 kHz), shown for information.
+- Shortcuts: previous/next device, volume up/down, mute (see 9).
 
 **9.**
 **Sonar › Hotkeys**
