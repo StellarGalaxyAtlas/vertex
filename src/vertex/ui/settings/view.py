@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import desktop, paths
+from vertex import desktop, fmt, paths
 from vertex.config import (
     AUDIO_CODECS,
     BITRATE_MODES,
@@ -30,20 +30,24 @@ from vertex.config import (
     CONTAINERS,
     ENCODERS,
     FRAMERATE_MODES,
-    QUALITIES,
     REPLAY_STORAGES,
     VIDEO_CODECS,
     Config,
 )
-from vertex.recorder import gsr, monitors
+from vertex.core import storage
+from vertex.recorder import gsr, monitors, presets
 from vertex.ui import screens, theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.settings import monitors as monitor_map
 from vertex.ui.widgets import (
     Banner,
+    Disclosure,
+    FieldGrid,
+    Meter,
     PathField,
     Section,
     Segmented,
+    StorageGauge,
     Toggle,
     button,
     label,
@@ -58,6 +62,14 @@ LABELS = {
     "hevc_10bit": "HEVC 10-bit", "av1_10bit": "AV1 10-bit", "hevc_hdr": "HEVC HDR",
     "av1_hdr": "AV1 HDR", "limited": "Limited", "full": "Full",
 }
+
+
+# Video quality levels by GSR's names (see recorder.presets), as Settings calls them.
+QUALITY_NAMES = {"medium": "Low", "high": "Medium", "very_high": "High", "ultra": "Ultra"}
+
+
+def mbps(kbps: int) -> str:
+    return f"{kbps / 1000:g} Mbps"
 
 
 def combo(values, current: str, editable: bool = False) -> QComboBox:
@@ -121,6 +133,8 @@ class SettingsView(QWidget):
         # The monitor picked, as saved. Older settings may hold something
         # else ("screen", "portal"…), which records the primary monitor.
         self._capture = "screen"
+        # The disk the clips go to, once measured.
+        self._storage: storage.StorageStats | None = None
         self._build_general()
         self._build_recording()
         self._build_devices()
@@ -132,6 +146,7 @@ class SettingsView(QWidget):
         self.stack.setCurrentWidget(self.pages[key])
         if key == "recording":
             self._refresh_recorder()
+            self._refresh_storage()
 
     # --- Pages ----------------------------------------------------------------
 
@@ -177,11 +192,6 @@ class SettingsView(QWidget):
                                                 "buffer and saves clips into the clips folder.")
         self.gsr_status = label("", "Muted", wrap=True)
         status.add(self.gsr_status)
-        self.command = QLineEdit()
-        self.command.setPlaceholderText("gpu-screen-recorder")
-        self.command.setMinimumWidth(380)
-        status.add_row("Command", self.command, "For the Flatpak: flatpak run "
-                       "--command=gpu-screen-recorder com.dec05eba.gpu_screen_recorder")
         self.rec_autostart = Toggle()
         status.add_row("Start the replay buffer with Vertex", self.rec_autostart)
 
@@ -203,39 +213,49 @@ class SettingsView(QWidget):
         hotkey.add_row("Tag new clips with the game on the Game channel", self.tag_from_game,
                        "Needs Sonar. Only when exactly one app is playing there.")
 
-        video = Section("Video")
+        clips = Section("Recording Settings", "Lower settings make smaller clips and leave "
+                                              "more of your computer to the game.")
         self.capture_note = label("", "Muted")
-        video.add_row("Monitor", self.capture_note, "Click the monitor to record.")
+        clips.add_row("Monitor", self.capture_note, "Click the monitor to record.")
         self.monitor_map = monitor_map.MonitorMap()
         self.monitor_map.picked.connect(self._pick_monitor)
-        video.add(self.monitor_map)
+        clips.add(self.monitor_map)
         # Plugging in, unplugging or rearranging monitors redraws the map.
         app = QGuiApplication.instance()
         app.screenAdded.connect(self._watch_screen)
         app.screenRemoved.connect(self._screens_changed)
         for screen in app.screens():
             self._watch_screen(screen, initial=True)
-        self.resolution = QLineEdit()
-        self.resolution.setPlaceholderText("Original")
-        video.add_row("Resolution limit", self.resolution, "e.g. 1920x1080; blank keeps the "
-                      "source size")
-        self.fps = QSpinBox()
-        self.fps.setRange(1, 500)
-        video.add_row("Frame rate", self.fps)
-        self.framerate_mode = combo(FRAMERATE_MODES, "vfr")
-        video.add_row("Frame rate mode", self.framerate_mode)
+        self.duration = QComboBox()
+        self.video_quality = QComboBox()
+        self.resolution = QComboBox()
+        self.fps = QComboBox()
+        grid = FieldGrid()
+        for title, widget in (("Duration", self.duration), ("Video quality", self.video_quality),
+                              ("Resolution", self.resolution), ("Frame rate", self.fps)):
+            grid.add(title, widget)
+        clips.add(grid)
+        self.cursor = Toggle()
+        clips.add_row("Record the cursor", self.cursor)
+        clips.add(self._build_estimate())
+
+        advanced = Disclosure("Advanced", "Bitrate, codecs, audio, where clips go, and the "
+                                          "recorder's command")
+        video = Section("Video")
+        self.bitrate_mode = combo(BITRATE_MODES, "cbr")
+        video.add_row("Bitrate mode", self.bitrate_mode, "Constant bitrate keeps clip sizes "
+                      "and the buffer's memory use predictable")
+        self.bitrate = QSpinBox()
+        self.bitrate.setRange(0, 500000)
+        self.bitrate.setSingleStep(1000)
+        self.bitrate.setSuffix(" kbps")
+        self.bitrate.setSpecialValueText("From video quality")
+        video.add_row("Bitrate", self.bitrate, "For constant bitrate: set one by hand instead "
+                      "of what the video quality comes to")
         self.video_codec = combo(VIDEO_CODECS, "auto")
         video.add_row("Codec", self.video_codec, "H.264 plays everywhere a clip is shared")
-        self.bitrate_mode = combo(BITRATE_MODES, "auto")
-        video.add_row("Bitrate mode", self.bitrate_mode, "Constant bitrate keeps the "
-                      "buffer's memory use predictable")
-        self.quality = combo(QUALITIES, "very_high")
-        video.add_row("Quality", self.quality, "For constant quality and variable bitrate")
-        self.bitrate = QSpinBox()
-        self.bitrate.setRange(500, 500000)
-        self.bitrate.setSuffix(" kbps")
-        self.bitrate.setSingleStep(1000)
-        video.add_row("Bitrate", self.bitrate, "For constant bitrate")
+        self.framerate_mode = combo(FRAMERATE_MODES, "vfr")
+        video.add_row("Frame rate mode", self.framerate_mode)
         self.container = combo(CONTAINERS, "mp4")
         video.add_row("Container", self.container)
         self.color_range = combo(COLOR_RANGES, "limited")
@@ -247,19 +267,15 @@ class SettingsView(QWidget):
         self.keyint.setSingleStep(0.5)
         self.keyint.setSuffix(" s")
         video.add_row("Keyframe interval", self.keyint, "Shorter means more precise trims")
-        self.cursor = Toggle()
-        video.add_row("Record the cursor", self.cursor)
 
         replay = Section("Replay buffer")
-        self.replay_seconds = QSpinBox()
-        self.replay_seconds.setRange(gsr.REPLAY_MIN, 3600)
-        self.replay_seconds.setSuffix(" s")
-        replay.add_row("Keep the last", self.replay_seconds)
         self.replay_storage = combo(REPLAY_STORAGES, "ram")
         replay.add_row("Buffer in", self.replay_storage, "Disk saves memory on long buffers")
         self.output_dir = PathField(placeholder="The clips folder")
         self.output_dir.setMinimumWidth(380)
-        replay.add_row("Save clips to", self.output_dir)
+        replay.add_row("Save clips to", self.output_dir, "Blank saves them into the clips "
+                       "folder set under General")
+        self.clip_path.changed.connect(self._show_clips_folder)
 
         audio = Section("Audio", "With Sonar on, every recorded channel is its own track — "
                                  "choose which on the Sonar page.")
@@ -280,32 +296,76 @@ class SettingsView(QWidget):
         self.audio_devices = label("", "Dim", wrap=True)
         audio.add(self.audio_devices)
 
-        advanced = Section("Advanced")
+        recorder = Section("Recorder")
+        self.command = QLineEdit()
+        self.command.setPlaceholderText("gpu-screen-recorder")
+        self.command.setMinimumWidth(380)
+        recorder.add_row("Command", self.command, "For the Flatpak: flatpak run "
+                         "--command=gpu-screen-recorder com.dec05eba.gpu_screen_recorder")
         self.extra_args = QLineEdit()
         self.extra_args.setPlaceholderText("-tune quality -low-power yes")
-        advanced.add_row("Extra arguments", self.extra_args)
+        self.extra_args.setMinimumWidth(380)
+        recorder.add_row("Extra arguments", self.extra_args)
         self.preview = QPlainTextEdit()
         self.preview.setReadOnly(True)
         self.preview.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
         self.preview.setFixedHeight(96)
-        advanced.add(label("The command Vertex will run:", "Dim"))
-        advanced.add(self.preview)
+        recorder.add(label("The command Vertex will run:", "Dim"))
+        recorder.add(self.preview)
+        for section in (video, replay, audio, recorder):
+            advanced.add(section)
 
-        for widget in (self.command, self.resolution, self.extra_args):
-            widget.textChanged.connect(self._update_preview)
-        for widget in (self.fps, self.bitrate, self.replay_seconds, self.audio_bitrate):
-            widget.valueChanged.connect(self._update_preview)
-        self.keyint.valueChanged.connect(self._update_preview)
-        for widget in (self.framerate_mode, self.video_codec, self.bitrate_mode,
-                       self.quality, self.container, self.color_range, self.encoder,
+        # The clip settings change what each other offers (sizes up to the
+        # monitor's, bitrates for the size and frame rate) and the estimate.
+        for widget in (self.duration, self.resolution, self.fps, self.bitrate_mode,
                        self.replay_storage, self.audio_codec):
+            widget.currentIndexChanged.connect(self._clip_settings_changed)
+        self.video_quality.activated.connect(self._pick_quality)
+        for widget in (self.bitrate, self.audio_bitrate):
+            widget.valueChanged.connect(self._clip_settings_changed)
+        self.audio_sources.textChanged.connect(self._clip_settings_changed)
+        for widget in (self.command, self.extra_args):
+            widget.textChanged.connect(self._update_preview)
+        self.keyint.valueChanged.connect(self._update_preview)
+        for widget in (self.framerate_mode, self.video_codec, self.container, self.color_range,
+                       self.encoder):
             widget.currentIndexChanged.connect(self._update_preview)
-            widget.editTextChanged.connect(self._update_preview)
-        self.audio_sources.textChanged.connect(self._update_preview)
         self.cursor.toggled.connect(self._update_preview)
 
-        self.pages["recording"] = scroll_page(status, hotkey, replay, video, audio, advanced)
+        self.pages["recording"] = scroll_page(status, hotkey, clips, advanced)
         self.stack.addWidget(self.pages["recording"])
+
+    def _build_estimate(self) -> QWidget:
+        """How big a clip gets with these settings, and how many fit on the disk."""
+        box = QWidget()
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 6, 0, 0)
+        row.setSpacing(24)
+        halves = []
+        for title in ("CLIP SIZE", "DISK SPACE"):
+            column = QVBoxLayout()
+            column.setSpacing(6)
+            column.addWidget(label(title, "Group"))
+            figure = label()
+            figure.setStyleSheet("font-size: 13pt; font-weight: 600;")
+            column.addWidget(figure)
+            halves.append((column, figure))
+        (left, self.clip_size), (right, self.disk_room) = halves
+        self.clip_meter = Meter()
+        left.addWidget(self.clip_meter)
+        self.clip_detail = label("", "Dim", wrap=True)
+        left.addWidget(self.clip_detail)
+        left.addStretch(1)
+        self.disk_gauge = StorageGauge()
+        right.addWidget(self.disk_gauge)
+        right.addStretch(1)
+        row.addLayout(left, 1)
+        divider = QFrame()
+        divider.setFixedWidth(1)
+        divider.setStyleSheet(f"background: {theme.LINE};")
+        row.addWidget(divider)
+        row.addLayout(right, 1)
+        return box
 
     def _build_devices(self) -> None:
         section = Section("Capture devices of older clips",
@@ -355,28 +415,27 @@ class SettingsView(QWidget):
         self.tag_from_game.setChecked(rec.tag_from_game_channel)
         self._capture = rec.capture
         self._show_capture()
-        self.resolution.setText(rec.resolution)
-        self.fps.setValue(rec.fps)
         _set_combo(self.framerate_mode, rec.framerate_mode)
         _set_combo(self.video_codec, rec.video_codec)
         _set_combo(self.bitrate_mode, rec.bitrate_mode)
-        _set_combo(self.quality, rec.quality)
         self.bitrate.setValue(rec.bitrate_kbps)
         _set_combo(self.container, rec.container)
         _set_combo(self.color_range, rec.color_range)
         _set_combo(self.encoder, rec.encoder)
         self.keyint.setValue(rec.keyframe_interval)
         self.cursor.setChecked(rec.cursor)
-        self.replay_seconds.setValue(rec.replay_seconds)
         _set_combo(self.replay_storage, rec.replay_storage)
         self.output_dir.set_value(rec.output_dir)
+        self._show_clips_folder(config.resolved_clip_dir())
         _set_combo(self.audio_codec, rec.audio_codec)
         self.audio_bitrate.setValue(rec.audio_bitrate)
         self.audio_sources.setPlainText("\n".join(rec.audio_sources))
         self.extra_args.setText(rec.extra_args)
         for key, field in self.legacy.items():
             field.setEditText(getattr(config, key))
+        self._show_clip_choices(rec)
         self._update_preview()
+        self._show_estimate()
 
     def collect(self) -> Config:
         config = copy.deepcopy(self.context.config)
@@ -392,19 +451,22 @@ class SettingsView(QWidget):
         rec.autostart = self.rec_autostart.isChecked()
         rec.tag_from_game_channel = self.tag_from_game.isChecked()
         rec.capture = self._capture
-        rec.resolution = self.resolution.text().strip()
-        rec.fps = self.fps.value()
+        # Empty only while the page is first being filled in.
+        for widget, name in ((self.duration, "replay_seconds"), (self.resolution, "resolution"),
+                             (self.fps, "fps")):
+            if widget.currentData() is not None:
+                setattr(rec, name, widget.currentData())
+        if self.video_quality.currentData() not in (None, "custom"):
+            rec.quality = self.video_quality.currentData()
         rec.framerate_mode = self.framerate_mode.currentData()
         rec.video_codec = self.video_codec.currentData()
         rec.bitrate_mode = self.bitrate_mode.currentData()
-        rec.quality = self.quality.currentData()
         rec.bitrate_kbps = self.bitrate.value()
         rec.container = self.container.currentData()
         rec.color_range = self.color_range.currentData()
         rec.encoder = self.encoder.currentData()
         rec.keyframe_interval = self.keyint.value()
         rec.cursor = self.cursor.isChecked()
-        rec.replay_seconds = self.replay_seconds.value()
         rec.replay_storage = self.replay_storage.currentData()
         rec.output_dir = self.output_dir.value()
         rec.audio_codec = self.audio_codec.currentData()
@@ -452,6 +514,7 @@ class SettingsView(QWidget):
             self.context.recorder.restart_if_running()
         self.banner.show_message("Saved. Restarting the replay buffer to use the new "
                                  "settings." if restarting else "Saved.", "ok", 5000)
+        self._refresh_storage()
         self.saved.emit(folders_changed)
         return True
 
@@ -480,6 +543,7 @@ class SettingsView(QWidget):
             self.gsr_status.setStyleSheet(f"color: {theme.WARN};")
         self._capture_options = captures
         self._show_capture()
+        self._clip_settings_changed()
         if devices:
             names = ", ".join(name for name, _desc in devices[:12])
             self.audio_devices.setText(f"Devices GPU Screen Recorder can record: {names}"
@@ -519,14 +583,13 @@ class SettingsView(QWidget):
         self.capture_note.setStyleSheet(f"color: {theme.WARN};" if warn else "")
 
     def _as_recorded(self, rec):
-        """The settings with the monitor that will actually be recorded."""
-        return dataclasses.replace(
-            rec, capture=monitors.target(rec.capture, self.monitor_map.monitors))
+        """The settings as GSR will get them, for the monitor that is recorded."""
+        return presets.resolve(rec, self.monitor_map.monitors)
 
     def _pick_monitor(self, name: str) -> None:
         self._capture = name
         self._show_capture()
-        self._update_preview()
+        self._clip_settings_changed()
 
     def _watch_screen(self, screen, initial: bool = False) -> None:
         screen.geometryChanged.connect(self._screens_changed)
@@ -539,8 +602,96 @@ class SettingsView(QWidget):
 
     def _rearrange(self) -> None:
         self._show_capture()
+        self._clip_settings_changed()
         if self.stack.currentWidget() is self.pages.get("recording"):
             self._refresh_recorder()     # GSR's list changes with the monitors
+
+    # --- Clip settings ---------------------------------------------------------------
+
+    def _clip_settings_changed(self, *_args) -> None:
+        self._show_clip_choices(self.collect().recorder)
+        self._update_preview()
+        self._show_estimate()
+
+    def _pick_quality(self, _index: int) -> None:
+        # Picking a level drops a bitrate set by hand in Advanced.
+        if self.video_quality.currentData() != "custom":
+            self.bitrate.blockSignals(True)
+            self.bitrate.setValue(0)
+            self.bitrate.blockSignals(False)
+        self._clip_settings_changed()
+
+    def _show_clip_choices(self, rec) -> None:
+        """Offer the durations, sizes, qualities and frame rates for the monitor
+        recorded: sizes up to its own, turned with it, and each quality with the
+        bitrate it comes to at the chosen size and frame rate."""
+        monitor = presets.recorded_monitor(rec, self.monitor_map.monitors)
+        pixels = monitor.pixels if monitor and all(monitor.pixels) else (0, 0)
+        _fill(self.duration, [(s, f"{s} seconds") for s in presets.DURATIONS],
+              rec.replay_seconds, lambda s: f"{s} seconds")
+        _fill(self.fps, [(f, f"{f} fps") for f in presets.FRAME_RATES], rec.fps,
+              lambda f: f"{f} fps")
+
+        sizes = []
+        for height in presets.HEIGHTS:
+            if pixels[0] and height >= min(pixels):
+                continue
+            width, tall = presets.output_size(f"{height}p", pixels)
+            sizes.append((f"{height}p", f"{height}p · {width} × {tall}" if pixels[0]
+                          else f"{height}p"))
+        sizes.append(("", f"Native · {pixels[0]} × {pixels[1]}" if pixels[0] else "Native"))
+        _fill(self.resolution, sizes, rec.resolution, lambda r: r.replace("x", " × "))
+
+        constant = rec.bitrate_mode == "cbr"
+        size = presets.output_size(rec.resolution, pixels)
+        levels = []
+        for level in presets.LEVELS:
+            name = QUALITY_NAMES[level]
+            if constant:
+                name += f" · {mbps(presets.video_kbps(level, size, rec.fps))}"
+            levels.append((level, name))
+        current = rec.quality
+        if constant and rec.bitrate_kbps:
+            levels.append(("custom", f"Custom · {mbps(rec.bitrate_kbps)}"))
+            current = "custom"
+        _fill(self.video_quality, levels, current, lambda q: q.replace("_", " ").capitalize())
+
+    def _show_estimate(self) -> None:
+        config = self.collect()
+        rec = config.recorder
+        tracks = len(gsr.audio_tracks(config))
+        size = presets.clip_bytes(self._as_recorded(rec), tracks)
+        largest = presets.clip_bytes(self._as_recorded(dataclasses.replace(
+            rec, quality=presets.LEVELS[-1], resolution="", fps=max(presets.FRAME_RATES),
+            replay_seconds=max(presets.DURATIONS), bitrate_kbps=0)), tracks)
+        constant = rec.bitrate_mode == "cbr"
+        self.clip_size.setText(f"{'About' if constant else 'Roughly'} "
+                               f"{fmt.size(size, 0)} per clip")
+        self.clip_meter.set_fraction(size / largest if largest else 0)
+        where = "in memory" if rec.replay_storage == "ram" else "on disk"
+        detail = f"The replay buffer holds about {fmt.size(size, 0)} {where} while it runs."
+        if not constant:
+            detail = f"It depends on what is on screen. {detail}"
+        self.clip_detail.setText(detail)
+        if self._storage is None:
+            self.disk_room.setText("Measuring…")
+        else:
+            room = self._storage.disk_free // size if size else 0
+            self.disk_room.setText(f"Room for about {room:,} more clips")
+
+    def _refresh_storage(self) -> None:
+        folder = self.collect().resolved_recording_dir()
+        workers.run(lambda: storage.storage_stats(folder), self._got_storage,
+                    lambda _exc: None)
+
+    def _got_storage(self, stats) -> None:
+        self._storage = stats
+        self.disk_gauge.set_stats(stats)
+        self._show_estimate()
+
+    def _show_clips_folder(self, folder: str) -> None:
+        self.output_dir.edit.setPlaceholderText(paths.tilde(folder) if folder
+                                                else "The clips folder")
 
     def _update_preview(self) -> None:
         try:
@@ -573,6 +724,19 @@ class SettingsView(QWidget):
         if dialog.exec():
             self.imported.emit()
             self.banner.show_message(f"Tagged {dialog.written} clips.", "ok")
+
+
+def _fill(widget: QComboBox, items, current, describe) -> None:
+    """Fill a drop-down and keep `current` chosen. A value it doesn't offer,
+    from older settings, stays chosen too, written out by `describe`."""
+    widget.blockSignals(True)
+    widget.clear()
+    for value, text in items:
+        widget.addItem(text, value)
+    if widget.findData(current) < 0:
+        widget.addItem(describe(current), current)
+    widget.setCurrentIndex(widget.findData(current))
+    widget.blockSignals(False)
 
 
 def _set_combo(widget: QComboBox, value: str) -> None:

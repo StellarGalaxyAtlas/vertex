@@ -185,8 +185,8 @@ def validate(rec: RecorderConfig) -> list[str]:
         problems.append("The frame rate must be between 1 and 1000.")
     if rec.capture == "region" and not re.fullmatch(r"\d+x\d+\+\d+\+\d+", rec.region):
         problems.append("A region capture needs the region as WxH+X+Y, e.g. 1920x1080+0+0.")
-    if rec.resolution and not re.fullmatch(r"\d+x\d+", rec.resolution):
-        problems.append("The resolution limit must look like 1920x1080.")
+    if rec.resolution and not re.fullmatch(r"\d+x\d+|\d+p", rec.resolution):
+        problems.append("The resolution must look like 1080p or 1920x1080.")
     if rec.capture == "focused" and not rec.resolution:
         problems.append("Recording the focused window needs a resolution limit.")
     if rec.encoder == "cpu" and rec.video_codec not in ("auto", "h264"):
@@ -196,6 +196,7 @@ def validate(rec: RecorderConfig) -> list[str]:
     if rec.video_codec.endswith("_hdr") and rec.capture == "portal":
         problems.append("HDR is not available with portal capture.")
     if rec.bitrate_mode == "cbr" and rec.bitrate_kbps <= 0:
+        # Settings and the recorder pass presets.resolve()d settings, which have one.
         problems.append("Constant bitrate needs a bitrate.")
     for name, value, allowed in (
         ("container", rec.container, CONTAINERS),

@@ -54,15 +54,15 @@ class RecorderConfig:
     command: str = "gpu-screen-recorder"   # may be a full command, e.g. a Flatpak run line
     capture: str = "screen"          # screen | portal | focused | region | <monitor name>
     region: str = ""                 # WxH+X+Y, for capture == "region"
-    resolution: str = ""             # output size limit, "" = original
+    resolution: str = ""             # "1080p" (short side), "" = the monitor's own, or WxH
     fps: int = 60
     replay_seconds: int = 60
     replay_storage: str = "ram"
     container: str = "mp4"
     video_codec: str = "auto"
-    quality: str = "very_high"       # for qp/vbr bitrate modes
-    bitrate_kbps: int = 40000        # for cbr
-    bitrate_mode: str = "auto"
+    quality: str = "very_high"       # the video quality level ("High"); see recorder.presets
+    bitrate_kbps: int = 0            # for cbr: 0 = what the quality level comes to
+    bitrate_mode: str = "cbr"
     framerate_mode: str = "vfr"
     color_range: str = "limited"
     audio_codec: str = "aac"         # AAC plays everywhere a clip gets shared

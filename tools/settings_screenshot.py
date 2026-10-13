@@ -6,9 +6,9 @@ Loads vertex from this checkout's src/ (so a worktree's version is used, not
 whatever is installed). GPU Screen Recorder and the desktop's monitors are
 stood in for: a 2560×1440 monitor in the middle, a 1080×1920 one standing up on
 its right and a 1920×1080 one on its left. Saves OUT_PREFIX-<width>.png (the
-whole window) and OUT_PREFIX-<width>-video.png (the Video section) for each
-width: by default 1280 (the default window) and 980 (the minimum). Never touches
-your real config.
+whole window) and OUT_PREFIX-<width>-section.png (the section with the monitor
+map) for each width: by default 1280 (the default window) and 980 (the
+minimum). Never touches your real config.
 """
 
 import json
@@ -91,7 +91,7 @@ def main(prefix: str, widths: list[int]) -> int:
     settings.show_page("recording")
     window.resize(widths[0], 860)
     window.show()
-    video = settings.monitor_map.parentWidget()
+    section = settings.monitor_map.parentWidget()
 
     def shoot(i=0):
         if i == len(widths):
@@ -101,9 +101,9 @@ def main(prefix: str, widths: list[int]) -> int:
         window.resize(widths[i], 860)
 
         def grab():
-            settings.pages["recording"].verticalScrollBar().setValue(video.y())
+            settings.pages["recording"].verticalScrollBar().setValue(section.y())
             window.grab().save(f"{prefix}-{widths[i]}.png")
-            video.grab().save(f"{prefix}-{widths[i]}-video.png")
+            section.grab().save(f"{prefix}-{widths[i]}-section.png")
             print("saved", f"{prefix}-{widths[i]}.png")
             shoot(i + 1)
         QTimer.singleShot(600, grab)

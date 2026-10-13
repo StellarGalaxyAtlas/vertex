@@ -19,9 +19,12 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QAbstractSpinBox,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLayout,
@@ -36,6 +39,10 @@ from PySide6.QtWidgets import (
 
 from vertex import paths
 from vertex.ui import icons, theme
+
+# The width of every drop-down, number and text field in a settings row, so
+# they line up and look alike on every page.
+CONTROL_WIDTH = 220
 
 
 def label(text: str = "", role: str = "", wrap: bool = False) -> QLabel:
@@ -411,6 +418,8 @@ class Section(QFrame):
         return widget
 
     def add_row(self, title: str, widget: QWidget, hint: str = "") -> QWidget:
+        if isinstance(widget, (QComboBox, QAbstractSpinBox, QLineEdit)):
+            widget.setMinimumWidth(max(widget.minimumWidth(), CONTROL_WIDTH))
         row = QWidget()
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -423,6 +432,128 @@ class Section(QFrame):
         layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
         self.body.addWidget(row)
         return row
+
+
+class FieldGrid(QWidget):
+    """Fields side by side, each with its title above: all in one row when
+    they fit, two to a row when they don't, one when even that is too wide."""
+
+    def __init__(self, field_width: int = 150, parent=None):
+        super().__init__(parent)
+        self._field_width = field_width
+        self._fields: list[QWidget] = []
+        self._columns = 0
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setHorizontalSpacing(12)
+        self._grid.setVerticalSpacing(12)
+
+    def add(self, title: str, widget: QWidget) -> QWidget:
+        if isinstance(widget, QComboBox):
+            # Sized by the grid, not by the longest entry, so the row can
+            # narrow and reflow.
+            widget.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            widget.setMinimumContentsLength(6)
+        field = QWidget()
+        layout = QVBoxLayout(field)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.addWidget(label(title))
+        layout.addWidget(widget)
+        self._fields.append(field)
+        self._columns = 0
+        self._reflow()
+        return field
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reflow()
+
+    def _reflow(self) -> None:
+        count = len(self._fields)
+        if not count:
+            return
+        spacing = self._grid.horizontalSpacing()
+        fits = max(1, (self.width() + spacing) // (self._field_width + spacing))
+        columns = count if fits >= count else (2 if fits >= 2 else 1)
+        if columns == self._columns:
+            return
+        self._columns = columns
+        for field in self._fields:
+            self._grid.removeWidget(field)
+        for index, field in enumerate(self._fields):
+            self._grid.addWidget(field, index // columns, index % columns)
+        for column in range(count):
+            self._grid.setColumnStretch(column, 1 if column < columns else 0)
+
+
+class Disclosure(QWidget):
+    """A header that shows or hides what is under it, hidden to begin with."""
+
+    def __init__(self, title: str, blurb: str = "", parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        self.toggle = button(title, "ghost", icon="chevron-right")
+        self.toggle.setCheckable(True)
+        self.toggle.toggled.connect(self.set_expanded)
+        header.addWidget(self.toggle)
+        if blurb:
+            header.addWidget(label(blurb, "Dim"), 1)
+        else:
+            header.addStretch(1)
+        layout.addLayout(header)
+        self.body = QWidget()
+        self.body_layout = QVBoxLayout(self.body)
+        self.body_layout.setContentsMargins(0, 0, 0, 0)
+        self.body_layout.setSpacing(16)
+        self.body.hide()
+        layout.addWidget(self.body)
+
+    def add(self, widget: QWidget) -> QWidget:
+        self.body_layout.addWidget(widget)
+        return widget
+
+    @property
+    def expanded(self) -> bool:
+        return self.body.isVisibleTo(self)
+
+    def set_expanded(self, expanded: bool) -> None:
+        if self.toggle.isChecked() != expanded:
+            self.toggle.setChecked(expanded)     # comes back here
+            return
+        self.toggle.setIcon(icons.icon("chevron-down" if expanded else "chevron-right",
+                                       theme.TEXT))
+        self.body.setVisible(expanded)
+
+
+class Meter(QWidget):
+    """A thin bar filled to a fraction, in one colour."""
+
+    def __init__(self, colour: str = theme.ACCENT, parent=None):
+        super().__init__(parent)
+        self.colour = colour
+        self.fraction = 0.0
+        self.setFixedHeight(8)
+
+    def set_fraction(self, fraction: float) -> None:
+        self.fraction = max(0.0, min(1.0, fraction))
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bar = QRectF(self.rect())
+        path = QPainterPath()
+        path.addRoundedRect(bar, 4, 4)
+        p.setClipPath(path)
+        p.fillRect(bar, QColor(theme.CONTROL_BG))
+        p.fillRect(QRectF(0, 0, bar.width() * self.fraction, bar.height()),
+                   QColor(self.colour))
 
 
 class PathField(QWidget):

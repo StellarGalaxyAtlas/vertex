@@ -205,6 +205,20 @@ def _save_clip(p, c):
     p.drawPath(path)
 
 
+@_register("chevron-right")
+def _chevron_right(p, c):
+    _pen(p, c, 2)
+    p.drawLine(QPointF(10, 7), QPointF(15, 12))
+    p.drawLine(QPointF(15, 12), QPointF(10, 17))
+
+
+@_register("chevron-down")
+def _chevron_down(p, c):
+    _pen(p, c, 2)
+    p.drawLine(QPointF(7, 10), QPointF(12, 15))
+    p.drawLine(QPointF(12, 15), QPointF(17, 10))
+
+
 @_register("back")
 def _back(p, c):
     _pen(p, c, 2)

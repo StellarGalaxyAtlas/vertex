@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -16,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from vertex import paths
 from vertex.config import Config, default_config
-from vertex.recorder import gsr
+from vertex.recorder import gsr, presets
 from vertex.ui import theme, workers
 from vertex.ui.widgets import PathField, Section, Toggle, button, label
 
@@ -149,11 +148,14 @@ class FirstRunView(QWidget):
                           "memory; saving writes them to a clip.")
         self.gsr_status = label("Looking for GPU Screen Recorder…", "Muted", wrap=True)
         section.add(self.gsr_status)
-        self.replay_seconds = QSpinBox()
-        self.replay_seconds.setRange(gsr.REPLAY_MIN, 3600)
-        self.replay_seconds.setSuffix(" s")
-        self.replay_seconds.setValue(self.config.recorder.replay_seconds)
-        section.add_row("Keep the last", self.replay_seconds)
+        self.replay_seconds = QComboBox()
+        for seconds in presets.DURATIONS:
+            self.replay_seconds.addItem(f"{seconds} seconds", seconds)
+        current = self.config.recorder.replay_seconds
+        if self.replay_seconds.findData(current) < 0:
+            self.replay_seconds.addItem(f"{current} seconds", current)
+        self.replay_seconds.setCurrentIndex(self.replay_seconds.findData(current))
+        section.add_row("Duration", self.replay_seconds)
         self.rec_autostart = Toggle(False)
         section.add_row("Start the buffer whenever Vertex starts", self.rec_autostart)
         section.add(label("To save a clip from inside a game, bind the command "
@@ -209,7 +211,7 @@ class FirstRunView(QWidget):
         for key in ("data_path", "state_path", "cache_path"):
             if not getattr(config, key):
                 setattr(config, key, getattr(defaults, key))
-        config.recorder.replay_seconds = self.replay_seconds.value()
+        config.recorder.replay_seconds = self.replay_seconds.currentData()
         config.recorder.autostart = self.rec_autostart.isChecked()
         enable_sonar = self.sonar_enabled.isChecked()
         config.sonar.output_device = self.output.currentData() or ""

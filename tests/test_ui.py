@@ -113,13 +113,13 @@ def test_pages_and_settings_save(qapp, window):
         qapp.processEvents()
     settings = window.settings_view
     settings.load()
-    settings.replay_seconds.setValue(45)
+    settings.duration.setCurrentIndex(settings.duration.findData(90))
     assert settings.is_dirty()
     assert settings.save()
-    assert Config.load().recorder.replay_seconds == 45
+    assert Config.load().recorder.replay_seconds == 90
     assert not settings.is_dirty()
     settings.show_page("recording")
-    assert "-r 45" in settings.preview.toPlainText()
+    assert "-r 90" in settings.preview.toPlainText()
 
 
 def test_capture_is_picked_on_the_monitor_map(qapp, window, monkeypatch):
@@ -168,6 +168,59 @@ def test_capture_is_picked_on_the_monitor_map(qapp, window, monkeypatch):
     assert settings.collect().recorder.capture == "HDMI-A-1"
     assert "-w DP-1" in settings.preview.toPlainText()
     assert window.context.recorder.capture_target() == "DP-1"
+
+
+def test_clip_settings_follow_the_recorded_monitor(qapp, window, monkeypatch):
+    from vertex.recorder import monitors
+    from vertex.ui import screens
+    from vertex.ui.widgets import Disclosure
+
+    monkeypatch.setattr(screens, "desktop_screens", lambda: [
+        monitors.Screen("DP-1", 0, 240, 2560, 1440, pixels=(2560, 1440), primary=True),
+        monitors.Screen("DP-2", 2560, 0, 1080, 1920, pixels=(1080, 1920))])
+    window.navigate("settings")
+    settings = window.settings_view
+    settings.show_page("recording")
+    assert wait_until(qapp, lambda: "not installed" in settings.gsr_status.text())
+
+    def texts(widget):
+        return [widget.itemText(i) for i in range(widget.count())]
+
+    assert texts(settings.duration) == ["30 seconds", "60 seconds", "90 seconds",
+                                        "120 seconds"]
+    assert texts(settings.fps) == ["30 fps", "60 fps", "120 fps"]
+    assert texts(settings.resolution) == ["720p · 1280 × 720", "1080p · 1920 × 1080",
+                                          "Native · 2560 × 1440"]
+    assert settings.video_quality.currentText() == "High · 31 Mbps"
+    assert not settings.findChild(Disclosure).expanded
+
+    # The vertical monitor: sizes up to its own, standing up.
+    settings._pick_monitor("DP-2")
+    assert texts(settings.resolution) == ["720p · 720 × 1280", "Native · 1080 × 1920"]
+    assert settings.video_quality.currentText() == "High · 20 Mbps"
+    settings.resolution.setCurrentIndex(settings.resolution.findData("720p"))
+    assert "-s 720x1280" in settings.preview.toPlainText()
+    assert settings.video_quality.currentText() == "High · 11 Mbps"
+    assert settings.clip_size.text() == "About 81 MB per clip"
+    assert wait_until(qapp, lambda: "more clips" in settings.disk_room.text())
+
+    # A bitrate set by hand shows as Custom; picking a level drops it.
+    settings.bitrate.setValue(40000)
+    assert settings.video_quality.currentText() == "Custom · 40 Mbps"
+    ultra = settings.video_quality.findData("ultra")
+    settings.video_quality.setCurrentIndex(ultra)
+    settings.video_quality.activated.emit(ultra)
+    assert settings.bitrate.value() == 0
+    rec = settings.collect().recorder
+    assert (rec.quality, rec.resolution, rec.capture) == ("ultra", "720p", "DP-2")
+
+    # Values from older settings stay chosen, shown as they are.
+    window.context.config.recorder.replay_seconds = 45
+    window.context.config.recorder.fps = 144
+    settings.load()
+    assert settings.duration.currentText() == "45 seconds"
+    assert settings.fps.currentText() == "144 fps"
+    assert not settings.is_dirty()
 
 
 def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, monkeypatch):

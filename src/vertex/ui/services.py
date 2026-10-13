@@ -7,7 +7,6 @@ through Qt signals on the UI thread.
 
 from __future__ import annotations
 
-import dataclasses
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -22,7 +21,7 @@ from vertex.core.naming import game_from_app
 from vertex.library import Library
 from vertex.media import probe
 from vertex.media.thumbnails import ThumbnailCache
-from vertex.recorder import gsr, monitors
+from vertex.recorder import gsr, monitors, presets
 from vertex.recorder.replay import RecorderError, ReplayRecorder, State
 from vertex.ui import screens, workers
 
@@ -382,14 +381,17 @@ class RecorderController(QObject):
             return [self.info.error]
         return gsr.validate(self._as_recorded())
 
+    def _monitors(self) -> list[monitors.Monitor]:
+        return monitors.arrange(self.capture_options, screens.desktop_screens())
+
     def capture_target(self) -> str:
         """The monitor a recording captures now: the one picked, or the
         primary one while that isn't connected or none has been picked."""
-        arranged = monitors.arrange(self.capture_options, screens.desktop_screens())
-        return monitors.target(self.context.config.recorder.capture, arranged)
+        return monitors.target(self.context.config.recorder.capture, self._monitors())
 
     def _as_recorded(self):
-        return dataclasses.replace(self.context.config.recorder, capture=self.capture_target())
+        """The settings as GSR gets them, for the monitor recorded now."""
+        return presets.resolve(self.context.config.recorder, self._monitors())
 
     def argv(self) -> list[str]:
         config = self.context.config

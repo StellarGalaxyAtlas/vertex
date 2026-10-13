@@ -20,7 +20,7 @@ least offer a drop-down with every capture option GPU Screen Recorder reports
   those), and while the picked one isn't connected, Vertex records the
   desktop's primary monitor. A line above the map names the monitor recorded.
 
-**2.**
+**2.** ✅ Done
 **Settings › Recording**
 Like the "Clip settings" of Moments (reference in the Notes), in Vertex's look:
 - One row of drop-downs with their labels above, wrapping at narrow widths:
@@ -39,6 +39,12 @@ Like the "Clip settings" of Moments (reference in the Notes), in Vertex's look:
 - "Save clips to" (Advanced) shows the clips folder configured under General.
 - Controls look and behave the same across all settings pages.
 - Changes restart the replay buffer when they need to (question in the Notes).
+- Done as: GPU Screen Recorder (status, start with Vertex), Saving a clip, and
+  Recording Settings (monitor map, the four drop-downs, cursor, then "Clip
+  size" and "Disk space" side by side). "Advanced" below, collapsed, holds
+  Video, Replay buffer, Audio and Recorder. Every drop-down, number and text
+  field in a settings row is the same width on every page. First-run setup
+  offers the same durations.
 
 **3.**
 **Settings › General › Start menu entry**
@@ -159,7 +165,7 @@ already behind: README still says to set *Capture* to *Portal* if recording a
 monitor fails, and `docs/ARCHITECTURE.md` doesn't describe the monitor map,
 the primary-monitor fallback or the "Restarting…" state.
 
-**Progress.** Done: 1, 6 and 7. Next: 2, unless the maintainer says otherwise.
+**Progress.** Done: 1, 2, 6 and 7. Next: 3, unless the maintainer says otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
@@ -222,6 +228,13 @@ on 2026-10-13); if not, a monitor is drawn to the side instead of in place.
 - No migration for the new defaults: 2.0 isn't released, and the maintainer
   resets the recording settings of their test install with the next update.
 - Changes apply on Save, as now: one restart of the replay buffer per Save.
+- Built (2026-10-13): the choices live in `recorder/presets.py`. Resolution
+  is saved as "1080p" (or "" for native) and turned into GSR's `-s` box for
+  the monitor recorded when the buffer starts; the bitrate likewise. Native is
+  the default. The estimate counts video plus every audio track (GSR's own
+  160 kbps for AAC, 128 for Opus, unless set) and the clips that fit in the
+  free space of the disk clips are saved to. Its bar compares the clip with
+  the largest one the choices allow.
 - Done already (2026-10-13): a restart shows as "Restarting…" in the rail and
   tray until the buffer runs again, Save says it is restarting, and a message
   says when it has.

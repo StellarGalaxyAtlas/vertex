@@ -7,7 +7,7 @@ import time
 import pytest
 
 from vertex.config import Config, RecorderConfig
-from vertex.recorder import gsr, monitors
+from vertex.recorder import gsr, monitors, presets
 from vertex.recorder.gsr import CaptureOption
 from vertex.recorder.monitors import Screen
 from vertex.recorder.replay import RecorderError, ReplayRecorder, State
@@ -62,13 +62,14 @@ def _wait(predicate, timeout=5.0):
 
 class TestArgv:
     def test_defaults(self):
-        rec = RecorderConfig()
+        rec = presets.resolve(RecorderConfig(), [])
         argv = gsr.build_argv(rec, [gsr.Track("default_output", "")], "/clips")
         assert argv[:3] == ["gpu-screen-recorder", "-w", "screen"]
         assert argv[-2:] == ["-o", "/clips"]
         pairs = dict(zip(argv[1::2], argv[2::2], strict=False))
         assert pairs["-r"] == "60" and pairs["-c"] == "mp4" and pairs["-ac"] == "aac"
-        assert pairs["-q"] == "very_high" and pairs["-v"] == "no"
+        # Constant bitrate by default, at what High comes to for 1080p60.
+        assert pairs["-bm"] == "cbr" and pairs["-q"] == "20000" and pairs["-v"] == "no"
         assert "-restore-portal-session" not in argv and "-ab" not in argv
 
     def test_sonar_tracks_are_named_on_new_recorders(self):
@@ -122,7 +123,9 @@ class TestArgv:
         assert any(fragment in problem for problem in problems), problems
 
     def test_valid_defaults(self):
-        assert gsr.validate(RecorderConfig()) == []
+        assert gsr.validate(presets.resolve(RecorderConfig(), [])) == []
+        assert gsr.validate(RecorderConfig(resolution="1080p", bitrate_mode="qp")) == []
+        assert any("bitrate" in p for p in gsr.validate(RecorderConfig()))
 
     def test_parse_version(self):
         assert gsr.parse_version("5.15.1") == (5, 15, 1)
@@ -235,6 +238,66 @@ class TestMonitors:
         left = Screen("HDMI-A-1", -1920, 360, 1920, 1080)
         arranged = monitors.arrange([], [self.VERTICAL, self.LANDSCAPE, left])
         assert [m.name for m in monitors.reading_order(arranged)] == ["HDMI-A-1", "DP-1", "DP-2"]
+
+
+class TestPresets:
+    LANDSCAPE = (2560, 1440)
+    VERTICAL = (1080, 1920)
+
+    def test_output_size_keeps_the_monitors_shape(self):
+        assert presets.output_size("1080p", self.LANDSCAPE) == (1920, 1080)
+        # "720p" on a vertical monitor: its short side, so it stays vertical.
+        assert presets.output_size("720p", self.VERTICAL) == (720, 1280)
+        assert presets.output_size("1080p", (3440, 1440)) == (2580, 1080)
+        # Never scaled up; "" is the monitor's own size.
+        assert presets.output_size("1440p", (1920, 1080)) == (1920, 1080)
+        assert presets.output_size("1080p", self.VERTICAL) == self.VERTICAL
+        assert presets.output_size("", self.LANDSCAPE) == self.LANDSCAPE
+        # A WxH limit from older settings works as GSR's does.
+        assert presets.output_size("1920x1080", self.VERTICAL) == (607, 1080)
+        assert presets.output_size("1080p", (0, 0)) == (1920, 1080)
+
+    def test_gsr_box(self):
+        assert presets.gsr_box("720p", self.VERTICAL) == "720x1280"
+        assert presets.gsr_box("1080p", self.LANDSCAPE) == "1920x1080"
+        assert presets.gsr_box("1080p", self.VERTICAL) == ""
+        assert presets.gsr_box("", self.LANDSCAPE) == ""
+        assert presets.gsr_box("1280x720", self.LANDSCAPE) == "1280x720"
+        assert presets.gsr_box("720p", (0, 0)) == "1280x720"
+
+    def test_video_bitrate_follows_size_and_frame_rate(self):
+        assert presets.video_kbps("very_high", (1920, 1080), 60) == 20000
+        assert presets.video_kbps("ultra", (1080, 1920), 60) == 35000
+        assert presets.video_kbps("very_high", (1920, 1080), 30) == 12000
+        assert presets.video_kbps("very_high", (2560, 1440), 60) == 31000
+        assert presets.video_kbps("medium", (64, 64), 1) == 1000
+        levels = [presets.video_kbps(level, (1920, 1080), 60) for level in presets.LEVELS]
+        assert levels == [8000, 12000, 20000, 35000]
+
+    def test_resolve_for_the_recorded_monitor(self):
+        arranged = monitors.arrange([], [
+            Screen("DP-1", 0, 240, 2560, 1440, pixels=self.LANDSCAPE, primary=True),
+            Screen("DP-2", 2560, 0, 1080, 1920, pixels=self.VERTICAL)])
+        rec = RecorderConfig(capture="DP-2", resolution="720p", fps=60)
+        resolved = presets.resolve(rec, arranged)
+        assert (resolved.capture, resolved.resolution) == ("DP-2", "720x1280")
+        assert resolved.bitrate_kbps == presets.video_kbps("very_high", (720, 1280), 60)
+        # Nothing picked: the primary monitor. A bitrate set by hand is kept.
+        resolved = presets.resolve(RecorderConfig(resolution="1080p", bitrate_kbps=40000),
+                                   arranged)
+        assert (resolved.capture, resolved.resolution) == ("DP-1", "1920x1080")
+        assert resolved.bitrate_kbps == 40000
+        # GSR's quality modes ignore it; the estimate goes by the level then.
+        resolved = presets.resolve(RecorderConfig(bitrate_mode="qp", bitrate_kbps=40000), [])
+        assert resolved.bitrate_kbps == 20000
+
+    def test_clip_size(self):
+        resolved = presets.resolve(RecorderConfig(replay_seconds=60), [])
+        assert resolved.bitrate_kbps == 20000
+        # 20 Mbps of video and two AAC tracks at GSR's 160 kbps, for a minute.
+        assert presets.clip_bytes(resolved, 2) == 20320 * 1000 // 8 * 60
+        opus = presets.resolve(RecorderConfig(audio_codec="opus", audio_bitrate=0), [])
+        assert presets.audio_kbps(opus) == 128
 
 
 class TestReplayRecorder:
