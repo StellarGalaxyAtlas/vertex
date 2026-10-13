@@ -250,8 +250,44 @@ class SonarController(QObject):
         self._job(work, done, quiet=True)
 
     def refresh_devices(self) -> None:
-        self._job(lambda: (self.sonar.outputs(), self.sonar.inputs()),
-                  lambda pair: pair and self.devices_changed.emit(*pair), quiet=True)
+        self._job(lambda: (self.sonar.outputs(), self.sonar.inputs()), self._got_devices,
+                  quiet=True)
+
+    def _got_devices(self, pair) -> None:
+        if not pair:
+            return
+        outputs, inputs = pair
+        # New devices join the device manager's lists, at the bottom.
+        if self.sonar.learn_devices(outputs, inputs):
+            self.context.save_config()
+        self.devices_changed.emit(outputs, inputs)
+
+    # --- Device manager ---------------------------------------------------------
+
+    def set_device_order(self, kind: str, priority: list[str], excluded: list[str]) -> None:
+        """The order devices are picked in (kind "output" or "mic")."""
+        sonar = self.context.config.sonar
+        setattr(sonar, f"{kind}_priority", list(priority))
+        setattr(sonar, f"{kind}_excluded", list(excluded))
+        self._device_settings_changed()
+
+    def set_auto(self, kind: str, auto: bool) -> None:
+        setattr(self.context.config.sonar, f"{kind}_auto", auto)
+        self._device_settings_changed()
+
+    def set_show_disconnected(self, shown: bool) -> None:
+        self.context.config.sonar.show_disconnected = shown
+        self.context.save_config()
+
+    def set_device_volume(self, kind: str, name: str, volume: float) -> None:
+        self._job(lambda: self.sonar.set_device_volume(kind, name, volume), quiet=True)
+        QTimer.singleShot(200, self.refresh_devices)
+
+    def _device_settings_changed(self) -> None:
+        # In Auto mode, a new order can mean another device.
+        self.context.save_config()
+        if self.enabled:
+            self._job(self.sonar.reconcile, self._after_change, quiet=True)
 
     # --- Mixing and routing ---------------------------------------------------
 

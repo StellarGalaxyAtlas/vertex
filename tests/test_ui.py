@@ -451,6 +451,46 @@ def test_each_channel_shows_and_picks_its_device(qapp, window, fake_audio):
     assert Config.load().sonar.output_device == "hw_headset"
 
 
+def test_device_manager_orders_the_devices(qapp, window, fake_audio):
+    fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})
+    window.navigate("sonar")
+    view = window.sonar_view
+    view.toggle.setChecked(True)
+    sonar = window.context.config.sonar
+    panel = view.output_panel
+    assert wait_until(qapp, lambda: panel.priority.names() == ["hw_headset", "hw_speakers"]
+                      and panel.now.full_text() == "hw_headset")
+    assert sonar.output_priority == ["hw_headset", "hw_speakers"]    # learned and saved
+    assert panel.mode.current == "auto"
+    assert view.mic_panel.priority.names() == ["hw_mic"]
+
+    # Reordered: Auto plays through the new top device.
+    view.device_order_changed("output", ["hw_speakers", "hw_headset"], [])
+    assert wait_until(qapp, lambda: view.controller.status.output == "hw_speakers")
+    assert Config.load().sonar.output_priority == ["hw_speakers", "hw_headset"]
+    # Excluded: never picked by itself, but still offered by hand.
+    view.device_order_changed("output", ["hw_headset"], ["hw_speakers"])
+    assert wait_until(qapp, lambda: view.controller.status.output == "hw_headset")
+    assert wait_until(qapp, lambda: panel.excluded.names() == ["hw_speakers"])
+    popup = view.choose_device("game")
+    assert list(popup.buttons) == ["hw_headset", "hw_speakers"]
+    popup.close()
+
+    # Disconnected devices: hidden unless asked for, and kept in their place.
+    fake_audio.remove_device("hw_speakers")
+    view.controller.refresh_devices()
+    assert wait_until(qapp, lambda: panel.excluded.names() == [])
+    view.show_disconnected.setChecked(True)
+    assert panel.excluded.names() == ["hw_speakers"]
+    view.show_disconnected.setChecked(False)
+    assert sonar.output_excluded == ["hw_speakers"]
+
+    # Manual: the device picked stays, whatever the order.
+    panel.mode._pick("manual")
+    assert wait_until(qapp, lambda: not sonar.output_auto)
+    assert "you pick" in panel.mode_hint.text()
+
+
 def test_delete_clip(qapp, window, monkeypatch):
     state = window.state
     clip = state.find("Replay_2026-01-02_03-04-05.mp4")

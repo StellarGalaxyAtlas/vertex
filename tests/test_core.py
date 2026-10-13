@@ -191,3 +191,35 @@ class TestStorage:
         path = _touch(str(tmp_path), "a.mp4")
         storage.delete_file(path)
         assert not os.path.exists(path)
+
+
+class TestDeviceOrder:
+    def test_learn_choose_promote(self):
+        from vertex.audio import devices
+        assert devices.learn([], [], ["a", "b", "c"], first="b") == ["b", "a", "c"]
+        assert devices.learn(["c"], ["x"], ["a", "x", "c"]) == ["c", "a"]
+        assert devices.choose(["a", "b"], [], ["b"], "", auto=True) == "b"
+        assert devices.choose(["a", "b"], ["a"], ["a", "b"], "", auto=True) == "b"
+        assert devices.choose(["a", "b"], [], ["a", "b"], "b", auto=False) == "b"
+        assert devices.choose(["a", "b"], [], ["a"], "b", auto=False) == "a"
+        assert devices.choose(["a"], ["a"], ["a"], "a", auto=False) == "a"   # picked by hand
+        assert devices.choose(["a"], [], ["z"], "", auto=True) == ""
+        assert devices.promote(["a", "b"], ["c"], "c") == (["c", "a", "b"], [])
+
+    def test_reorder_keeps_hidden_entries_in_place(self):
+        from vertex.audio import devices
+        # "h" is disconnected and hidden; "a" and "b" swap round it.
+        assert devices.reorder(["a", "h", "b"], {"a", "b"}, ["b", "a"]) == ["b", "h", "a"]
+        # One moved in from the other list goes after the rest; one moved out goes.
+        assert devices.reorder(["a", "h", "b"], {"a", "b"}, ["b", "a", "x"]) == [
+            "b", "h", "a", "x"]
+        assert devices.reorder(["a", "h", "b"], {"a", "b"}, ["b"]) == ["b", "h"]
+
+    def test_describe_format(self):
+        from vertex.audio import devices
+        assert devices.describe_format("s24le 2ch 48000Hz") == "24-bit · 48 kHz · stereo"
+        assert devices.describe_format("float32le 1ch 44100Hz") == \
+            "32-bit float · 44.1 kHz · mono"
+        assert devices.describe_format("s24-32le 6ch 96000Hz") == "24-bit · 96 kHz · 6 channels"
+        assert devices.describe_format("") == ""
+

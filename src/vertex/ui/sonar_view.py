@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QMimeData, QPoint, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QDrag, QFontMetrics, QIcon, QPainter
+from PySide6.QtCore import QMimeData, QPoint, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QDrag, QFont, QFontMetrics, QIcon, QPainter
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QAbstractItemView,
     QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMenu,
     QPushButton,
     QScrollArea,
@@ -19,10 +22,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex.audio import channels
+from vertex.audio import channels, devices
 from vertex.audio.sonar import AppCapture, AppStream, SonarStatus
 from vertex.ui import icons, theme
-from vertex.ui.widgets import ElidedLabel, FlowLayout, IconButton, Section, Toggle, hline, label
+from vertex.ui.widgets import (
+    ElidedLabel,
+    FlowLayout,
+    IconButton,
+    Section,
+    Segmented,
+    Toggle,
+    button,
+    hline,
+    label,
+)
 
 APP_MIME = "application/x-vertex-app"
 
@@ -170,9 +183,10 @@ class DeviceList(QFrame):
     current one ticked. Picking one emits `picked` with its name."""
 
     picked = Signal(str)
+    manage = Signal()
 
     def __init__(self, title: str, devices: list[tuple[str, str]], current: str,
-                 parent=None):
+                 parent=None, excluded: list[tuple[str, str]] = ()):
         super().__init__(parent, Qt.WindowType.Popup)
         self.setObjectName("DeviceList")
         self.setStyleSheet(
@@ -188,29 +202,240 @@ class DeviceList(QFrame):
         heading.setContentsMargins(6, 0, 0, 4)
         layout.addWidget(heading)
         self.buttons: dict[str, QPushButton] = {}
-        for name, text in devices:
-            chosen = name == current
-            item = QPushButton(text)
-            item.setIcon(icons.icon("check", theme.ACCENT_EDGE, 16) if chosen
-                         else icons.icon("check", "#00000000", 16))
-            if chosen:
-                item.setStyleSheet("font-weight: 600;")
-            item.setCursor(Qt.CursorShape.PointingHandCursor)
-            item.clicked.connect(lambda _c=False, n=name: self.pick(n))
-            layout.addWidget(item)
-            self.buttons[name] = item
-        if not devices:
+        for group, entries in ((None, devices), ("EXCLUDED DEVICES", excluded)):
+            if group and entries:
+                heading = label(group, "Group")
+                heading.setContentsMargins(6, 8, 0, 4)
+                layout.addWidget(heading)
+            for name, text in entries:
+                chosen = name == current
+                item = QPushButton(text)
+                item.setIcon(icons.icon("check", theme.ACCENT_EDGE, 16) if chosen
+                             else icons.icon("check", "#00000000", 16))
+                if chosen:
+                    item.setStyleSheet("font-weight: 600;")
+                item.setCursor(Qt.CursorShape.PointingHandCursor)
+                item.clicked.connect(lambda _c=False, n=name: self.pick(n))
+                layout.addWidget(item)
+                self.buttons[name] = item
+        if not devices and not excluded:
             layout.addWidget(label("No devices found", "Dim"))
+        layout.addSpacing(6)
+        manager = button("Device manager", "primary", on_click=self._manage)
+        # Its own look: the list's buttons are plain, left-aligned rows.
+        manager.setStyleSheet(
+            f"QPushButton {{ background: {theme.ACCENT}; color: #ffffff; text-align: center; "
+            f"padding: 8px; border-radius: 8px; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: {theme.ACCENT_HOVER}; }}")
+        layout.addWidget(manager)
 
     def pick(self, name: str) -> None:
         self.close()
         self.picked.emit(name)
+
+    def _manage(self) -> None:
+        self.close()
+        self.manage.emit()
 
     def show_under(self, anchor: QWidget) -> None:
         self.setMinimumWidth(max(anchor.width(), 260))
         self.adjustSize()
         self.move(anchor.mapToGlobal(QPoint(0, anchor.height() + 4)))
         self.show()
+
+
+class DeviceOrder(QListWidget):
+    """Devices in the order Sonar picks them, reordered by dragging. Devices
+    drag between a panel's priority and excluded lists too."""
+
+    changed = Signal()
+    ROW = 34
+
+    def __init__(self, placeholder: str, parent=None):
+        super().__init__(parent)
+        self.placeholder = placeholder
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.setIconSize(QSize(16, 16))
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Long device names are cut short with "…" rather than scrolled to.
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self.setStyleSheet(
+            f"QListWidget {{ background: {theme.FIELD_BG}; border-radius: 8px; padding: 4px; }}"
+            f"QListWidget::item {{ padding: 6px 6px; border-radius: 6px; }}"
+            f"QListWidget::item:hover {{ background: {theme.CARD_HOVER}; }}"
+            f"QListWidget::item:selected {{ background: {theme.ACCENT_SOFT}; "
+            f"color: {theme.TEXT}; }}")
+        self._quiet = False
+        self._dragging = False
+        self._pending: list | None = None
+        # A move between lists is a removal here and an insertion there:
+        # report once both have happened.
+        self._timer = QTimer(self, singleShot=True, interval=0)
+        self._timer.timeout.connect(self.changed.emit)
+        model = self.model()
+        for signal in (model.rowsInserted, model.rowsRemoved, model.rowsMoved):
+            signal.connect(self._touched)
+        self.fill([])
+
+    def _touched(self, *_args) -> None:
+        if not self._quiet:
+            self._timer.start()
+
+    def fill(self, rows: list[tuple[str, str, bool, bool]]) -> None:
+        """(name, text, connected, current) for each device, in order."""
+        if self._dragging:
+            # Rebuilding now would delete the item being dragged.
+            self._pending = rows
+            return
+        self._quiet = True
+        self.clear()
+        for name, text, connected, current in rows:
+            item = QListWidgetItem(
+                icons.icon("check" if current else "grip",
+                           theme.ACCENT_EDGE if current else theme.TEXT_DIM, 16),
+                text if connected else f"{text} · not connected")
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            if current:
+                font = QFont(item.font())
+                font.setWeight(QFont.Weight.DemiBold)
+                item.setFont(font)
+            if not connected:
+                item.setForeground(QColor(theme.TEXT_DIM))
+            item.setToolTip(f"{text}\n{name}")
+            self.addItem(item)
+        self._quiet = False
+        self.setFixedHeight(max(2, len(rows)) * self.ROW + 10)
+
+    def names(self) -> list[str]:
+        return [self.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.count())]
+
+    def startDrag(self, actions):
+        self._dragging = True
+        try:
+            super().startDrag(actions)
+        finally:
+            self._dragging = False
+            if self._pending is not None:
+                rows, self._pending = self._pending, None
+                self.fill(rows)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self.count():
+            p = QPainter(self.viewport())
+            p.setPen(QColor(theme.TEXT_DIM))
+            p.drawText(self.viewport().rect().adjusted(10, 0, -10, 0),
+                       Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self.placeholder)
+
+
+class DevicePanel(QFrame):
+    """One kind of device in the device manager: the outputs, or the mics."""
+
+    def __init__(self, view, kind: str, title: str, icon_name: str, colour: str,
+                 parent=None):
+        super().__init__(parent)
+        self.view = view
+        self.kind = kind                 # "output" or "mic", as in SonarConfig
+        self.current = ""
+        self.setObjectName("DevicePanel")
+        self.setStyleSheet(f"#DevicePanel {{ background: {theme.CARD_BG}; border-radius: 12px; }}")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 16)
+        layout.setSpacing(8)
+
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        badge = QLabel()
+        badge.setFixedSize(30, 30)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setPixmap(icons.pixmap(icon_name, colour, 18))
+        badge.setStyleSheet(f"background: {theme.shade(colour, 0.25)}; border-radius: 9px;")
+        header.addWidget(badge)
+        name = label(title)
+        name.setStyleSheet("font-weight: 600;")
+        header.addWidget(name, 1)
+        self.mode = Segmented([("manual", "Manual"), ("auto", "Auto")], "auto")
+        self.mode.changed.connect(self._on_mode)
+        header.addWidget(self.mode)
+        layout.addLayout(header)
+        self.mode_hint = label("", "Dim", wrap=True)
+        layout.addWidget(self.mode_hint)
+
+        now = QHBoxLayout()
+        now.setSpacing(8)
+        self.now = ElidedLabel("")
+        self.now.setStyleSheet("font-weight: 600;")
+        now.addWidget(self.now, 1)
+        self.volume = QSlider(Qt.Orientation.Horizontal)
+        self.volume.setRange(0, 100)
+        self.volume.setFixedWidth(110)
+        self.volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.volume.setToolTip("The device's own volume")
+        self.volume.valueChanged.connect(self._on_volume)
+        now.addWidget(self.volume)
+        self.readout = label("", "Muted")
+        self.readout.setFixedWidth(38)
+        self.readout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        now.addWidget(self.readout)
+        layout.addLayout(now)
+        self.format = label("", "Dim")
+        layout.addWidget(self.format)
+        self._quiet = False
+        self._volume_timer = QTimer(self, singleShot=True, interval=120)
+        self._volume_timer.timeout.connect(self._send_volume)
+
+        layout.addSpacing(4)
+        layout.addWidget(label("PRIORITY", "Group"))
+        self.priority = DeviceOrder("No devices found.")
+        layout.addWidget(self.priority)
+        layout.addWidget(label("EXCLUDED", "Group"))
+        self.excluded = DeviceOrder("Drag a device here to keep Vertex from picking it "
+                                    "by itself.")
+        layout.addWidget(self.excluded)
+        layout.addStretch(1)
+        for order in (self.priority, self.excluded):
+            order.changed.connect(lambda: view.device_order_changed(
+                kind, self.priority.names(), self.excluded.names()))
+
+    def show_devices(self, priority: list, excluded: list, auto: bool, current,
+                     current_text: str) -> None:
+        self.mode.set_current("auto" if auto else "manual")
+        self._show_hint(auto)
+        self.priority.fill(priority)
+        self.excluded.fill(excluded)
+        self.current = current.name if current is not None else ""
+        self.now.setText(current_text)
+        self._quiet = True
+        if current is not None and not self.volume.isSliderDown():
+            self.volume.setValue(round(current.volume * 100))
+        self._quiet = False
+        self.volume.setEnabled(current is not None)
+        self.readout.setText(f"{self.volume.value()}%" if current is not None else "")
+        self.format.setText(devices.describe_format(current.sample_spec)
+                            if current is not None else "")
+
+    def _on_mode(self, key: str, _descending: bool = True) -> None:
+        self._show_hint(key == "auto")
+        self.view.controller.set_auto(self.kind, key == "auto")
+
+    def _show_hint(self, auto: bool) -> None:
+        device = "device" if self.kind == "output" else "mic"
+        self.mode_hint.setText(
+            f"Uses the highest connected {device} in the list." if auto else
+            f"Uses the {device} you pick; while it is unplugged, the highest connected one.")
+
+    def _on_volume(self, value: int) -> None:
+        self.readout.setText(f"{value}%")
+        if not self._quiet and self.current:
+            self._volume_timer.start()
+
+    def _send_volume(self) -> None:
+        self.view.controller.set_device_volume("sink" if self.kind == "output" else "source",
+                                               self.current, self.volume.value() / 100)
 
 
 class ChannelColumn(QFrame):
@@ -428,7 +653,7 @@ class SonarView(QWidget):
         self._popup: DeviceList | None = None
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
+        self.scroll = scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         outer.addWidget(scroll)
@@ -492,6 +717,29 @@ class SonarView(QWidget):
         layout.addWidget(self.devices)
         self.default_channel.activated.connect(self._on_default_channel)
 
+        self.manager = Section("Device manager", "Which devices Vertex plays through and "
+                                                 "records from. Drag them to reorder, or "
+                                                 "into Excluded to keep Vertex from picking "
+                                                 "them by itself.")
+        self.show_disconnected = Toggle(context.config.sonar.show_disconnected)
+        self.show_disconnected.toggled.connect(self._on_show_disconnected)
+        self.manager.add_row("Show disconnected devices", self.show_disconnected,
+                             "Ones Vertex has seen before, so they can be placed in the "
+                             "list before they are plugged in.")
+        panels = QHBoxLayout()
+        panels.setSpacing(16)
+        self.output_panel = DevicePanel(self, "output", "Output devices", "headphones",
+                                        theme.ACCENT_EDGE)
+        self.mic_panel = DevicePanel(self, "mic", "Microphones",
+                                     icons.channel_icon_name("mic"), theme.channel_colour("mic"))
+        panels.addWidget(self.output_panel, 1)
+        panels.addWidget(self.mic_panel, 1)
+        self.manager.body.addLayout(panels)
+        layout.addWidget(self.manager)
+        # What each panel's lists held when last filled: the full lists and
+        # the names shown, so a drag can be laid back onto the full lists.
+        self._lists: dict[str, tuple[list[str], list[str], set[str]]] = {}
+
         layout.addStretch(1)
 
         self.controller.status_changed.connect(self._show_status)
@@ -549,15 +797,70 @@ class SonarView(QWidget):
                 current = status.mic or sonar.mic_device
             text = self._names.get(current, current) or "System default"
             self.strips[channel.id].show_device(current, text, sonar.linked)
+        self._show_manager(status)
+
+    def _ordered(self, kind: str) -> tuple[list[str], list[str]]:
+        """The device manager's lists for `kind`, with connected devices it
+        hasn't learned yet at the bottom (they join it on the next refresh)."""
+        sonar = self.context.config.sonar
+        connected = self._outputs if kind == "output" else self._inputs
+        priority = list(getattr(sonar, f"{kind}_priority"))
+        excluded = list(getattr(sonar, f"{kind}_excluded"))
+        priority += [d.name for d in connected if d.name not in priority and d.name not in excluded]
+        return priority, excluded
+
+    def _label(self, name: str) -> str:
+        return self._names.get(name) or self.context.config.sonar.device_names.get(name, name)
+
+    def _show_manager(self, status: SonarStatus) -> None:
+        sonar = self.context.config.sonar
+        for panel, kind, connected, current in (
+                (self.output_panel, "output", self._outputs, status.output),
+                (self.mic_panel, "mic", self._inputs, status.mic)):
+            present = {device.name: device for device in connected}
+            priority, excluded = self._ordered(kind)
+
+            def rows(names, present=present, current=current):
+                return [(name, self._label(name), name in present, name == current)
+                        for name in names if name in present or sonar.show_disconnected]
+
+            shown_priority, shown_excluded = rows(priority), rows(excluded)
+            self._lists[kind] = (priority, excluded,
+                                 {row[0] for row in (*shown_priority, *shown_excluded)})
+            now = present.get(current)
+            text = self._label(current) if now is not None else (
+                "Sonar is off" if not sonar.enabled else "No device in use")
+            panel.show_devices(shown_priority, shown_excluded, getattr(sonar, f"{kind}_auto"),
+                               now, text)
+
+    def device_order_changed(self, kind: str, priority: list[str], excluded: list[str]) -> None:
+        """A drag in the device manager: lay the shown order back onto the full
+        lists, which may hold disconnected devices that aren't shown."""
+        full_priority, full_excluded, shown = self._lists.get(kind, ([], [], set()))
+        self.controller.set_device_order(
+            kind, devices.reorder(full_priority, shown, priority),
+            devices.reorder(full_excluded, shown, excluded))
+
+    def _on_show_disconnected(self, shown: bool) -> None:
+        self.controller.set_show_disconnected(shown)
+        self._show_manager(self.controller.status)
+
+    def show_manager(self) -> None:
+        self.scroll.verticalScrollBar().setValue(self.manager.y())
 
     def choose_device(self, channel_id: str) -> DeviceList:
         channel = channels.BY_ID[channel_id]
         column = self.strips[channel_id]
-        devices = self._outputs if channel.is_output else self._inputs
+        kind = "output" if channel.is_output else "mic"
+        present = {d.name for d in (self._outputs if channel.is_output else self._inputs)}
+        priority, excluded = self._ordered(kind)
         self._popup = DeviceList(
             "OUTPUT DEVICES" if channel.is_output else "INPUT DEVICES",
-            [(device.name, device.label) for device in devices], column.current_device, self)
+            [(name, self._label(name)) for name in priority if name in present],
+            column.current_device, self,
+            excluded=[(name, self._label(name)) for name in excluded if name in present])
         self._popup.picked.connect(lambda name: self._pick_device(channel_id, name))
+        self._popup.manage.connect(self.show_manager)
         self._popup.show_under(column.device)
         return self._popup
 

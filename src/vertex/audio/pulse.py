@@ -55,6 +55,7 @@ class Device:
     muted: bool = False
     owner_module: int | None = None
     properties: dict = field(default_factory=dict)
+    sample_spec: str = ""            # e.g. "s24le 2ch 48000Hz"
 
     @property
     def is_monitor(self) -> bool:
@@ -77,6 +78,7 @@ class Device:
             volume=_volume(data.get("volume")), muted=bool(data.get("mute", False)),
             owner_module=_int_or_none(data.get("owner_module")),
             properties=dict(data.get("properties") or {}),
+            sample_spec=str(data.get("sample_specification") or ""),
         )
 
 

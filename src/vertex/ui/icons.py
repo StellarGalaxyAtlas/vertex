@@ -229,6 +229,15 @@ def _unlink(p, c):
     p.restore()
 
 
+@_register("grip")
+def _grip(p, c):
+    # Six dots: a handle to drag by.
+    _fill(p, c)
+    for x in (9, 15):
+        for y in (7, 12, 17):
+            p.drawEllipse(QPointF(x, y), 1.5, 1.5)
+
+
 @_register("check")
 def _check(p, c):
     _pen(p, c, 2.2)

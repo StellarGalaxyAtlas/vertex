@@ -124,6 +124,58 @@ class TestSonar:
         sonar.set_channel_output("chat", "hw_headset")
         assert set(targets().values()) == {"hw_headset"}
 
+    def test_device_manager_picks_by_priority(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        sonar.learn_devices(sonar.outputs(), sonar.inputs())
+        # The device in use goes on top the first time; the rest follow.
+        assert sonar.config.output_priority == ["hw_headset", "hw_speakers"]
+        assert sonar.config.mic_priority == ["hw_mic"]
+
+        # Auto: the highest connected device plays, and plugging a higher
+        # one back in switches to it.
+        sonar.config.output_priority = ["hw_speakers", "hw_headset"]
+        sonar.reconcile()
+        assert sonar.status().output == "hw_speakers"
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        assert sonar.status().output == "hw_headset"
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        assert sonar.status().output == "hw_speakers"
+        # Excluded devices are never picked automatically.
+        sonar.config.output_excluded = ["hw_speakers"]
+        sonar.reconcile()
+        assert sonar.status().output == "hw_headset"
+
+        # Picking one in Auto puts it on top, out of excluded.
+        sonar.set_channel_output("game", "hw_speakers")
+        assert sonar.config.output_priority[0] == "hw_speakers"
+        assert sonar.config.output_excluded == []
+        assert sonar.status().output == "hw_speakers"
+
+        # Manual: the device picked, whatever the order; the list only says
+        # what plays while it is unplugged.
+        sonar.config.output_auto = False
+        sonar.config.output_priority = ["hw_headset", "hw_speakers"]
+        sonar.set_channel_output("game", "hw_speakers")
+        assert sonar.config.output_priority == ["hw_headset", "hw_speakers"]
+        assert sonar.status().output == "hw_speakers"
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        assert sonar.status().output == "hw_headset"
+
+    def test_new_devices_go_to_the_bottom(self, tmp_path):
+        sonar, fake = _sonar(tmp_path, output_priority=["hw_speakers", "hw_headset"])
+        sonar.up()
+        fake.add_sink("hw_usb", props={"device.description": "USB Headset"})
+        assert sonar.learn_devices(sonar.outputs(), sonar.inputs())
+        assert sonar.config.output_priority == ["hw_speakers", "hw_headset", "hw_usb"]
+        assert sonar.config.device_names["hw_usb"] == "USB Headset"
+        assert not sonar.learn_devices(sonar.outputs(), sonar.inputs())
+        sonar.reconcile()
+        assert sonar.status().output == "hw_speakers"    # not switched to the new one
+
     def test_retired_channels_are_removed(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         # What an older Vertex left behind: Vertex Aux and its loopback.

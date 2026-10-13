@@ -27,7 +27,7 @@ import json
 import os
 from dataclasses import dataclass, field
 
-from vertex.audio import channels
+from vertex.audio import channels, devices
 from vertex.audio.channels import Channel
 from vertex.audio.pulse import AudioError, Device, Event, Module, Pactl, Stream, proplist
 from vertex.config import SonarConfig
@@ -168,9 +168,16 @@ class Sonar:
         return devices[0].name if devices else ""
 
     def resolve_output(self, outputs: list[Device] | None = None) -> str:
+        """The device the channels share: by the device manager's lists, else
+        the one picked, the last one used, or the system's default."""
         outputs = self.outputs() if outputs is None else outputs
-        return self._resolve(self.config.output_device, outputs,
-                             [self.state.output, self.state.previous_sink, self._default_sink()])
+        cfg = self.config
+        chosen = devices.choose(cfg.output_priority, cfg.output_excluded,
+                                [device.name for device in outputs], cfg.output_device,
+                                cfg.output_auto)
+        return chosen or self._resolve(
+            cfg.output_device, outputs,
+            [self.state.output, self.state.previous_sink, self._default_sink()])
 
     def channel_output(self, channel: Channel, outputs: list[Device], shared: str) -> str:
         """The device an output channel plays through: the shared one while
@@ -185,8 +192,12 @@ class Sonar:
 
     def resolve_mic(self, inputs: list[Device] | None = None) -> str:
         inputs = self.inputs() if inputs is None else inputs
-        return self._resolve(self.config.mic_device, inputs,
-                             [self.state.mic, self.state.previous_source, self._default_source()])
+        cfg = self.config
+        chosen = devices.choose(cfg.mic_priority, cfg.mic_excluded,
+                                [device.name for device in inputs], cfg.mic_device, cfg.mic_auto)
+        return chosen or self._resolve(
+            cfg.mic_device, inputs,
+            [self.state.mic, self.state.previous_source, self._default_source()])
 
     def _default_sink(self) -> str:
         try:
@@ -455,9 +466,14 @@ class Sonar:
         return self.up() if self.config.enabled else []
 
     def set_channel_output(self, channel_id: str, device: str) -> list[str]:
-        """Play a channel through `device`: every output channel while linked."""
+        """Play a channel through `device`: every output channel while linked.
+        In Auto mode the device also goes to the top of the list, or the list
+        would take it straight back."""
         if self.config.linked:
             self.config.output_device = device
+            if self.config.output_auto and device:
+                self.config.output_priority, self.config.output_excluded = devices.promote(
+                    self.config.output_priority, self.config.output_excluded, device)
         else:
             self.config.channel(channel_id).output_device = device
         return self.up() if self.config.enabled else []
@@ -469,6 +485,11 @@ class Sonar:
             if not self.config.linked:
                 own = self.config.channel(channel_id).output_device
                 self.config.output_device = own or self.config.output_device
+                if self.config.output_auto and own:
+                    # As when picking it: on top, or Auto would pick another.
+                    self.config.output_priority, self.config.output_excluded = \
+                        devices.promote(self.config.output_priority,
+                                        self.config.output_excluded, own)
         else:
             for channel in channels.OUTPUTS:
                 self.config.channel(channel.id).output_device = self.config.output_device
@@ -477,7 +498,37 @@ class Sonar:
 
     def set_mic(self, device: str) -> list[str]:
         self.config.mic_device = device
+        if self.config.mic_auto and device:
+            self.config.mic_priority, self.config.mic_excluded = devices.promote(
+                self.config.mic_priority, self.config.mic_excluded, device)
         return self.up() if self.config.enabled else []
+
+    def learn_devices(self, outputs: list[Device], inputs: list[Device]) -> bool:
+        """Add devices seen for the first time to the device manager's lists
+        and remember every device's name. True if anything changed."""
+        cfg = self.config
+        before = (list(cfg.output_priority), list(cfg.mic_priority), dict(cfg.device_names))
+        cfg.output_priority = devices.learn(cfg.output_priority, cfg.output_excluded,
+                                            [d.name for d in outputs],
+                                            self.state.output or cfg.output_device)
+        cfg.mic_priority = devices.learn(cfg.mic_priority, cfg.mic_excluded,
+                                         [d.name for d in inputs],
+                                         self.state.mic or cfg.mic_device)
+        for device in (*outputs, *inputs):
+            if device.description:
+                cfg.device_names[device.name] = device.description
+        return before != (cfg.output_priority, cfg.mic_priority, cfg.device_names)
+
+    def set_device_volume(self, kind: str, name: str, volume: float) -> None:
+        """The volume of a real device (kind: "sink" or "source")."""
+        volume = max(0.0, min(1.0, volume))
+        try:
+            if kind == "sink":
+                self.pactl.set_sink_volume(name, volume)
+            else:
+                self.pactl.set_source_volume(name, volume)
+        except AudioError:
+            pass   # unplugged meanwhile
 
     # --- Routing ------------------------------------------------------------
 

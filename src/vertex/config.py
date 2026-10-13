@@ -110,6 +110,17 @@ class SonarConfig:
     latency_ms: int = 20             # loopback latency between channel and output device
     channels: dict[str, ChannelSettings] = field(default_factory=_default_channels)
     app_rules: dict[str, str] = field(default_factory=dict)   # app key → channel id
+    # The device manager (audio.devices): the order real devices are picked
+    # in, the ones never picked automatically, and Auto (the highest connected
+    # one) or Manual (the one picked).
+    output_priority: list[str] = field(default_factory=list)
+    output_excluded: list[str] = field(default_factory=list)
+    output_auto: bool = True
+    mic_priority: list[str] = field(default_factory=list)
+    mic_excluded: list[str] = field(default_factory=list)
+    mic_auto: bool = True
+    device_names: dict[str, str] = field(default_factory=dict)   # device → its description
+    show_disconnected: bool = False
 
     def channel(self, channel_id: str) -> ChannelSettings:
         settings = self.channels.get(channel_id)
@@ -286,6 +297,9 @@ def _load_sonar(data: Any) -> SonarConfig:
     for channel_id, raw in (data.get("channels") or {}).items():
         if channels.get(channel_id) is not None:
             sonar.channels[channel_id] = _fill(sonar.channel(channel_id), raw)
+    names = data.get("device_names")
+    sonar.device_names = {str(key): value for key, value in names.items()
+                          if isinstance(value, str)} if isinstance(names, dict) else {}
     rules = data.get("app_rules") or {}
     if isinstance(rules, dict):
         sonar.app_rules = {

@@ -139,7 +139,7 @@ then nothing is saved, until the buffer is restarted. Reported 2026-10-13.
   A test runs GSR's stand-in with a helper like gsr-kms-server, through a
   wrapper, and saves three times.
 
-**8b.**
+**8b.** ✅ Done
 **Sonar › Device manager**
 A panel over the Sonar page, opened from 8a's button, with a tab for the
 outputs and one for the microphone:
@@ -153,6 +153,19 @@ outputs and one for the microphone:
 - Not the shortcuts: the maintainer said to leave keybinds out for now.
 
 Questions in the Notes.
+- Done, on the Sonar page itself (the maintainer's call: plenty of room)
+  under "Unrouted apps": "Output devices" and "Microphones" side by side,
+  each with Manual | Auto, the device in use with its volume and format, a
+  priority list to drag and an Excluded list to drag into. One toggle shows
+  disconnected devices; off by default. The device list under each channel
+  orders by priority, shows excluded devices apart, and has a "Device
+  manager" button that scrolls down to it.
+- Auto (the default) uses the highest connected device in the list, at start
+  too, and switches when one higher up is plugged in. Manual uses the device
+  picked, and the highest connected one while it is unplugged. Picking a
+  device in Auto puts it on top. Excluded devices are never picked by
+  themselves. New devices join the bottom of the list. One priority list for
+  the outputs, even with the channels unlinked.
 
 **9.**
 **Sonar › Hotkeys**
@@ -207,8 +220,8 @@ doesn't describe the monitor map, the primary-monitor fallback, the
 recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips").
 
-**Progress.** Done: 1–7, 8a and the bug 14. Next: 8b, unless the maintainer
-says otherwise.
+**Progress.** Done: 1–8 (8a, 8b) and the bug 14. Next: 10, unless the
+maintainer says otherwise (9 is on hold).
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
@@ -323,14 +336,9 @@ output channel has its own device. Each channel already has its own loopback,
 so the audio side allows it. To settle:
 - 8a (settled): the Output and Microphone drop-downs went; linking again
   takes the device of the channel whose link was clicked.
-- 8b: unlinked, does each output channel get its own priority and excluded
-  lists (a tab per channel), or only its own current device?
-- 8b: SteelSeries also has "Backup device switch" (Manual/Auto: when the
-  current device goes away, move to the next one in the priority list), with
-  an option to apply it at boot. Include it? Vertex already moves to another
-  output when the device disappears; the priority list would decide which.
-  Its "auto-switch when the Nova Wireless headset is powered off" option is
-  specific to one headset and stays out.
+- 8b (settled): one priority list; the Auto/Manual switch is in, applied at
+  start too; the Nova Wireless option stays out; only connected devices are
+  shown unless a toggle says otherwise; the manager lives on the Sonar page.
 
 **Item 9.** On hold (keybinds left out for now). When it comes up: linked,
 "next device" switches all output channels at once; unlinked, it is per
