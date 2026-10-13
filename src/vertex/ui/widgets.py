@@ -219,7 +219,8 @@ class Toggle(QAbstractButton):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         track = QColor(theme.ACCENT) if self.isChecked() else QColor(theme.CONTROL_BG)
         if not self.isEnabled():
-            track = QColor(theme.SECTION_BG)
+            # The knob dims; the track stays visible on any card.
+            track = QColor(theme.CONTROL_BG)
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(track)
         p.drawRoundedRect(QRectF(0, 0, self.width(), self.height()), 11, 11)
@@ -387,13 +388,14 @@ class FlowLayout(QLayout):
 class Section(QFrame):
     """A settings card: a title, a sentence about it, then its controls."""
 
-    def __init__(self, title: str, blurb: str = "", parent=None):
+    def __init__(self, title: str = "", blurb: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("Section")
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 18, 20, 20)
         outer.setSpacing(12)
-        outer.addWidget(label(title, "Subheading"))
+        if title:
+            outer.addWidget(label(title, "Subheading"))
         if blurb:
             outer.addWidget(label(blurb, "Muted", wrap=True))
         self.body = QVBoxLayout()
@@ -547,6 +549,70 @@ class Meter(QWidget):
         p.fillRect(bar, QColor(theme.CONTROL_BG))
         p.fillRect(QRectF(0, 0, bar.width() * self.fraction, bar.height()),
                    QColor(self.colour))
+
+
+class ChoiceCard(QFrame):
+    """One of a few answers to a question, as a card: a title and a sentence.
+
+    Cards joined with `join` behave like radio buttons.
+    """
+
+    chosen = Signal()
+
+    def __init__(self, title: str, text: str, parent=None):
+        super().__init__(parent)
+        self.group: list[ChoiceCard] = [self]
+        self._checked = False
+        self.setObjectName("ChoiceCard")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 14)
+        layout.setSpacing(4)
+        self.title = label(title)
+        self.title.setStyleSheet("font-weight: 600; background: transparent;")
+        layout.addWidget(self.title)
+        self.text = label(text, "Muted", wrap=True)
+        self.text.setStyleSheet("background: transparent;")
+        layout.addWidget(self.text)
+        layout.addStretch(1)      # cards side by side keep their titles level
+        self._paint()
+
+    @staticmethod
+    def join(*cards: ChoiceCard) -> None:
+        for card in cards:
+            card.group = list(cards)
+
+    def isChecked(self) -> bool:
+        return self._checked
+
+    def setChecked(self, checked: bool) -> None:
+        for card in self.group:
+            card._checked = checked if card is self else (card._checked and not checked)
+            card._paint()
+
+    def _paint(self) -> None:
+        edge = theme.ACCENT if self._checked else theme.LINE
+        ground = theme.ACCENT_SOFT if self._checked else theme.CARD_BG
+        self.setStyleSheet(f"#ChoiceCard {{ background: {ground}; border: 1px solid {edge};"
+                           f" border-radius: {theme.RADIUS_CONTROL}px; }}"
+                           f"#ChoiceCard:focus {{ border-color: {theme.ACCENT_EDGE}; }}")
+
+    def choose(self) -> None:
+        if not self._checked:
+            self.setChecked(True)
+            self.chosen.emit()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.choose()
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.choose()
+            return
+        super().keyPressEvent(event)
 
 
 class PathField(QWidget):

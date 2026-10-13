@@ -69,8 +69,14 @@ def plan_copy(source: str, target: str) -> CopyPlan:
             continue
         plan.files.append((name, size))
         plan.total_bytes += size
-    if os.path.isdir(target):
-        plan.free_bytes = shutil.disk_usage(target).free
+    # A clips folder chosen during setup doesn't exist yet; the space that
+    # counts is on the drive it will be created on.
+    existing_parent = os.path.abspath(target)
+    while not os.path.isdir(existing_parent) and \
+            os.path.dirname(existing_parent) != existing_parent:
+        existing_parent = os.path.dirname(existing_parent)
+    if os.path.isdir(existing_parent):
+        plan.free_bytes = shutil.disk_usage(existing_parent).free
     return plan
 
 
@@ -102,6 +108,10 @@ def copy_clips(plan: CopyPlan,
     """
     copied: list[str] = []
     failed: list[tuple[str, str]] = []
+    try:
+        os.makedirs(plan.target, exist_ok=True)
+    except OSError as err:
+        return copied, [(name, str(err)) for name, _size in plan.files]
     done_bytes = 0
     for index, (name, size) in enumerate(plan.files, start=1):
         if cancelled is not None and cancelled():

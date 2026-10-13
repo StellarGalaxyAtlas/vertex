@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 22.
+and bugs get the next free number: 23.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -45,7 +45,10 @@ behind:
   among them), the 1.x library upgrade, *Settings → Older clips* and an Aux
   lane.
 - `docs/CONTROL.md`: new, written from `vertex/control.py`'s docstring.
-- The screenshots in `docs/`.
+- README's "Settings and first run": first-run setup now has the Vertex
+  Sonar and Vertex Moments steps and brings an existing library along
+  (item 22); the import tools are no longer where setup points.
+- The screenshots in `docs/` (first-run.png shows the old step 1).
 
 ## Waiting on the maintainer
 
@@ -64,6 +67,8 @@ Built and tested in the container; only their system can confirm:
 - 19: thumbnails are made again, at 960 px, as the library is scrolled.
 - 20: the tray icon's ink on their panel (a dark panel on an otherwise light
   desktop would get the dark ink).
+- 22: "How to install it" opens GPU Screen Recorder's page in their browser;
+  the wording of every step reads right to them.
 
 ---
 
@@ -178,6 +183,26 @@ size within the old memory budget.
 start-menu icons follow the desktop's light or dark look; the rail and
 first-run logos are always light.
 
+**22. First run.** Reworded and rebuilt (the maintainer found it technical
+and off). Steps: Welcome ("Your clips folder"; exports follow the clips
+folder until given their own) · Vertex Sonar (the virtual devices first,
+recording each as a track only as a side note; Output device and Input
+device, each with a sentence) · Vertex Moments (the monitor map and
+Duration, Video quality, Resolution and Frame rate exactly as in Settings ›
+Recording, plus start the buffer with Vertex; when GSR is missing or too
+old, "How to install it" opens GSR's own page, `gsr.INSTALL_URL`, and
+"Check again") · Clips you already have (start fresh, or a folder whose
+clips are used where they are or copied into the clips folder, with
+progress and Stop) · Tag your clips (only when clips were brought along:
+the games read from file names, editable, and one game for the clips that
+name none; written before the library's first scan). Decided with the
+maintainer: the user picks in place or copy; Moments shows monitor,
+quality, resolution, frame rate, duration and start with Vertex, but not
+the save-clip shortcut; the GSR guide is a link, not per-distro commands.
+The monitor map and the four drop-downs are one `ClipChoices`
+(`ui/settings/clip_choices.py`) used by both, so they stay alike. The
+same steps run again from Settings, with Cancel.
+
 ---
 
 ## Notes
@@ -187,7 +212,8 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, including the bugs 14, 16 and 18.
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22, including the bugs 14, 16 and
+18.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and removing 1.x.
 

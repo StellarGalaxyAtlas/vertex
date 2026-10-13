@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import os
+import sqlite3
 
 from PySide6.QtCore import QFileSystemWatcher, QTimer
 from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
@@ -23,7 +24,7 @@ from vertex.config import Config
 from vertex.media.thumbnails import ThumbnailCache
 from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
-from vertex.ui.first_run import FirstRunView
+from vertex.ui.first_run import FirstRunView, SetupResult
 from vertex.ui.library.state import LibraryState
 from vertex.ui.library.view import LibraryView
 from vertex.ui.rail import Rail
@@ -160,9 +161,10 @@ class MainWindow(QMainWindow):
             self, "Run setup again", "Run first-run setup again?",
             "Setup opens with your current settings filled in. When you finish it, what "
             "you chose there replaces them: the clips and exports folders, whether Sonar "
-            "is on and its devices, and the replay buffer's duration and whether it starts "
-            "with Vertex.\n\nCancel at any step to keep everything as it is. Nothing is "
-            "deleted: your clips, tags and edits stay.",
+            "is on and its devices, the monitor, duration, video quality, resolution and "
+            "frame rate, and whether the replay buffer starts with Vertex. You can also "
+            "bring in clips you already have.\n\nCancel at any step to keep everything as "
+            "it is. Nothing is deleted: your clips, tags and edits stay.",
             [("Run setup", "run", "primary")])
         if answer == "run":
             self.show_setup(copy.deepcopy(self.context.config), again=True)
@@ -173,8 +175,8 @@ class MainWindow(QMainWindow):
         self.navigate("settings")
         self.settings_view.show_page("import")
 
-    def _setup_done(self, config: Config, enable_sonar: bool, start_recorder: bool) -> None:
-        context = self.context
+    def _setup_done(self, result: SetupResult) -> None:
+        context, config = self.context, result.config
         before = copy.deepcopy(context.config)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path"):
             setattr(context.config, key, getattr(config, key))
@@ -190,10 +192,26 @@ class MainWindow(QMainWindow):
         self._remove_page(page)
         self.settings_view.load()
         if self._services_started:
-            self._apply_setup_again(before, config, enable_sonar, start_recorder)
+            self._apply_setup_again(before, config, result.enable_sonar, result.start_recorder)
+            if self._write_setup_tags(result.games, result.dates):
+                self.state.reload()
         else:
-            self.start_services(enable_sonar=enable_sonar, start_recorder=start_recorder)
+            self.start_services(enable_sonar=result.enable_sonar,
+                                start_recorder=result.start_recorder,
+                                tags=(result.games, result.dates))
         self.navigate("library")
+
+    def _write_setup_tags(self, games: dict[str, str], dates: dict[str, float]) -> bool:
+        """Save the games confirmed in setup for the clips brought along."""
+        library = self.context.library
+        if not (games or dates) or library is None:
+            return False
+        try:
+            library.apply_import(games, dates)
+        except sqlite3.Error as exc:
+            self.context.notify("vertex_problem", "Could not save the tags", str(exc))
+            return False
+        return True
 
     def _apply_setup_again(self, before: Config, config: Config, enable_sonar: bool,
                            start_recorder: bool) -> None:
@@ -284,10 +302,16 @@ class MainWindow(QMainWindow):
                                                "browse.", "ok")
 
     def start_services(self, enable_sonar: bool | None = None,
-                       start_recorder: bool | None = None) -> None:
+                       start_recorder: bool | None = None,
+                       tags: tuple[dict, dict] | None = None) -> None:
+        """Open the library and start Sonar and the recorder. `tags` are the
+        games and dates setup confirmed, written before the first scan so it
+        doesn't tag those clips its own way first."""
         self._services_started = True
         context = self.context
         context.open_library()
+        if tags is not None:
+            self._write_setup_tags(*tags)
         self.state.reload()
         if context.thumbs is not None:
             QTimer.singleShot(5000, lambda: context.thumbs.prune(

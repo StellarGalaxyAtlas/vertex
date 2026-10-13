@@ -32,6 +32,11 @@ from vertex.config import (
 # `-a "name:<title>|device:<node>"` sets a track's title. Versions before this
 # take the "name:" part for a device and refuse to start.
 TRACK_NAMES_SINCE = (5, 15)
+
+# The project's own page, which keeps its install instructions current for
+# every distro and the Flatpak.
+INSTALL_URL = "https://git.dec05eba.com/gpu-screen-recorder/about/"
+
 # The oldest release whose flags this module emits (-replay-storage, -encoder).
 MIN_VERSION = (5, 0)
 
@@ -48,6 +53,7 @@ class GsrInfo:
     version: tuple[int, ...] = ()
     version_text: str = ""
     error: str = ""
+    missing: bool = False        # the command isn't there at all
 
     @property
     def supports_track_names(self) -> bool:
@@ -84,6 +90,7 @@ def detect(command: str) -> GsrInfo:
     try:
         text = _query(command, "--version", timeout=5).strip()
     except FileNotFoundError:
+        info.missing = True
         info.error = ("GPU Screen Recorder is not installed. Install the "
                       "'gpu-screen-recorder' package, or set its command in Settings.")
         return info

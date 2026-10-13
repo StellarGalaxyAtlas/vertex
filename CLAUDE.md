@@ -63,7 +63,8 @@ where the work stands. New requests and bugs get the next free number in
   Read the PNGs, and send the maintainer the final one.
   `xvfb-run -a python tools/settings_screenshot.py /tmp/shot` does the same for
   Settings › Recording, with a fake recorder and three fake monitors (one
-  standing up).
+  standing up). `xvfb-run -a python tools/first_run_screenshot.py /tmp/shot`
+  shoots every step of first-run setup, with and without a recorder.
 - Workflow agents with `isolation: "worktree"` get a worktree made from the
   repository's default branch (the old 1.x code), not the working branch. Have
   them `git reset --hard` to the working branch's commit first.

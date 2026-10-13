@@ -153,6 +153,18 @@ class TestImporting:
         assert progress[-1] == (1, "new.mp4", 1000)
         assert not [n for n in os.listdir(dst) if n.endswith(".part")]
 
+    def test_copy_into_a_folder_not_made_yet(self, tmp_path):
+        # Setup copies into the clips folder it is about to create.
+        src, dst = tmp_path / "src", tmp_path / "videos" / "Game Recordings"
+        src.mkdir()
+        _touch(str(src), "a.mp4", 100)
+        plan = importing.plan_copy(str(src), str(dst))
+        assert plan.files == [("a.mp4", 100)]
+        assert plan.free_bytes > 0 and plan.fits
+        copied, failed = importing.copy_clips(plan)
+        assert copied == ["a.mp4"] and not failed
+        assert os.path.getsize(dst / "a.mp4") == 100
+
     def test_copy_can_be_cancelled(self, tmp_path):
         src, dst = tmp_path / "src", tmp_path / "dst"
         src.mkdir()

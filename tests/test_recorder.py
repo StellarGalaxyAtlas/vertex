@@ -173,7 +173,7 @@ class TestDetection:
 
     def test_missing(self, tmp_path):
         info = gsr.detect(str(tmp_path / "nope"))
-        assert not info.available and "not installed" in info.error
+        assert not info.available and info.missing and "not installed" in info.error
         assert gsr.list_capture_options(str(tmp_path / "nope")) == []
 
     def test_capture_options(self):

@@ -362,7 +362,7 @@ def test_clip_settings_follow_the_recorded_monitor(qapp, window, monkeypatch):
     assert not settings.findChild(Disclosure).expanded
 
     # The vertical monitor: sizes up to its own, standing up.
-    settings._pick_monitor("DP-2")
+    settings.choices.pick_monitor("DP-2")
     assert texts(settings.resolution) == ["720p · 720 × 1280", "Native · 1080 × 1920"]
     assert settings.video_quality.currentText() == "High · 20 Mbps"
     settings.resolution.setCurrentIndex(settings.resolution.findData("720p"))
@@ -719,7 +719,7 @@ def test_dialogs(qapp, window, sample_clip):
     dialog.reject()
 
 
-def test_first_run_writes_config(qapp, tmp_path, fake_audio):
+def _setup(qapp, tmp_path):
     from vertex.ui.main_window import MainWindow
     from vertex.ui.services import Context
 
@@ -729,17 +729,125 @@ def test_first_run_writes_config(qapp, tmp_path, fake_audio):
     view = win.first_run
     view.clip_path.set_value(str(tmp_path / "clips"))
     view.sonar_enabled.setChecked(False)
+    # Never start a real recorder from a test, wherever one is installed.
+    view._autostart_touched = True
+    view.rec_autostart.setChecked(False)
+    return win, view
+
+
+def _moments_library(folder):
+    folder.mkdir()
+    for name in ("THE-FINALS__2024-06-16__19-45-23.mp4", "THE-FINALS__2024-06-17__20-00-00.mp4",
+                 "Apex-Legends__2026-08-11__22-14-07.mp4", "Replay_2026-03-28_05-28-25.mp4"):
+        (folder / name).write_bytes(b"clip")
+    return folder
+
+
+def _close(win):
+    futures.wait([win.start_menu_job], timeout=30)    # see the window fixture
+    win._quitting = True
+    win.context.shutdown()
+
+
+def test_first_run_writes_config(qapp, tmp_path, fake_audio):
+    win, view = _setup(qapp, tmp_path)
+    choices = view.choices
+    choices.fps.setCurrentIndex(choices.fps.findData(120))
+    choices.duration.setCurrentIndex(choices.duration.findData(30))
     for _ in range(3):
         view._go(1)
-    view._go(1)      # Open Vertex
+    assert view.current() == "library"
+    assert view.next_button.text() == "Open Vertex"     # starting fresh: the last step
+    view._go(1)
     assert win.first_run is None
     saved = Config.load()
     assert saved.clip_path == str(tmp_path / "clips")
+    assert saved.export_path == str(tmp_path / "clips" / "Vertex" / "Exports")
+    assert (saved.recorder.fps, saved.recorder.replay_seconds) == (120, 30)
     assert saved.is_complete()
     assert os.path.isdir(tmp_path / "clips")
-    futures.wait([win.start_menu_job], timeout=30)    # see the window fixture
+    _close(win)
+
+
+def test_first_run_uses_existing_clips_where_they_are(qapp, tmp_path, fake_audio):
+    source = _moments_library(tmp_path / "Moments")
+    win, view = _setup(qapp, tmp_path)
+    for _ in range(3):
+        view._go(1)
+    view.existing.choose()
+    assert view.step_label.text() == "Step 4 of 5"
+    view.source.set_value(str(source))
+    assert wait_until(qapp, lambda: view.copy_plan is not None)
+    assert view.source_summary.text() == "Found 4 clips."
+    view._go(1)
+    assert view.current() == "tags"
+    assert wait_until(qapp, lambda: view.tag_plan is not None)
+    view.game_fields["THE FINALS"].setText("The Finals")
+    view.stray_game.setText("Deep Rock Galactic")
+    view._go(1)                                        # Open Vertex
+    assert win.first_run is None
+    saved = Config.load()
+    assert saved.clip_path == str(source)
+    assert saved.export_path == str(source / "Vertex" / "Exports")
+    assert not os.path.exists(tmp_path / "clips")     # the unused folder isn't made
+    tags = win.context.library.tags()
+    assert tags["THE-FINALS__2024-06-16__19-45-23.mp4"][0] == "The Finals"
+    assert tags["Apex-Legends__2026-08-11__22-14-07.mp4"][0] == "Apex Legends"
+    assert tags["Replay_2026-03-28_05-28-25.mp4"][0] == "Deep Rock Galactic"
+    _close(win)
+
+
+def test_first_run_copies_existing_clips(qapp, tmp_path, fake_audio):
+    source = _moments_library(tmp_path / "Moments")
+    win, view = _setup(qapp, tmp_path)
+    for _ in range(3):
+        view._go(1)
+    view.existing.choose()
+    view.copy_in.choose()
+    view.source.set_value(str(source))
+    assert wait_until(qapp, lambda: view.copy_plan is not None)
+    assert "Copies 4 clips" in view.copy_summary.text()
+    view._go(1)                                        # copies, then moves on
+    assert wait_until(qapp, lambda: view.current() == "tags" and view.tag_plan is not None)
+    assert view.tags_note.text() == "Copied 4 clips."
+    view._go(1)
+    saved = Config.load()
+    assert saved.clip_path == str(tmp_path / "clips")
+    assert set(os.listdir(source)) <= set(os.listdir(tmp_path / "clips"))
+    assert len(os.listdir(source)) == 4                # the originals stay
+    assert win.context.library.tags()["THE-FINALS__2024-06-16__19-45-23.mp4"][0] == \
+        "THE FINALS"
+    _close(win)
+
+
+def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio):
+    from vertex.ui.main_window import MainWindow
+    from vertex.ui.services import Context
+
+    script = tmp_path / "gsr"
+    script.write_text("#!/bin/sh\ncase \"$1\" in\n --version) echo 5.15.1 ;;\n"
+                      " --list-capture-options) printf 'DP-1|2560x1440\\nportal\\n' ;;\n"
+                      "esac\n")
+    script.chmod(0o755)
+    config = Config()
+    config.recorder.command = str(tmp_path / "no-such-recorder")
+    win = MainWindow(Context(Config()))
+    win.show_setup(config)
+    view = win.first_run
+    assert wait_until(qapp, lambda: view.gsr_info is not None)
+    assert not view.install.isHidden() and not view.rec_autostart.isEnabled()
+    assert view.install_title.text() == "Install GPU Screen Recorder"
+
+    view.config.recorder.command = str(script)         # installed it; Check again
+    view.gsr_info = None
+    view.recheck_button.click()
+    assert wait_until(qapp, lambda: view.gsr_info is not None)
+    assert view.install.isHidden()
+    assert [m.name for m in view.choices.monitor_map.monitors] == ["DP-1"]
+    assert view.choices.resolution.itemText(0) == "720p · 1280 × 720"
+    assert view.rec_autostart.isEnabled() and view.rec_autostart.isChecked()
     win._quitting = True
-    context.shutdown()
+    win.context.shutdown()
 
 
 def test_notifications_pop_up_by_kind_when_the_window_is_not_in_front(
@@ -823,7 +931,7 @@ def test_setup_runs_again_from_settings(qapp, window, monkeypatch):
     answers.append("run")
     window.settings_view.setup_requested.emit()
     setup = window.first_run
-    setup.replay_seconds.setCurrentIndex(setup.replay_seconds.findData(120))
+    setup.choices.duration.setCurrentIndex(setup.choices.duration.findData(120))
     for _ in range(len(setup.steps)):
         setup._go(1)
     assert window.first_run is None
