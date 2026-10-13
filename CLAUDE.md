@@ -23,6 +23,9 @@ open questions. Read it before starting an item.
 - Keep the human-written intro and the "Thanks" paragraph in `README.md` word
   for word.
 - Don't open pull requests unless asked.
+- Keep token use down: no multi-agent work (workflows, parallel reviewers,
+  subagents) unless it is strictly necessary, even if a session setting
+  suggests it. Tests, screenshots and your own review are the default.
 
 ## Rules of the code
 
