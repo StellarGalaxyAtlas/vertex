@@ -738,6 +738,48 @@ def test_notifications_pop_up_by_kind_when_the_window_is_not_in_front(
         context.notify("no_such_kind", "?")
 
 
+def test_setup_runs_again_from_settings(qapp, window, monkeypatch):
+    from vertex.ui import main_window
+    from vertex.ui.widgets import ChoiceDialog
+
+    context = window.context
+    before = context.config.to_dict()
+    answers = [None]
+    monkeypatch.setattr(ChoiceDialog, "ask", classmethod(lambda *a, **k: answers.pop(0)))
+    window.navigate("settings")
+    window.settings_view.show_page("import")
+
+    # Declined at the warning: nothing happens.
+    window.settings_view.setup_requested.emit()
+    assert window.first_run is None
+
+    # Cancelled part-way: back on the tab, settings as they were.
+    answers.append("run")
+    window.settings_view.setup_requested.emit()
+    setup = window.first_run
+    assert setup is not None and setup.again
+    assert setup.clip_path.value() == context.config.clip_path
+    setup._go(1)
+    setup.cancelled.emit()
+    assert window.first_run is None
+    assert window.settings_view.tabs.current == "import"
+    assert context.config.to_dict() == before
+
+    # Finished: the change applies to the running Vertex, which isn't started again.
+    monkeypatch.setattr(main_window.MainWindow, "start_services",
+                        lambda *_a, **_k: pytest.fail("services started twice"))
+    answers.append("run")
+    window.settings_view.setup_requested.emit()
+    setup = window.first_run
+    setup.replay_seconds.setCurrentIndex(setup.replay_seconds.findData(120))
+    for _ in range(len(setup.steps)):
+        setup._go(1)
+    assert window.first_run is None
+    assert context.config.recorder.replay_seconds == 120
+    assert Config.load().recorder.replay_seconds == 120
+    assert context.config.clip_path == before["clip_path"]
+
+
 def test_control_commands(qapp, window):
     from vertex.ui.app import Commands
 

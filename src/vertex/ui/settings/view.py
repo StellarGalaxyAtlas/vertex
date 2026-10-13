@@ -107,6 +107,7 @@ def scroll_page(*sections) -> QScrollArea:
 class SettingsView(QWidget):
     saved = Signal(bool)             # folders changed
     imported = Signal()
+    setup_requested = Signal()       # run first-run setup again
 
     def __init__(self, context, parent=None):
         super().__init__(parent)
@@ -125,7 +126,7 @@ class SettingsView(QWidget):
         layout.addLayout(header)
         self.tabs = Segmented([("general", "General"), ("recording", "Recording"),
                                ("notifications", "Notifications"), ("shortcuts", "Shortcuts"),
-                               ("import", "Import")], "general")
+                               ("import", "Import and setup")], "general")
         self.tabs.changed.connect(lambda key, _d: self.show_page(key))
         layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
         self.stack = QStackedWidget()
@@ -379,7 +380,12 @@ class SettingsView(QWidget):
                                                      "the game. Review the games found in the "
                                                      "clips folder and tag them in one go.")
         tag_section.add(button("Review tags…", on_click=self._tag_clips))
-        self.pages["import"] = scroll_page(copy_section, tag_section)
+        setup = Section("First-run setup", "Go through the steps Vertex showed the first "
+                                           "time it ran: the clips folder, Sonar and its "
+                                           "devices, and the replay buffer. They open with "
+                                           "your current settings filled in.")
+        setup.add(button("Run setup again…", on_click=self.setup_requested.emit))
+        self.pages["import"] = scroll_page(copy_section, tag_section, setup)
         self.stack.addWidget(self.pages["import"])
 
     # --- Load / collect / save -------------------------------------------------

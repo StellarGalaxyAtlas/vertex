@@ -308,6 +308,14 @@ Progress:
   Vertex), each with a Copy button, and what the terminal adds (status,
   doctor, --help). The list is `COMMANDS` in `ui/settings/shortcuts.py`; a
   test checks each one parses with the `vertex` command's own parser.
+- Import and setup, done: the tab is renamed, and "First-run setup" has "Run
+  setup again…". A warning says what setup can change and that nothing is
+  deleted; setup then opens with the current settings (Sonar on or off, its
+  devices, the buffer's duration and autostart), with a Cancel on every
+  step, and "Save and close" at the end. Finishing applies the changes to
+  the running Vertex the way Settings and the Sonar page do (library
+  reopened if folders moved, Sonar switched or its devices picked, buffer
+  restarted if its settings changed) instead of starting anything twice.
 
 ---
 

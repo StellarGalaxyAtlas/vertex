@@ -24,10 +24,15 @@ FOLDER_NAMES = {"clip_path": "Clips folder", "data_path": "Library folder"}
 
 class FirstRunView(QWidget):
     finished = Signal(object, bool, bool)   # config, enable sonar, start recorder
+    cancelled = Signal()
 
-    def __init__(self, context, config: Config | None = None, missing=(), parent=None):
+    def __init__(self, context, config: Config | None = None, missing=(),
+                 again: bool = False, parent=None):
+        """`again`: run from Settings on a running Vertex, with its settings
+        filled in and a Cancel that leaves them as they were."""
         super().__init__(parent)
         self.context = context
+        self.again = again
         self.config = config or default_config()
         if config is not None:
             # Re-pointing an existing install: keep its settings, fill blanks.
@@ -79,6 +84,8 @@ class FirstRunView(QWidget):
         self.next_button = button("Continue", "primary", on_click=lambda: self._go(1))
         actions.addWidget(self.back_button)
         actions.addStretch(1)
+        if again:
+            actions.addWidget(button("Cancel", on_click=self.cancelled.emit))
         actions.addWidget(self.next_button)
         column.addLayout(actions)
         self._show(0)
@@ -111,7 +118,7 @@ class FirstRunView(QWidget):
                                    "record each one as its own track. Every clip then has "
                                    "the same tracks, so you can turn your mic down without "
                                    "touching the game.")
-        self.sonar_enabled = Toggle(True)
+        self.sonar_enabled = Toggle(self.config.sonar.enabled if self.again else True)
         section.add_row("Create the virtual devices", self.sonar_enabled,
                         "You can turn this off any time on the Sonar page.")
         self.output = QComboBox()
@@ -132,9 +139,14 @@ class FirstRunView(QWidget):
 
     def _got_devices(self, pair) -> None:
         outputs, inputs = pair
-        for combo, devices in ((self.output, outputs), (self.mic, inputs)):
+        status = self.context.sonar.status
+        for combo, devices, current in (
+                (self.output, outputs, status.output or self.config.sonar.output_device),
+                (self.mic, inputs, status.mic or self.config.sonar.mic_device)):
             for device in devices:
                 combo.addItem(device.label, device.name)
+            if self.again and combo.findData(current) > 0:
+                combo.setCurrentIndex(combo.findData(current))
 
     def _no_audio(self, error: str) -> None:
         self.sonar_enabled.setChecked(False)
@@ -156,7 +168,7 @@ class FirstRunView(QWidget):
             self.replay_seconds.addItem(f"{current} seconds", current)
         self.replay_seconds.setCurrentIndex(self.replay_seconds.findData(current))
         section.add_row("Duration", self.replay_seconds)
-        self.rec_autostart = Toggle(False)
+        self.rec_autostart = Toggle(self.config.recorder.autostart if self.again else False)
         section.add_row("Start the buffer whenever Vertex starts", self.rec_autostart)
         section.add(label("To save a clip from inside a game, bind the command "
                           "`vertex save-clip` to a key in your desktop's keyboard settings. "
@@ -169,7 +181,8 @@ class FirstRunView(QWidget):
         if info.available and not info.too_old:
             self.gsr_status.setText(f"Found GPU Screen Recorder {info.version_text}.")
             self.gsr_status.setStyleSheet(f"color: {theme.OK};")
-            self.rec_autostart.setChecked(True)
+            if not self.again:
+                self.rec_autostart.setChecked(True)
         else:
             self.gsr_status.setText(f"{info.error} Clips you already have still work; set "
                                     f"the recorder up later in Settings → Recording.")
@@ -178,7 +191,8 @@ class FirstRunView(QWidget):
     def _done(self) -> QWidget:
         section = Section("Bring your clips along",
                           "Already have a library — from SteelSeries Moments, say? Copy it "
-                          "into the clips folder from Settings → Import once Vertex is open. "
+                          "into the clips folder from Settings → Import and setup once "
+                          "Vertex is open. "
                           "Clips already in the clips folder are picked up by themselves, "
                           "and games are read from Moments-style file names.")
         return section
@@ -191,7 +205,9 @@ class FirstRunView(QWidget):
         self.heading.setText(titles[index])
         self.step_label.setText(f"Step {index + 1} of {len(self.steps)}")
         self.back_button.setVisible(index > 0)
-        self.next_button.setText("Open Vertex" if index == len(self.steps) - 1 else "Continue")
+        last = index == len(self.steps) - 1
+        self.next_button.setText(("Save and close" if self.again else "Open Vertex") if last
+                                 else "Continue")
 
     def _go(self, delta: int) -> None:
         index = self.stack.currentIndex()

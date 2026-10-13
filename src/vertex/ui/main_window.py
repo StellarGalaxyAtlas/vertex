@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 
 from PySide6.QtCore import QFileSystemWatcher, QTimer
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import APP_NAME, desktop, notifications
+from vertex.audio import channels
 from vertex.config import Config
 from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
@@ -36,6 +38,7 @@ class MainWindow(QMainWindow):
         self.tray = None
         self._quitting = False
         self._told_about_tray = False
+        self._services_started = False
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(context.config.logo_variant))
         self.resize(1280, 820)
@@ -68,6 +71,7 @@ class MainWindow(QMainWindow):
         self.settings_view = SettingsView(context)
         self.settings_view.saved.connect(self._settings_saved)
         self.settings_view.imported.connect(self.state.reload)
+        self.settings_view.setup_requested.connect(self.run_setup_again)
         for page in (self.library_view, self.sonar_view, self.settings_view):
             self.stack.addWidget(page)
         self.editor: EditorView | None = None
@@ -135,21 +139,45 @@ class MainWindow(QMainWindow):
             return True
         return False
 
-    def show_setup(self, config: Config | None = None, missing=()) -> None:
+    def show_setup(self, config: Config | None = None, missing=(), again: bool = False) -> None:
         self._close_editor()
         self.rail.hide()
-        self.first_run = FirstRunView(self.context, config, missing)
+        self.first_run = FirstRunView(self.context, config, missing, again=again)
         self.first_run.finished.connect(self._setup_done)
+        self.first_run.cancelled.connect(self._setup_cancelled)
         self.stack.addWidget(self.first_run)
         self.stack.setCurrentWidget(self.first_run)
 
+    def run_setup_again(self) -> None:
+        """First-run setup on a running Vertex, from Settings, after a warning."""
+        if self._on_settings() and not self._may_leave_settings():
+            return
+        answer = ChoiceDialog.ask(
+            self, "Run setup again", "Run first-run setup again?",
+            "Setup opens with your current settings filled in. When you finish it, what "
+            "you chose there replaces them: the clips and exports folders, whether Sonar "
+            "is on and its devices, and the replay buffer's duration and whether it starts "
+            "with Vertex.\n\nCancel at any step to keep everything as it is. Nothing is "
+            "deleted: your clips, tags and edits stay.",
+            [("Run setup", "run", "primary")])
+        if answer == "run":
+            self.show_setup(copy.deepcopy(self.context.config), again=True)
+
+    def _setup_cancelled(self) -> None:
+        page, self.first_run = self.first_run, None
+        self._remove_page(page)
+        self.navigate("settings")
+        self.settings_view.show_page("import")
+
     def _setup_done(self, config: Config, enable_sonar: bool, start_recorder: bool) -> None:
         context = self.context
+        before = copy.deepcopy(context.config)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path"):
             setattr(context.config, key, getattr(config, key))
         context.config.recorder = config.recorder
-        context.config.sonar.output_device = config.sonar.output_device
-        context.config.sonar.mic_device = config.sonar.mic_device
+        if not self._services_started:
+            context.config.sonar.output_device = config.sonar.output_device
+            context.config.sonar.mic_device = config.sonar.mic_device
         failed = context.config.ensure_dirs()
         context.save_config()
         if failed:
@@ -157,11 +185,40 @@ class MainWindow(QMainWindow):
         page, self.first_run = self.first_run, None
         self._remove_page(page)
         self.settings_view.load()
-        self.start_services(enable_sonar=enable_sonar, start_recorder=start_recorder)
+        if self._services_started:
+            self._apply_setup_again(before, config, enable_sonar)
+        else:
+            self.start_services(enable_sonar=enable_sonar, start_recorder=start_recorder)
         self.navigate("library")
+
+    def _apply_setup_again(self, before: Config, config: Config, enable_sonar: bool) -> None:
+        """Setup ran again on a running Vertex: change what it changed, the way
+        Settings and the Sonar page do, rather than starting anything twice."""
+        context = self.context
+        self._settings_saved(any(getattr(before, key) != getattr(context.config, key)
+                                 for key in ("clip_path", "data_path", "cache_path",
+                                             "state_path")))
+        if enable_sonar != before.sonar.enabled:
+            context.config.sonar.output_device = config.sonar.output_device
+            context.config.sonar.mic_device = config.sonar.mic_device
+            context.sonar.set_enabled(enable_sonar)
+        elif enable_sonar:
+            status = context.sonar.status
+            output, mic = config.sonar.output_device, config.sonar.mic_device
+            if output and output != status.output:
+                # Linked, one channel's device is every channel's.
+                for channel in (channels.OUTPUTS[:1] if context.config.sonar.linked
+                                else channels.OUTPUTS):
+                    context.sonar.set_channel_output(channel.id, output)
+            if mic and mic != status.mic:
+                context.sonar.set_mic(mic)
+        if context.config.recorder != before.recorder:
+            context.recorder.detect()
+            context.recorder.restart_if_running()
 
     def start_services(self, enable_sonar: bool | None = None,
                        start_recorder: bool | None = None) -> None:
+        self._services_started = True
         context = self.context
         context.open_library()
         self.state.reload()
