@@ -1,0 +1,250 @@
+"""The export sheet: pick a size, export, then share the file.
+
+Modelled on Moments' share sheet. "Original" copies the video untouched and
+only mixes the audio down; the capped sizes re-encode to fit the limits chat
+platforms enforce. When it is done the file can be copied to the clipboard and
+pasted straight into a chat window.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import tempfile
+
+from PySide6.QtCore import QMimeData, Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QPixmap
+from PySide6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QVBoxLayout,
+)
+
+from vertex import fmt, paths
+from vertex.media import export
+from vertex.media.ffmpeg import Cancelled, MediaError
+from vertex.media.mixing import ffmpeg_graph
+from vertex.ui import theme, workers
+from vertex.ui.widgets import Segmented, button, label
+
+PREVIEW_W = 460
+
+
+def copy_file_to_clipboard(path: str) -> None:
+    """Put the file itself on the clipboard, the way file managers do, so
+    pasting into Discord or a browser upload field attaches it."""
+    url = QUrl.fromLocalFile(path)
+    data = QMimeData()
+    data.setUrls([url])
+    data.setData("x-special/gnome-copied-files", f"copy\n{url.toString()}".encode())
+    data.setData("application/x-kde-cutselection", b"0")
+    QGuiApplication.clipboard().setMimeData(data)
+
+
+class ExportDialog(QDialog):
+    def __init__(self, parent, context, clip, start: float, end: float, tracks, info):
+        super().__init__(parent)
+        self.context = context
+        self.clip = clip
+        self.start, self.end = start, end
+        self.tracks = tracks
+        self.info = info
+        self.limit: int | None = None
+        self.folder = (context.config.resolved_export_dir()
+                       or os.path.dirname(os.path.abspath(clip.path)))
+        self.out_path = ""
+        self._cancel = workers.Cancel()
+        self._running = False
+        self._workdir = tempfile.mkdtemp(prefix="vertex-preview-")
+        self.setWindowTitle("Export clip")
+        self.setMinimumWidth(PREVIEW_W + 48)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
+        layout.addWidget(label("Export clip", "Subheading"))
+        self.preview = QLabel("…")
+        self.preview.setFixedSize(PREVIEW_W, PREVIEW_W * 9 // 16)
+        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview.setStyleSheet(f"background: {theme.VIDEO_BG}; border-radius: 10px;")
+        layout.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(label(f"{fmt.duration(end - start)} selected", "Muted"))
+
+        layout.addWidget(label("SIZE", "Group"))
+        self.sizes = Segmented([(name, name) for name, _ in export.SIZE_CHOICES],
+                               export.SIZE_CHOICES[0][0])
+        self.sizes.changed.connect(self._on_size)
+        layout.addWidget(self.sizes)
+        self.detail = label("", "Muted", wrap=True)
+        layout.addWidget(self.detail)
+
+        destination = QHBoxLayout()
+        self.where = label("", "Dim")
+        destination.addWidget(self.where, 1)
+        destination.addWidget(button("Change…", "ghost", on_click=self._choose_folder))
+        layout.addLayout(destination)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 1000)
+        self.progress.setValue(0)
+        self.progress.setTextVisible(False)
+        layout.addWidget(self.progress)
+        self.status = label("", "Muted", wrap=True)
+        layout.addWidget(self.status)
+
+        buttons = QHBoxLayout()
+        self.copy_button = button("Copy file", icon="save-clip", on_click=self._copy,
+                                  tooltip="Copy the exported file, then paste it into a chat")
+        self.folder_button = button("Open folder", icon="folder", on_click=self._open_folder)
+        self.copy_button.hide()
+        self.folder_button.hide()
+        buttons.addWidget(self.copy_button)
+        buttons.addWidget(self.folder_button)
+        buttons.addStretch(1)
+        self.close_button = button("Close", on_click=self._close_or_cancel)
+        self.export_button = button("Export", "primary", "export", self._export)
+        buttons.addWidget(self.close_button)
+        buttons.addWidget(self.export_button)
+        layout.addLayout(buttons)
+
+        self._describe()
+        self._show_where()
+        source, preview = clip.path, os.path.join(self._workdir, "preview.jpg")
+        workers.run(lambda: export.grab_frame(source, start, preview, PREVIEW_W * 2),
+                    self._show_preview, lambda _exc: self.preview.setText("No preview"))
+
+    # --- Choices ----------------------------------------------------------------
+
+    def _on_size(self, name: str, _descending: bool) -> None:
+        self.limit = dict(export.SIZE_CHOICES)[name]
+        self._describe()
+
+    def _describe(self) -> None:
+        selection = self.end - self.start
+        original = export.copy_estimate(self.info, selection)
+        possible = True
+        if self.limit is None:
+            text = self.info.summary or "Source quality"
+            if original:
+                text += f" · ≈{fmt.size(original, 0)}"
+            text += " — the video is copied untouched, cut on a keyframe."
+        else:
+            try:
+                plan = export.plan(selection, self.info.width, self.info.height, self.info.fps,
+                                   ffmpeg_graph(self.tracks) is not None, self.limit)
+                text = f"{plan.summary} · ≈{fmt.size(plan.estimate(selection), 0)}"
+                if original and original <= self.limit:
+                    text += " — Original already fits, without re-encoding."
+            except MediaError as exc:
+                text, possible = str(exc), False
+        self.detail.setText(text)
+        self.detail.setStyleSheet(f"color: {theme.TEXT_MUTED if possible else theme.WARN};")
+        if not self._running:
+            self.export_button.setEnabled(possible)
+
+    def _show_where(self) -> None:
+        self.where.setText(f"Saves to {paths.tilde(self.folder)}")
+
+    def _choose_folder(self) -> None:
+        chosen = QFileDialog.getExistingDirectory(self, "Export to", self.folder)
+        if chosen:
+            self.folder = chosen
+            self._show_where()
+
+    def _show_preview(self, path: str) -> None:
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            self.preview.setText("No preview")
+            return
+        ratio = self.devicePixelRatioF() or 1.0
+        scaled = pixmap.scaled(int(self.preview.width() * ratio),
+                               int(self.preview.height() * ratio),
+                               Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+        scaled.setDevicePixelRatio(ratio)
+        self.preview.setPixmap(scaled)
+
+    # --- Exporting ----------------------------------------------------------------
+
+    def _export(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._cancel.clear()
+        self.progress.setValue(0)
+        self.sizes.setEnabled(False)
+        self.export_button.setEnabled(False)
+        self.copy_button.hide()
+        self.folder_button.hide()
+        self.close_button.setText("Cancel")
+        verb = "Copying" if self.limit is None else "Converting"
+        self.status.setText(f"{verb}…")
+        self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+        args = (self.clip.path, self.clip.name, self.folder, self.start, self.end,
+                self.tracks, self.info, self.limit)
+
+        def progress(fraction: float) -> None:
+            workers.post(self._progress, fraction)
+
+        workers.run(lambda: export.export_clip(*args, on_progress=progress, cancel=self._cancel),
+                    self._done, self._failed)
+
+    def _progress(self, fraction: float) -> None:
+        if self._running:
+            self.progress.setValue(int(fraction * 1000))
+            verb = "Copying" if self.limit is None else "Converting"
+            self.status.setText(f"{verb}… {fraction * 100:.0f}%")
+
+    def _done(self, result: export.ExportResult) -> None:
+        self._running = False
+        self.out_path = result.path
+        self.progress.setValue(1000)
+        self._release()
+        over = "  —  over the size limit" if result.over_limit else ""
+        self.status.setText(f"Saved {os.path.basename(result.path)} · "
+                            f"{fmt.size(result.size)}{over}")
+        self.status.setStyleSheet(f"color: {theme.WARN if over else theme.OK};")
+        self.copy_button.show()
+        self.folder_button.show()
+
+    def _failed(self, exc: BaseException) -> None:
+        self._running = False
+        self.progress.setValue(0)
+        self._release()
+        if isinstance(exc, Cancelled):
+            self.status.setText("Export cancelled.")
+            self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+        else:
+            self.status.setText(str(exc))
+            self.status.setStyleSheet(f"color: {theme.DANGER};")
+
+    def _release(self) -> None:
+        self.sizes.setEnabled(True)
+        self.close_button.setText("Close")
+        self._describe()
+
+    # --- After ----------------------------------------------------------------------
+
+    def _copy(self) -> None:
+        if self.out_path:
+            copy_file_to_clipboard(self.out_path)
+            self.status.setText("Copied — paste it into a chat or an upload field.")
+            self.status.setStyleSheet(f"color: {theme.OK};")
+
+    def _open_folder(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(self.out_path)
+                                                    or self.folder))
+
+    def _close_or_cancel(self) -> None:
+        if self._running:
+            self._cancel.set()
+        else:
+            self.accept()
+
+    def done(self, result: int) -> None:
+        self._cancel.set()
+        shutil.rmtree(self._workdir, ignore_errors=True)
+        super().done(result)
