@@ -46,10 +46,16 @@ Like the "Clip settings" of Moments (reference in the Notes), in Vertex's look:
   field in a settings row is the same width on every page. First-run setup
   offers the same durations.
 
-**3.**
+**3.** ✅ Done
 **Settings › General › Start menu entry**
 The start-menu entry should be created by default instead of being a setting,
 and the entry is named just "Vertex".
+- Done: Vertex adds the entry the first time it runs (overwriting one with the
+  same name, such as the 1.x install's), once only: a marker in
+  `~/.local/state/vertex/` remembers, so `vertex uninstall-desktop` sticks.
+  The "Add to start menu" button is gone. The entry has no generic name
+  ("Game Clip Recorder"), so menus show just "Vertex". Changing the logo ink
+  redraws the start-menu icon on Save.
 
 **4.**
 **Settings › Recording › Audio**
@@ -162,10 +168,12 @@ Decisions already made, and questions to settle when their item comes up.
 screenshots in it) until the maintainer says so (2026-10-13). Screenshots
 taken to check UI work are fine; they are never committed. Some of it is
 already behind: README still says to set *Capture* to *Portal* if recording a
-monitor fails, and `docs/ARCHITECTURE.md` doesn't describe the monitor map,
-the primary-monitor fallback or the "Restarting…" state.
+monitor fails, shows the old Recording page, and has people run `vertex
+install-desktop` (still works, but no longer needed); `docs/ARCHITECTURE.md`
+doesn't describe the monitor map, the primary-monitor fallback, the
+"Restarting…" state, `recorder/presets.py` or the start-menu marker.
 
-**Progress.** Done: 1, 2, 6 and 7. Next: 3, unless the maintainer says otherwise.
+**Progress.** Done: 1, 2, 3, 6 and 7. Next: 4, unless the maintainer says otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).

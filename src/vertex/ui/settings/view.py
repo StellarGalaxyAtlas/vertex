@@ -175,9 +175,6 @@ class SettingsView(QWidget):
         self.autostart = Toggle()
         behaviour.add_row("Start Vertex when you log in", self.autostart,
                           "Starts hidden in the tray.")
-        install = button("Add to start menu", on_click=self._install_desktop)
-        behaviour.add_row("Start menu entry and icon", install,
-                          "Also available as `vertex install-desktop`.")
 
         look = Section("Appearance", "The logo ships in two inks; the app cannot see the "
                                      "panel its icon sits on, so you pick.")
@@ -499,6 +496,10 @@ class SettingsView(QWidget):
         folders_changed = any(getattr(new, key) != getattr(old, key) for key in
                               ("clip_path", "data_path", "cache_path", "state_path"))
         recorder_changed = new.recorder != old.recorder
+        if new.logo_variant != old.logo_variant:
+            # The start-menu icon follows the logo ink.
+            variant = new.logo_variant
+            workers.run(lambda: desktop.update_icons(variant), None, lambda _exc: None)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                     "close_to_tray", "logo_variant", "game_device", "chat_device",
                     "mic_device"):
@@ -703,10 +704,6 @@ class SettingsView(QWidget):
             self.preview.setPlainText(f"(not valid yet: {exc})")
 
     # --- Actions -----------------------------------------------------------------
-
-    def _install_desktop(self) -> None:
-        written = desktop.install(self.logo.current)
-        self.banner.show_message(f"Added to the start menu ({len(written)} files).", "ok")
 
     def _copy_clips(self) -> None:
         target = self.context.config.resolved_clip_dir()

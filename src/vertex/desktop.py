@@ -3,6 +3,10 @@
 Everything written lives under the user's XDG data/config dirs and is
 recorded by name, so `vertex uninstall-desktop` removes exactly what
 `vertex install-desktop` wrote and nothing else.
+
+Vertex adds its start-menu entry by itself the first time it runs, and only
+then: a marker remembers it was done, so an entry the user removed stays
+removed.
 """
 
 from __future__ import annotations
@@ -32,6 +36,11 @@ def desktop_file() -> Path:
 
 def autostart_file() -> Path:
     return paths.config_home() / "autostart" / f"{APP_ID}.desktop"
+
+
+def added_marker() -> Path:
+    """Present once the entry has been added, by Vertex or by the user."""
+    return paths.state_home() / APP_ID / "start-menu-entry-added"
 
 
 def launch_command() -> list[str]:
@@ -67,7 +76,6 @@ def desktop_entry(argv: list[str], hidden_start: bool = False) -> str:
 Type=Application
 Version=1.5
 Name={APP_NAME}
-GenericName=Game Clip Recorder
 Comment=Record, trim and share game clips; route game, chat and media audio
 Exec={exec_line}
 Icon={APP_ID}
@@ -134,6 +142,24 @@ def install(variant: str = paths.DEFAULT_LOGO_VARIANT, autostart: bool | None = 
         set_autostart(autostart, argv)
         if autostart:
             written.append(autostart_file())
+    _write(added_marker(), "")
+    refresh_caches()
+    return written
+
+
+def ensure(variant: str = paths.DEFAULT_LOGO_VARIANT) -> list[Path]:
+    """Add the entry if it never has been: on the first run, so Vertex is in
+    the start menu without asking. Returns what was written, usually nothing."""
+    if added_marker().exists():
+        return []
+    return install(variant)
+
+
+def update_icons(variant: str) -> list[Path]:
+    """Redraw the start-menu icon in another logo ink, if there is an entry."""
+    if not desktop_file().exists():
+        return []
+    written = install_icons(paths.logo_variant(variant))
     refresh_caches()
     return written
 
@@ -153,7 +179,8 @@ def autostart_enabled() -> bool:
 
 
 def uninstall() -> list[Path]:
-    """Remove everything `install` writes. Returns what was removed."""
+    """Remove the entry, autostart and icons `install` writes. Returns what
+    was removed. The marker stays, so Vertex doesn't add the entry back."""
     candidates = [desktop_file(), autostart_file(),
                   icon_root() / "scalable" / "apps" / f"{APP_ID}.svg"]
     candidates += [icon_root() / f"{size}x{size}" / "apps" / f"{APP_ID}.png"

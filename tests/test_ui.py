@@ -107,6 +107,13 @@ def test_library_lists_and_tags_clips(qapp, window):
     assert state.title_of(clip) == "Big play"
 
 
+def test_first_run_adds_the_start_menu_entry(qapp, window):
+    from vertex import desktop
+
+    assert wait_until(qapp, lambda: desktop.desktop_file().exists())
+    assert desktop.added_marker().exists()
+
+
 def test_pages_and_settings_save(qapp, window):
     for page in ("sonar", "settings", "library"):
         window.navigate(page)

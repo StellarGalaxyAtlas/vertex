@@ -89,3 +89,17 @@ def test_desktop_install_and_uninstall(isolated_home):
     assert set(removed) >= {desktop.desktop_file(), desktop.autostart_file()}
     assert not desktop.desktop_file().exists()
     assert not os.listdir(desktop.applications_dir())
+
+
+def test_entry_is_added_once_and_stays_removed(isolated_home):
+    assert desktop.update_icons("dark") == []        # no entry, nothing to redraw
+    written = desktop.ensure("light")
+    assert desktop.desktop_file() in written and desktop.added_marker().exists()
+    entry = desktop.desktop_file().read_text()
+    # Just "Vertex" in every menu: no generic name for menus to show instead.
+    assert "\nName=Vertex\n" in entry and "GenericName" not in entry
+    assert desktop.ensure("light") == []
+    assert any(p.suffix == ".svg" for p in desktop.update_icons("dark"))
+    desktop.uninstall()
+    assert desktop.ensure("light") == []
+    assert not desktop.desktop_file().exists()

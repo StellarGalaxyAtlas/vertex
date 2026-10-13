@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME
+from vertex import APP_NAME, desktop
 from vertex.config import Config
-from vertex.ui import icons, theme
+from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView
 from vertex.ui.library.state import LibraryState
@@ -175,6 +175,9 @@ class MainWindow(QMainWindow):
         context.recorder.detect()
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:
             context.recorder.start()
+        # Into the start menu on the first run; never again once removed.
+        variant = context.config.logo_variant
+        workers.run(lambda: desktop.ensure(variant), None, lambda _exc: None)
 
     def _settings_saved(self, folders_changed: bool) -> None:
         self.setWindowIcon(icons.app_icon(self.context.config.logo_variant))
