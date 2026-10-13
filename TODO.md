@@ -183,6 +183,12 @@ Play the sound Sonar manages through two audio devices at the same time.
   the headset. Unplugged, the channels carry on through the first device
   alone; back, it joins in again. Two devices can be a little out of step
   (Bluetooth especially); that is the devices', not fixable here.
+- Follow-ups from testing (2026-10-13): "Also play through" offers the
+  device manager's priority list (connected, not excluded, not the device in
+  use). Every Vertex volume slider follows an audio taper (loudness as the
+  square of the slider: 50% ≈ -12 dB, 25% ≈ -24 dB) instead of the server's
+  cubic scale, where 25% (≈ -36 dB) was all but silent; settings hold slider
+  levels, converted only when sent (`audio.pulse.to_server`).
 
 **11.**
 **Sonar › UI**

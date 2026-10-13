@@ -29,7 +29,17 @@ from dataclasses import dataclass, field
 
 from vertex.audio import channels, devices
 from vertex.audio.channels import Channel
-from vertex.audio.pulse import AudioError, Device, Event, Module, Pactl, Stream, proplist
+from vertex.audio.pulse import (
+    AudioError,
+    Device,
+    Event,
+    Module,
+    Pactl,
+    Stream,
+    from_server,
+    proplist,
+    to_server,
+)
 from vertex.config import SonarConfig
 
 # Every channel Sonar may find loaded, today's and retired ones.
@@ -236,7 +246,7 @@ class Sonar:
             device = (sinks if channel.is_output else sources).get(channel.node)
             entry = ChannelStatus(channel, present=device is not None)
             if device is not None:
-                entry.volume, entry.muted = device.volume, device.muted
+                entry.volume, entry.muted = from_server(device.volume), device.muted
             loops = ours.get(f"loop:{channel.id}", [])
             entry.routed = bool(loops) if channel.is_output else bool(ours.get("mic"))
             targets = [module.args.get("sink", "") for module in loops]
@@ -467,9 +477,9 @@ class Sonar:
     def _set_volume(self, channel: Channel, volume: float) -> None:
         try:
             if channel.is_output:
-                self.pactl.set_sink_volume(channel.node, volume)
+                self.pactl.set_sink_volume(channel.node, to_server(volume))
             else:
-                self.pactl.set_source_volume(channel.node, volume)
+                self.pactl.set_source_volume(channel.node, to_server(volume))
         except AudioError:
             pass   # the device is not up; the setting applies when it is
 
@@ -551,13 +561,13 @@ class Sonar:
         return before != (cfg.output_priority, cfg.mic_priority, cfg.device_names)
 
     def set_device_volume(self, kind: str, name: str, volume: float) -> None:
-        """The volume of a real device (kind: "sink" or "source")."""
-        volume = max(0.0, min(1.0, volume))
+        """The volume of a real device (kind: "sink" or "source"), as a slider
+        level."""
         try:
             if kind == "sink":
-                self.pactl.set_sink_volume(name, volume)
+                self.pactl.set_sink_volume(name, to_server(volume))
             else:
-                self.pactl.set_source_volume(name, volume)
+                self.pactl.set_source_volume(name, to_server(volume))
         except AudioError:
             pass   # unplugged meanwhile
 

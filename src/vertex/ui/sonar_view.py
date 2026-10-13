@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from vertex import fmt
 from vertex.audio import channels, devices
+from vertex.audio.pulse import from_server
 from vertex.audio.sonar import AppCapture, AppStream, SonarStatus
 from vertex.ui import icons, theme
 from vertex.ui.widgets import (
@@ -448,7 +449,7 @@ class DevicePanel(QFrame):
         self.now.setText(current_text)
         self._quiet = True
         if current is not None and not self.volume.isSliderDown():
-            self.volume.setValue(round(current.volume * 100))
+            self.volume.setValue(round(from_server(current.volume) * 100))
         self._quiet = False
         self.volume.setEnabled(current is not None)
         self.readout.setText(f"{self.volume.value()}%" if current is not None else "")
@@ -456,8 +457,8 @@ class DevicePanel(QFrame):
                             if current is not None else "")
 
     def show_second(self, choices: list[tuple[str, str]], current: str, device,
-                    current_text: str) -> None:
-        """The second device's drop-down: none, or any output plugged in."""
+                    current_text: str, connected: bool = True) -> None:
+        """The second device's drop-down: none, or a device from the list."""
         if self.second is None:
             return
         self.second.blockSignals(True)
@@ -466,13 +467,15 @@ class DevicePanel(QFrame):
         for name, text in choices:
             self.second.addItem(text, name)
         if current and self.second.findData(current) < 0:
-            self.second.addItem(f"{current_text} (not connected)", current)
+            # Set before it was excluded, or unplugged: kept, and shown as such.
+            self.second.addItem(current_text if connected else
+                                f"{current_text} (not connected)", current)
         self.second.setCurrentIndex(max(0, self.second.findData(current)))
         self.second.blockSignals(False)
         self.second_device = device.name if device is not None else ""
         self._quiet = True
         if device is not None and not self.second_volume.isSliderDown():
-            self.second_volume.setValue(round(device.volume * 100))
+            self.second_volume.setValue(round(from_server(device.volume) * 100))
         self._quiet = False
         self.second_volume.setEnabled(device is not None)
         self.second_readout.setText(f"{self.second_volume.value()}%" if device is not None
@@ -935,10 +938,17 @@ class SonarView(QWidget):
                 "Sonar is off" if not sonar.enabled else "No device in use")
             panel.show_devices(shown_priority, shown_excluded, getattr(sonar, f"{kind}_auto"),
                                now, text)
+        # The second device is one of the priority list's: connected, not
+        # excluded, and not the one already in use.
         second = sonar.second_output
-        self.output_panel.show_second([(d.name, d.label) for d in self._outputs], second,
+        present = {device.name for device in self._outputs}
+        priority, _excluded = self._ordered("output")
+        choices = [(name, self._label(name)) for name in priority
+                   if name in present and name != status.output]
+        self.output_panel.show_second(choices, second,
                                       next((d for d in self._outputs if d.name == second), None),
-                                      self._label(second) if second else "")
+                                      self._label(second) if second else "",
+                                      connected=second in present)
 
     def device_order_changed(self, kind: str, priority: list[str], excluded: list[str]) -> None:
         """A drag in the device manager: lay the shown order back onto the full

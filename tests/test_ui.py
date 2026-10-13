@@ -502,6 +502,9 @@ def test_channels_also_play_through_a_second_device(qapp, window, fake_audio):
     assert wait_until(qapp, lambda: combo.findData("hw_speakers") >= 0)
     assert strips["game"].also_row.isHidden()            # no second device yet
 
+    # It offers the device manager's list, less the device in use.
+    assert wait_until(qapp, lambda: [combo.itemData(i) for i in range(combo.count())]
+                      == ["", "hw_speakers"])
     combo.setCurrentIndex(combo.findData("hw_speakers"))
     combo.activated.emit(combo.currentIndex())
     assert wait_until(qapp, lambda: view.controller.status.channels["chat"].also)
@@ -515,6 +518,14 @@ def test_channels_also_play_through_a_second_device(qapp, window, fake_audio):
     assert view.controller.status.channels["game"].also
     assert sonar.channel("chat").also_second is False
     assert "and Game and Media also through Speakers" in view.subtitle.text()
+
+    # An excluded device isn't offered; one excluded after being set stays shown.
+    fake_audio.add_sink("hw_hdmi", props={"device.description": "HDMI"})
+    view.controller.refresh_devices()
+    assert wait_until(qapp, lambda: combo.findData("hw_hdmi") >= 0)
+    view.device_order_changed("output", ["hw_headset"], ["hw_speakers", "hw_hdmi"])
+    assert wait_until(qapp, lambda: combo.findData("hw_hdmi") < 0)
+    assert combo.currentData() == "hw_speakers"
 
 
 def test_delete_clip(qapp, window, monkeypatch):

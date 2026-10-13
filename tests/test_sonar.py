@@ -332,11 +332,32 @@ class TestSonar:
         sonar, fake = _sonar(tmp_path)
         sonar.config.channel("chat").volume = 0.25
         sonar.up()
-        assert fake._device("vertex_chat").volume == 0.25
+        # Settings hold slider levels; the server gets its own (cubic) scale.
+        assert fake._device("vertex_chat").volume == pytest.approx(0.25 ** (2 / 3))
+        assert sonar.status().channels["chat"].volume == pytest.approx(0.25)
         sonar.set_volume("mic", 1.7)
         assert fake._device("vertex_mic").volume == 1.0
+        sonar.set_device_volume("sink", "hw_headset", 0.5)
+        assert fake._device("hw_headset").volume == pytest.approx(0.5 ** (2 / 3))
         sonar.set_muted("media", True)
         assert sonar.status().channels["media"].muted
+
+    def test_sliders_follow_loudness(self):
+        import math
+
+        from vertex.audio.pulse import from_server, to_server
+
+        def decibels(level):
+            # The server's volume v plays at v³ amplitude.
+            return 20 * math.log10(to_server(level) ** 3)
+
+        # 25% used to be about -36 dB, all but silent; now it is -24 dB.
+        assert decibels(0.25) == pytest.approx(-24.08, abs=0.01)
+        assert decibels(0.5) == pytest.approx(-12.04, abs=0.01)
+        assert to_server(1.0) == 1.0 and to_server(0) == 0 and to_server(2) == 1.0
+        for level in (0, 0.1, 0.25, 0.5, 0.9, 1.0):
+            assert from_server(to_server(level)) == pytest.approx(level)
+        assert from_server(1.5) == 1.0           # boosted past 100% elsewhere
 
     def test_down_restores_everything(self, tmp_path):
         sonar, fake = _sonar(tmp_path)

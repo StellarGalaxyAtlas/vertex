@@ -29,6 +29,20 @@ class AudioError(RuntimeError):
 
 # --- Data -------------------------------------------------------------------
 
+# The server's volume scale is cubic, so its 25% is about -36 dB: all but
+# silent. Vertex's sliders follow a gentler audio taper instead, loudness
+# going as the square of the slider: 50% is about -12 dB, 25% about -24 dB,
+# 10% about -40 dB. Settings hold slider levels; only the server sees its own.
+def to_server(level: float) -> float:
+    """A slider level (0..1) as the server's volume."""
+    return max(0.0, min(1.0, level)) ** (2 / 3)
+
+
+def from_server(volume: float) -> float:
+    """The server's volume as a slider level (0..1)."""
+    return min(1.0, max(0.0, volume) ** 1.5)
+
+
 def _volume(raw) -> float:
     """Average channel volume as a fraction (1.0 = 100%)."""
     if not isinstance(raw, dict):
