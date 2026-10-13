@@ -261,7 +261,7 @@ class Rail(QFrame):
         self.facet_group = QButtonGroup(self)
         self.group_headers: dict[str, GroupHeader] = {}
 
-        self.gauge = StorageGauge()
+        self.gauge = StorageGauge(short=True)
         layout.addWidget(self.gauge)
 
         state.counts_changed.connect(self.rebuild_facets)

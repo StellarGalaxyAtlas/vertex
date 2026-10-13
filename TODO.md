@@ -297,6 +297,12 @@ Progress:
   device missing, Sonar's and the library's problems) can now pop up too.
 - General, done: Library, State and Cache sit under a collapsed "Advanced"
   in Folders (opened by itself when Save finds one of them blank).
+- Recording, done: "Saving a clip" went (its commands go to the Shortcuts
+  tab); its "Tag new clips with the game" switch is in Recording Settings,
+  under "Record the cursor". The storage gauge, on the Recording page and in
+  the rail, is one slim accent bar, as full as the disk is (what isn't free
+  to use, so it matches the text), with "Clips X · Y free of Z" under it
+  (without "of Z" in the rail).
 
 ---
 

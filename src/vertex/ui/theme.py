@@ -47,10 +47,6 @@ OK = "#3fb950"
 WARN = "#e6b422"
 RECORDING = "#ff4d5e"
 
-GAUGE_CLIPS = "#e5484d"
-GAUGE_OTHER = "#e6b422"
-GAUGE_FREE = "#3fb950"
-
 # --- Editor -----------------------------------------------------------------
 VIDEO_BG = "#000000"
 TRIM_SHADE = "#06080c"

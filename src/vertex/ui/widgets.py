@@ -296,47 +296,33 @@ class Segmented(QWidget):
 
 
 class StorageGauge(QWidget):
-    """The disk the clips are on: clips, everything else, free."""
+    """The disk the clips are on: one slim bar of how full it is, and a line
+    under it with the clips' share and what is free (of how much, unless
+    `short`)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, short: bool = False, parent=None):
         super().__init__(parent)
+        self._short = short
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        self.meter = Meter()
+        layout.addWidget(self.meter)
+        self.text = label("", "Dim", wrap=True)
+        layout.addWidget(self.text)
         self.stats = None
-        self.setMinimumHeight(54)
 
     def set_stats(self, stats) -> None:
         self.stats = stats
-        if stats is not None:
-            self.setToolTip(f"Clips {stats.clips_human} · other {stats.other_human} · "
-                            f"free {stats.free_human} of {stats.total_human}")
-        self.update()
-
-    def paintEvent(self, _event):
-        if self.stats is None:
+        if stats is None:
             return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        width = self.width()
-        bar = QRectF(0, 22, width, 8)
-        path = QPainterPath()
-        path.addRoundedRect(bar, 4, 4)
-        p.setClipPath(path)
-        p.fillRect(bar, QColor(theme.GAUGE_FREE))
-        x = 0.0
-        for value, colour in ((self.stats.clips_bytes, theme.GAUGE_CLIPS),
-                              (self.stats.other_used, theme.GAUGE_OTHER)):
-            span = width * self.stats.fraction(value)
-            p.fillRect(QRectF(x, bar.top(), span, bar.height()), QColor(colour))
-            x += span
-        p.setClipping(False)
-        p.setPen(QColor(theme.TEXT_MUTED))
-        p.setFont(theme.font(8.5))
-        p.drawText(QRect(0, 0, width, 18), Qt.AlignmentFlag.AlignLeft,
-                   f"Clips {self.stats.clips_human}")
-        p.drawText(QRect(0, 0, width, 18), Qt.AlignmentFlag.AlignRight,
-                   f"{self.stats.free_human} free")
-        p.setPen(QColor(theme.TEXT_DIM))
-        p.drawText(QRect(0, 34, width, 18), Qt.AlignmentFlag.AlignLeft,
-                   f"of {self.stats.total_human}")
+        # Full is what isn't free to use, matching the text: the disk's own
+        # count of used space leaves out what it keeps back for the system.
+        self.meter.set_fraction(1 - stats.fraction(stats.disk_free))
+        text = f"Clips {stats.clips_human} · {stats.free_human} free"
+        self.text.setText(text if self._short else f"{text} of {stats.total_human}")
+        self.setToolTip(f"Clips {stats.clips_human} · everything else {stats.other_human} · "
+                        f"free {stats.free_human} of {stats.total_human}")
 
 
 class FlowLayout(QLayout):

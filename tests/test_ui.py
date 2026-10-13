@@ -206,6 +206,22 @@ def test_pages_and_settings_save(qapp, window):
     assert Config.load().cache_path.endswith("-2")
 
 
+def test_storage_gauge_fills_by_what_is_not_free(qapp):
+    from vertex.core.storage import StorageStats
+    from vertex.ui.widgets import StorageGauge
+
+    gb = 1024 ** 3
+    # The disk counts 80 GB used, but keeps 15 GB back: 5 GB are free to use.
+    stats = StorageStats(clips_bytes=2 * gb, disk_total=100 * gb, disk_used=80 * gb,
+                         disk_free=5 * gb)
+    gauge, short = StorageGauge(), StorageGauge(short=True)
+    for widget in (gauge, short):
+        widget.set_stats(stats)
+        assert abs(widget.meter.fraction - 0.95) < 1e-9
+    assert gauge.text.text().endswith(f"free of {stats.total_human}")
+    assert short.text.text() == f"Clips {stats.clips_human} · {stats.free_human} free"
+
+
 def test_capture_is_picked_on_the_monitor_map(qapp, window, monkeypatch):
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest

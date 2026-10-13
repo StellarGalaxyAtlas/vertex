@@ -207,24 +207,6 @@ class SettingsView(QWidget):
         self.rec_autostart = Toggle()
         status.add_row("Start the replay buffer with Vertex", self.rec_autostart)
 
-        hotkey = Section("Saving a clip", "Desktops bind global shortcuts to commands. Bind "
-                                          "this one to a key in your desktop's keyboard "
-                                          "settings and it saves the replay buffer from "
-                                          "anywhere, in or out of a game:")
-        row = QHBoxLayout()
-        command = QLineEdit("vertex save-clip")
-        command.setReadOnly(True)
-        command.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
-        row.addWidget(command, 1)
-        row.addWidget(button("Copy", on_click=lambda: QGuiApplication.clipboard().setText(
-            "vertex save-clip")))
-        hotkey.body.addLayout(row)
-        hotkey.add(label("Save only the end of the buffer with `vertex save-clip --last 30` "
-                         "(10, 30, 60, 300, 600 or 1800 seconds).", "Dim", wrap=True))
-        self.tag_from_game = Toggle()
-        hotkey.add_row("Tag new clips with the game on the Game channel", self.tag_from_game,
-                       "Needs Sonar. Only when exactly one app is playing there.")
-
         clips = Section("Recording Settings", "Lower settings make smaller clips and leave "
                                               "more of your computer to the game.")
         self.capture_note = label("", "Muted")
@@ -249,6 +231,9 @@ class SettingsView(QWidget):
         clips.add(grid)
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
+        self.tag_from_game = Toggle()
+        clips.add_row("Tag new clips with the game on the Game channel", self.tag_from_game,
+                      "Needs Sonar. Only when exactly one app is playing there.")
         self.game_audio = QComboBox()
         self.chat_audio = QComboBox()
         self.mic_audio = QComboBox()
@@ -347,7 +332,7 @@ class SettingsView(QWidget):
             widget.currentIndexChanged.connect(self._update_preview)
         self.cursor.toggled.connect(self._update_preview)
 
-        self.pages["recording"] = scroll_page(status, clips, hotkey, advanced)
+        self.pages["recording"] = scroll_page(status, clips, advanced)
         self.stack.addWidget(self.pages["recording"])
 
     def _build_estimate(self) -> QWidget:
