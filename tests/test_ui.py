@@ -175,6 +175,25 @@ def test_sonar_lists_apps_under_channels_and_routes_drops(qapp, window, fake_aud
     assert "spotify" not in window.context.config.sonar.app_rules
 
 
+def test_app_left_half_behind_after_a_drop_heals(qapp, window, fake_audio):
+    """Reported bug: a dropped app showed on both channels."""
+    window.navigate("sonar")
+    view = window.sonar_view
+    window.context.sonar.set_enabled(True)
+    assert wait_until(qapp, lambda: window.context.sonar.status.active)
+    fake_audio.play("Discord", binary="Discord")
+    second = fake_audio.play("Discord", binary="Discord")
+    fake_audio.refuse_moves[second.index] = 1
+
+    def keys(channel_id):
+        layout = view.strips[channel_id].apps
+        return [layout.itemAt(i).widget().key for i in range(layout.count())
+                if hasattr(layout.itemAt(i).widget(), "key")]
+
+    view.route("discord", "chat")
+    assert wait_until(qapp, lambda: keys("chat") == ["discord"] and keys("game") == [])
+
+
 def test_delete_clip(qapp, window, monkeypatch):
     state = window.state
     clip = state.find("Replay_2026-01-02_03-04-05.mp4")

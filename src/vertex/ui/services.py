@@ -238,7 +238,15 @@ class SonarController(QObject):
             self.streams_changed.emit(playing)
             self.recorders_changed.emit(recording)
 
-        self._job(lambda: (self.sonar.streams(), self.sonar.recorders()), done, quiet=True)
+        def work():
+            # Every refresh also retries streams that refused to move: an
+            # app with several streams could otherwise be left half on its
+            # old channel, and show up on both.
+            if self.enabled:
+                self.sonar.apply_rules()
+            return self.sonar.streams(), self.sonar.recorders()
+
+        self._job(work, done, quiet=True)
 
     def refresh_devices(self) -> None:
         self._job(lambda: (self.sonar.outputs(), self.sonar.inputs()),

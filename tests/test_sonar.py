@@ -144,6 +144,32 @@ class TestSonar:
         assert sonar.game_apps() == ["Spotify", "Spotify"]   # both streams moved back
         assert discord.sink == fake._sink("vertex_chat").index
 
+    def test_a_stream_that_refuses_to_move_is_retried(self, tmp_path):
+        """Reported bug: after a drop the app showed on both channels. One of
+        its streams refused the move and stayed behind on the old channel."""
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        fake.play("Discord", binary="Discord")
+        notifications = fake.play("Discord", binary="Discord")
+        fake.refuse_moves[notifications.index] = 1        # refuses once, then moves
+        sonar.route("discord", "chat")
+        channels_now = {s.channel for s in sonar.streams() if s.key == "discord"}
+        assert channels_now == {"game", "chat"}           # the bug, reproduced
+        assert [s.stuck for s in sonar.streams() if s.channel == "game"] == [True]
+        assert sonar.apply_rules() == 1                   # the retry moves it
+        assert {s.channel for s in sonar.streams() if s.key == "discord"} == {"chat"}
+        assert not any(s.stuck for s in sonar.streams())
+
+    def test_a_stream_that_never_moves_is_marked_stuck(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        stubborn = fake.play("Game")
+        fake.refuse_moves[stubborn.index] = -1
+        sonar.route("game", "aux")
+        assert sonar.apply_rules() == 0
+        (stream,) = sonar.streams()
+        assert stream.channel == "game" and stream.rule == "aux" and stream.stuck
+
     def test_loopbacks_are_never_routed(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         sonar.config.app_rules[""] = "chat"

@@ -56,6 +56,12 @@ class AppStream:
     rule: str | None             # the channel a rule sends it to, if any
     device: str = ""             # what it is playing on, as the system names it
 
+    @property
+    def stuck(self) -> bool:
+        """It has a channel to go to, but is playing somewhere else — the
+        server refused to move it (yet). `apply_rules` keeps retrying."""
+        return self.rule is not None and self.channel != self.rule
+
 
 @dataclass
 class AppCapture:
@@ -509,7 +515,10 @@ class Sonar:
                     self.pactl.move_sink_input(stream.index, target.node)
                     moved += 1
                 except AudioError:
-                    pass   # the stream ended in the meantime
+                    # Ended in the meantime, or the server won't move it right
+                    # now (a stream starting up or shutting down). It shows as
+                    # stuck, and the next call tries again.
+                    pass
         return moved
 
     def _move_matching(self, predicate, channel_id: str) -> int:

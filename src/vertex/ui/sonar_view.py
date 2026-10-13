@@ -51,7 +51,7 @@ class AppChip(QFrame):
 
     def __init__(self, view, key: str, name: str, icon: str = "", note: str = "",
                  rule: str | None = None, draggable: bool = True, dim: bool = False,
-                 tooltip: str = "", parent=None):
+                 tooltip: str = "", warn: bool = False, parent=None):
         super().__init__(parent)
         self.view = view
         self.key = key
@@ -76,6 +76,8 @@ class AppChip(QFrame):
         if note:
             detail = ElidedLabel(note)
             detail.setObjectName("Dim")
+            if warn:
+                detail.setStyleSheet(f"color: {theme.WARN};")
             text.addWidget(detail)
         layout.addLayout(text, 1)
         if draggable:
@@ -454,14 +456,12 @@ class SonarView(QWidget):
             playing.add(stream.key)
             if stream.channel in per_channel:
                 bucket = per_channel[stream.channel]
-                if stream.key not in bucket:
-                    bucket[stream.key] = AppChip(self, stream.key, stream.name, stream.icon,
-                                                 rule=rules.get(stream.key))
+                if stream.key not in bucket or stream.stuck:
+                    bucket[stream.key] = self._chip(stream, rules.get(stream.key))
             elif stream.key not in unrouted:
-                unrouted[stream.key] = AppChip(
-                    self, stream.key, stream.name, stream.icon,
-                    note=f"on {stream.device}" if stream.device else "",
-                    rule=rules.get(stream.key))
+                unrouted[stream.key] = self._chip(
+                    stream, rules.get(stream.key),
+                    f"on {stream.device}" if stream.device else "")
         for key, channel_id in sorted(rules.items()):
             if key not in playing and channel_id in per_channel:
                 per_channel[channel_id][key] = AppChip(
@@ -481,6 +481,18 @@ class SonarView(QWidget):
             chip.setFixedWidth(240)
             self.unrouted_flow.addWidget(chip)
         self.unrouted.setVisible(bool(unrouted) and self.context.config.sonar.enabled)
+
+    def _chip(self, stream: AppStream, rule: str | None, note: str = "") -> AppChip:
+        if stream.stuck:
+            target = channels.BY_ID[stream.rule].label
+            return AppChip(
+                self, stream.key, stream.name, stream.icon, rule=rule,
+                note=f"still here — moving to {target}…", warn=True,
+                tooltip=f"Part of {stream.name}'s sound hasn't moved to {target} yet: the "
+                        f"audio server refused, which happens while a stream is starting "
+                        f"or stopping. Vertex retries on every change. If it stays, "
+                        f"restarting the app's audio moves it.")
+        return AppChip(self, stream.key, stream.name, stream.icon, note=note, rule=rule)
 
     def _show_recorders(self, recorders: list[AppCapture]) -> None:
         """Apps recording the mic, under the Mic channel. One recording the

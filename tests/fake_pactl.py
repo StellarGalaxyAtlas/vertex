@@ -13,6 +13,9 @@ class FakePactl:
         self.sources_: list[Device] = []
         self.inputs_: list[Stream] = []
         self.outputs_: list[Capture] = []
+        # Stream index → how many more move attempts to refuse (-1: always),
+        # like a stream the server won't move while it starts or shuts down.
+        self.refuse_moves: dict[int, int] = {}
         self.owner: dict[int, list] = {}
         self.calls: list[tuple] = []
         for name in sinks:
@@ -146,6 +149,10 @@ class FakePactl:
 
     def move_sink_input(self, index, sink):
         target = self._sink(sink)
+        refusals = self.refuse_moves.get(index, 0)
+        if refusals:
+            self.refuse_moves[index] = refusals - 1 if refusals > 0 else -1
+            raise AudioError(f"Failed to move stream {index}")
         for stream in self.inputs_:
             if stream.index == index:
                 stream.sink = target.index
