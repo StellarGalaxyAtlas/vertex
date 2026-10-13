@@ -115,6 +115,12 @@ microphone behind Vertex Mic).
 - Keep Vertex Sonar's own look; the reference shows the behaviour, not the
   styling.
 
+**14.** (bug, next after 8a)
+**Replay buffer › Saving more than one clip**
+Only the first save of a running buffer produces a clip. Later saves show
+"Saving the replay buffer…" at the bottom of the window for a few seconds,
+then nothing is saved, until the buffer is restarted. Reported 2026-10-13.
+
 **8b.**
 **Sonar › Device manager**
 A panel over the Sonar page, opened from 8a's button, with a tab for the
@@ -183,7 +189,8 @@ doesn't describe the monitor map, the primary-monitor fallback, the
 recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips").
 
-**Progress.** Done: 1–7. Next: 8a, unless the maintainer says otherwise.
+**Progress.** Done: 1–7. Next: 8a, then the bug 14, unless the maintainer says
+otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
