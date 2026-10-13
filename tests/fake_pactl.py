@@ -66,6 +66,15 @@ class FakePactl:
     def available(self):
         return True
 
+    def watch(self, on_event, on_exit=None):
+        """No server to watch; returns a watcher that is never running."""
+        class _Watcher:
+            running = False
+
+            def stop(self):
+                pass
+        return _Watcher()
+
     def default_sink(self):
         return self.default_sink_
 

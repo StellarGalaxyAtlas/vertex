@@ -6,10 +6,11 @@ import time
 
 import pytest
 
-from fake_pactl import FakePactl
 from vertex.audio import channels, pulse
 from vertex.audio.sonar import Sonar
 from vertex.config import SonarConfig
+
+from fake_pactl import FakePactl
 
 
 class TestPulseParsing:
