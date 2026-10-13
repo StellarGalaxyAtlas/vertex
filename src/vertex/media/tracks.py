@@ -38,7 +38,8 @@ ORDER = (channels.GAME.id, DESKTOP, channels.CHAT.id, channels.MEDIA.id,
 DEVICE_PREFIX = re.compile(r"^devices?\s*:\s*", re.IGNORECASE)
 MONITOR_PREFIX = re.compile(r"^monitor of\s+", re.IGNORECASE)
 VERTEX_DEVICE = re.compile(
-    rf"^vertex[ _-]?(?P<channel>{'|'.join(c.id for c in channels.ALL)})(?:\.monitor)?$",
+    rf"^vertex[ _-]?(?P<channel>"
+    rf"{'|'.join(c.id for c in (*channels.ALL, *channels.RETIRED))})(?:\.monitor)?$",
     re.IGNORECASE,
 )
 

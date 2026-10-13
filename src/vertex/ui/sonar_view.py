@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QMimeData, Qt
-from PySide6.QtGui import QDrag, QIcon
+from PySide6.QtCore import QMimeData, QPoint, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QDrag, QFontMetrics, QIcon, QPainter
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QMenu,
+    QPushButton,
     QScrollArea,
     QSlider,
     QVBoxLayout,
@@ -123,6 +125,94 @@ class AppChip(QFrame):
         menu.exec(event.globalPos())
 
 
+class DeviceButton(QAbstractButton):
+    """The device a channel plays through; click for the others."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumWidth(60)
+
+    def sizeHint(self):
+        return QSize(160, 30)
+
+    def minimumSizeHint(self):
+        return QSize(60, 30)
+
+    def enterEvent(self, event):
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        hover = self.underMouse() and self.isEnabled()
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(theme.CARD_HOVER if hover else theme.FIELD_BG))
+        p.drawRoundedRect(QRectF(self.rect()), theme.RADIUS_SMALL, theme.RADIUS_SMALL)
+        chevron = 16
+        text_rect = self.rect().adjusted(10, 0, -(chevron + 12), 0)
+        p.setPen(QColor(theme.TEXT if self.isEnabled() else theme.TEXT_DIM))
+        p.setFont(self.font())
+        p.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                   QFontMetrics(self.font()).elidedText(self.text(), Qt.TextElideMode.ElideRight,
+                                                        text_rect.width()))
+        p.drawPixmap(self.width() - chevron - 8, (self.height() - chevron) // 2,
+                     icons.pixmap("chevron-down", theme.TEXT_MUTED, chevron))
+
+
+class DeviceList(QFrame):
+    """A small list under a channel's device: every device it can use, the
+    current one ticked. Picking one emits `picked` with its name."""
+
+    picked = Signal(str)
+
+    def __init__(self, title: str, devices: list[tuple[str, str]], current: str,
+                 parent=None):
+        super().__init__(parent, Qt.WindowType.Popup)
+        self.setObjectName("DeviceList")
+        self.setStyleSheet(
+            f"#DeviceList {{ background: {theme.CARD_BG}; border: 1px solid {theme.SEAM}; "
+            f"border-radius: 10px; }}"
+            f"#DeviceList QPushButton {{ text-align: left; padding: 7px 10px; "
+            f"border-radius: 8px; background: transparent; }}"
+            f"#DeviceList QPushButton:hover {{ background: {theme.CARD_HOVER}; }}")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 10, 8, 8)
+        layout.setSpacing(2)
+        heading = label(title, "Group")
+        heading.setContentsMargins(6, 0, 0, 4)
+        layout.addWidget(heading)
+        self.buttons: dict[str, QPushButton] = {}
+        for name, text in devices:
+            chosen = name == current
+            item = QPushButton(text)
+            item.setIcon(icons.icon("check", theme.ACCENT_EDGE, 16) if chosen
+                         else icons.icon("check", "#00000000", 16))
+            if chosen:
+                item.setStyleSheet("font-weight: 600;")
+            item.setCursor(Qt.CursorShape.PointingHandCursor)
+            item.clicked.connect(lambda _c=False, n=name: self.pick(n))
+            layout.addWidget(item)
+            self.buttons[name] = item
+        if not devices:
+            layout.addWidget(label("No devices found", "Dim"))
+
+    def pick(self, name: str) -> None:
+        self.close()
+        self.picked.emit(name)
+
+    def show_under(self, anchor: QWidget) -> None:
+        self.setMinimumWidth(max(anchor.width(), 260))
+        self.adjustSize()
+        self.move(anchor.mapToGlobal(QPoint(0, anchor.height() + 4)))
+        self.show()
+
+
 class ChannelColumn(QFrame):
     """One channel: its volume and the apps on it. Output channels accept
     dropped apps."""
@@ -135,7 +225,7 @@ class ChannelColumn(QFrame):
         self.colour = theme.channel_colour(channel.id)
         self.setObjectName("Strip")
         self._paint_frame(False)
-        self.setMinimumWidth(170)
+        self.setMinimumWidth(150)
         self.setAcceptDrops(channel.is_output)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -159,6 +249,21 @@ class ChannelColumn(QFrame):
         names.addWidget(device)
         header.addLayout(names, 1)
         layout.addLayout(header)
+
+        # The real device it plays through (the Mic: the mic behind it). Output
+        # channels share one while linked.
+        row = QHBoxLayout()
+        row.setSpacing(4)
+        self.link = None
+        if channel.is_output:
+            self.link = IconButton("link", "", 16, theme.ACCENT_EDGE)
+            self.link.clicked.connect(lambda: view.toggle_link(channel.id))
+            row.addWidget(self.link)
+        self.device = DeviceButton()
+        self.device.clicked.connect(lambda: view.choose_device(channel.id))
+        row.addWidget(self.device, 1)
+        self.current_device = ""
+        layout.addLayout(row)
 
         volume = QHBoxLayout()
         volume.setSpacing(6)
@@ -194,6 +299,21 @@ class ChannelColumn(QFrame):
         self._quiet = False
         self._paint_mute()
         self.set_apps([])
+
+    def show_device(self, name: str, text: str, linked: bool) -> None:
+        self.current_device = name
+        self.device.setText(text)
+        self.device.setToolTip(f"{self.channel.label} plays through {text}. Click to pick "
+                               f"another device." if self.channel.is_output else
+                               f"Vertex Mic is fed by {text}. Click to pick another mic.")
+        if self.link is not None:
+            self.link.set_icon("link" if linked else "unlink",
+                               theme.ACCENT_EDGE if linked else theme.TEXT_DIM)
+            self.link.setToolTip(
+                "Every output channel plays through the same device. Click to give "
+                "each its own." if linked else
+                f"{self.channel.label} has its own device. Click to play every output "
+                f"channel through this one's.")
 
     # --- Volume ----------------------------------------------------------------
 
@@ -236,7 +356,7 @@ class ChannelColumn(QFrame):
         if not chips:
             empty = ("Drop an app here" if self.channel.is_output
                      else "No app is using the mic")
-            hint = label(empty, "Dim")
+            hint = label(empty, "Dim", wrap=True)
             hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
             hint.setMinimumHeight(36)
             hint.setStyleSheet(f"color: {theme.TEXT_DIM}; border: 1px dashed {theme.SEAM}; "
@@ -283,11 +403,8 @@ class DeviceField(QWidget):
         name.setStyleSheet("font-weight: 600;")
         header.addWidget(name, 1)
         layout.addLayout(header)
-        self.hint = label(hint, "Dim", wrap=True)
-        layout.addWidget(self.hint)
-        # Hints wrap to different heights; the stretch keeps the three
-        # drop-downs level with each other.
-        layout.addStretch(1)
+        if hint:
+            layout.addWidget(label(hint, "Dim", wrap=True))
         # A combo box is as wide as its longest device name unless told
         # otherwise, and some are very long.
         combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
@@ -306,6 +423,9 @@ class SonarView(QWidget):
         self.context = context
         self.controller = context.sonar
         self._names: dict[str, str] = {}
+        self._outputs: list = []
+        self._inputs: list = []
+        self._popup: DeviceList | None = None
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
@@ -353,11 +473,9 @@ class SonarView(QWidget):
         self.unrouted.hide()
         layout.addWidget(self.unrouted)
 
-        self.devices = Section("Devices")
+        self.devices = Section("Unrouted apps", "Apps play on this channel until you drag "
+                                                "them to another one.")
         row = QHBoxLayout()
-        row.setSpacing(16)
-        self.output = QComboBox()
-        self.mic = QComboBox()
         self.default_channel = QComboBox()
         for output in channels.OUTPUTS:
             self.default_channel.addItem(
@@ -365,25 +483,13 @@ class SonarView(QWidget):
                 output.label, output.id)
         self.default_channel.setCurrentIndex(
             max(0, self.default_channel.findData(context.config.sonar.default_channel)))
-        self.output_field = DeviceField(
-            "Output", "The headset or speakers every channel plays through.", self.output)
-        self.output_field.set_colour("headphones", theme.TEXT_MUTED)
-        self.mic_field = DeviceField(
-            "Microphone", "The real mic behind Vertex Mic. In Discord and other chat apps, "
-                          "pick Vertex Mic as the input.", self.mic)
-        self.mic_field.set_colour(icons.channel_icon_name("mic"), theme.channel_colour("mic"))
-        self.unrouted_field = DeviceField(
-            "Unrouted apps", "The channel apps play on until you drag them to another one.",
-            self.default_channel)
+        self.unrouted_field = DeviceField("Default channel", "", self.default_channel)
+        self.unrouted_field.setMaximumWidth(320)
         self._paint_unrouted()
-        for field in (self.output_field, self.mic_field, self.unrouted_field):
-            row.addWidget(field, 1)
+        row.addWidget(self.unrouted_field, 1)
+        row.addStretch(1)
         self.devices.body.addLayout(row)
         layout.addWidget(self.devices)
-        self.output.activated.connect(lambda _i: self.controller.set_output(
-            self.output.currentData() or ""))
-        self.mic.activated.connect(lambda _i: self.controller.set_mic(
-            self.mic.currentData() or ""))
         self.default_channel.activated.connect(self._on_default_channel)
 
         layout.addStretch(1)
@@ -410,6 +516,8 @@ class SonarView(QWidget):
             self.toggle.blockSignals(False)
         if not status.available and status.error:
             self.subtitle.setText(f"No audio server: {status.error}")
+        elif enabled and status.active and not self.context.config.sonar.linked:
+            self.subtitle.setText("Running — each channel plays through its own device.")
         elif enabled and status.active:
             output = self._names.get(status.output, status.output)
             where = f" through {output}" if output else ""
@@ -423,6 +531,44 @@ class SonarView(QWidget):
         for channel_id, entry in status.channels.items():
             if entry.present:
                 self.strips[channel_id].show_status(entry.volume, entry.muted)
+        self._show_channel_devices(status)
+
+    # --- Devices ---------------------------------------------------------------
+
+    def _show_channel_devices(self, status: SonarStatus) -> None:
+        """Each channel's device: what it plays through while Sonar runs, else
+        what it is set to."""
+        sonar = self.context.config.sonar
+        for channel in channels.ALL:
+            entry = status.channels.get(channel.id)
+            if channel.is_output:
+                configured = sonar.output_device if sonar.linked else \
+                    sonar.channel(channel.id).output_device or sonar.output_device
+                current = (entry.output if entry and entry.output else "") or configured
+            else:
+                current = status.mic or sonar.mic_device
+            text = self._names.get(current, current) or "System default"
+            self.strips[channel.id].show_device(current, text, sonar.linked)
+
+    def choose_device(self, channel_id: str) -> DeviceList:
+        channel = channels.BY_ID[channel_id]
+        column = self.strips[channel_id]
+        devices = self._outputs if channel.is_output else self._inputs
+        self._popup = DeviceList(
+            "OUTPUT DEVICES" if channel.is_output else "INPUT DEVICES",
+            [(device.name, device.label) for device in devices], column.current_device, self)
+        self._popup.picked.connect(lambda name: self._pick_device(channel_id, name))
+        self._popup.show_under(column.device)
+        return self._popup
+
+    def _pick_device(self, channel_id: str, name: str) -> None:
+        if channel_id == channels.MIC.id:
+            self.controller.set_mic(name)
+        else:
+            self.controller.set_channel_output(channel_id, name)
+
+    def toggle_link(self, channel_id: str) -> None:
+        self.controller.set_linked(not self.context.config.sonar.linked, channel_id)
 
     def _on_default_channel(self, _index: int) -> None:
         self._paint_unrouted()
@@ -436,20 +582,9 @@ class SonarView(QWidget):
                                        theme.channel_colour(channel_id))
 
     def _show_devices(self, outputs, inputs) -> None:
+        self._outputs, self._inputs = list(outputs), list(inputs)
         self._names = {device.name: device.label for device in [*outputs, *inputs]}
         self._show_status(self.controller.status)
-        sonar = self.context.config.sonar
-        for combo, devices, current in ((self.output, outputs, sonar.output_device),
-                                        (self.mic, inputs, sonar.mic_device)):
-            combo.blockSignals(True)
-            combo.clear()
-            combo.addItem("System default", "")
-            for device in devices:
-                combo.addItem(device.label, device.name)
-            if current and combo.findData(current) < 0:
-                combo.addItem(f"{current} (not connected)", current)
-            combo.setCurrentIndex(max(0, combo.findData(current)))
-            combo.blockSignals(False)
 
     # --- Apps on channels --------------------------------------------------------
 

@@ -32,6 +32,9 @@ from vertex.audio.channels import Channel
 from vertex.audio.pulse import AudioError, Device, Event, Module, Pactl, Stream, proplist
 from vertex.config import SonarConfig
 
+# Every channel Sonar may find loaded, today's and retired ones.
+_OUR_NODES = {channel.node: channel for channel in (*channels.ALL, *channels.RETIRED)}
+
 NULL_SINK = "module-null-sink"
 LOOPBACK = "module-loopback"
 REMAP_SOURCE = "module-remap-source"
@@ -42,6 +45,7 @@ class ChannelStatus:
     channel: Channel
     present: bool = False
     routed: bool = False         # an output channel is looped to a real device
+    output: str = ""             # the real device an output channel plays through
     volume: float = 1.0
     muted: bool = False
 
@@ -137,17 +141,18 @@ class Sonar:
                 if not source.is_monitor and not source.is_vertex]
 
     def _ours(self, modules: list[Module]) -> dict[str, list[Module]]:
-        """Our modules by role: 'null:<id>', 'loop:<id>', 'mic'."""
+        """Our modules by role: 'null:<id>', 'loop:<id>', 'mic'. Retired
+        channels' modules are found too, so they can be removed."""
         found: dict[str, list[Module]] = {}
         for module in modules:
             args = module.args
             if module.name == NULL_SINK:
-                channel = channels.BY_NODE.get(args.get("sink_name", ""))
+                channel = _OUR_NODES.get(args.get("sink_name", ""))
                 if channel is not None and channel.is_output:
                     found.setdefault(f"null:{channel.id}", []).append(module)
             elif module.name == LOOPBACK:
                 source = args.get("source", "").removesuffix(".monitor")
-                channel = channels.BY_NODE.get(source)
+                channel = _OUR_NODES.get(source)
                 if channel is not None and channel.is_output:
                     found.setdefault(f"loop:{channel.id}", []).append(module)
             elif module.name == REMAP_SOURCE and args.get("source_name") == channels.MIC.node:
@@ -166,6 +171,17 @@ class Sonar:
         outputs = self.outputs() if outputs is None else outputs
         return self._resolve(self.config.output_device, outputs,
                              [self.state.output, self.state.previous_sink, self._default_sink()])
+
+    def channel_output(self, channel: Channel, outputs: list[Device], shared: str) -> str:
+        """The device an output channel plays through: the shared one while
+        linked, else its own, unless that is unplugged (then the shared one)."""
+        if self.config.linked:
+            return shared
+        own = self.config.channel(channel.id).output_device
+        if own and not own.startswith(channels.NODE_PREFIX) and \
+                own in {device.name for device in outputs}:
+            return own
+        return shared
 
     def resolve_mic(self, inputs: list[Device] | None = None) -> str:
         inputs = self.inputs() if inputs is None else inputs
@@ -201,8 +217,9 @@ class Sonar:
             entry = ChannelStatus(channel, present=device is not None)
             if device is not None:
                 entry.volume, entry.muted = device.volume, device.muted
-            entry.routed = bool(ours.get(f"loop:{channel.id}")) if channel.is_output \
-                else bool(ours.get("mic"))
+            loops = ours.get(f"loop:{channel.id}", [])
+            entry.routed = bool(loops) if channel.is_output else bool(ours.get("mic"))
+            entry.output = loops[0].args.get("sink", "") if loops else ""
             status.channels[channel.id] = entry
         status.active = all(entry.present for entry in status.channels.values())
         return status
@@ -230,8 +247,13 @@ class Sonar:
         created = False
         for channel in channels.OUTPUTS:
             created |= self._ensure_sink(channel, ours.get(f"null:{channel.id}", []))
-            if output:
-                self._ensure_loopback(channel, output, ours.get(f"loop:{channel.id}", []))
+            target = self.channel_output(channel, outputs, output)
+            if target:
+                self._ensure_loopback(channel, target, ours.get(f"loop:{channel.id}", []))
+        for channel in channels.RETIRED:
+            # Loopback before sink, as in down().
+            for module in ours.get(f"loop:{channel.id}", []) + ours.get(f"null:{channel.id}", []):
+                self._unload(module)
         if not output:
             warnings.append("No output device was found, so the channels are not "
                             "connected to anything you can hear.")
@@ -430,6 +452,27 @@ class Sonar:
 
     def set_output(self, device: str) -> list[str]:
         self.config.output_device = device
+        return self.up() if self.config.enabled else []
+
+    def set_channel_output(self, channel_id: str, device: str) -> list[str]:
+        """Play a channel through `device`: every output channel while linked."""
+        if self.config.linked:
+            self.config.output_device = device
+        else:
+            self.config.channel(channel_id).output_device = device
+        return self.up() if self.config.enabled else []
+
+    def set_linked(self, linked: bool, channel_id: str) -> list[str]:
+        """Linking plays every output channel through `channel_id`'s device.
+        Unlinking keeps each where it is, ready to be set apart."""
+        if linked:
+            if not self.config.linked:
+                own = self.config.channel(channel_id).output_device
+                self.config.output_device = own or self.config.output_device
+        else:
+            for channel in channels.OUTPUTS:
+                self.config.channel(channel.id).output_device = self.config.output_device
+        self.config.linked = linked
         return self.up() if self.config.enabled else []
 
     def set_mic(self, device: str) -> list[str]:

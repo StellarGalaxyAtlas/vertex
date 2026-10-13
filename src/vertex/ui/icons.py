@@ -205,6 +205,39 @@ def _save_clip(p, c):
     p.drawPath(path)
 
 
+@_register("link")
+def _link(p, c):
+    # Two chain links, joined.
+    _pen(p, c, 2)
+    p.save()
+    p.translate(12, 12)
+    p.rotate(-45)
+    p.drawRoundedRect(QRectF(-9.5, -3.5, 11, 7), 3.5, 3.5)
+    p.drawRoundedRect(QRectF(-1.5, -3.5, 11, 7), 3.5, 3.5)
+    p.restore()
+
+
+@_register("unlink")
+def _unlink(p, c):
+    # The same links, pulled apart.
+    _pen(p, c, 2)
+    p.save()
+    p.translate(12, 12)
+    p.rotate(-45)
+    p.drawRoundedRect(QRectF(-10.5, -3.5, 8.5, 7), 3.5, 3.5)
+    p.drawRoundedRect(QRectF(2, -3.5, 8.5, 7), 3.5, 3.5)
+    p.restore()
+
+
+@_register("check")
+def _check(p, c):
+    _pen(p, c, 2.2)
+    path = QPainterPath(QPointF(6, 12.5))
+    path.lineTo(10.5, 17)
+    path.lineTo(18, 7.5)
+    p.drawPath(path)
+
+
 @_register("chevron-right")
 def _chevron_right(p, c):
     _pen(p, c, 2)

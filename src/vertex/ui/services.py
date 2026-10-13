@@ -276,6 +276,21 @@ class SonarController(QObject):
         self.context.save_config()
         self._job(lambda: self.sonar.set_output(device), self._after_change)
 
+    def set_channel_output(self, channel_id: str, device: str) -> None:
+        """Play a channel through `device`: every output channel while linked."""
+        self._job(lambda: self.sonar.set_channel_output(channel_id, device),
+                  self._devices_changed)
+
+    def set_linked(self, linked: bool, channel_id: str) -> None:
+        """One device for every output channel (`channel_id`'s), or one each."""
+        self._job(lambda: self.sonar.set_linked(linked, channel_id), self._devices_changed)
+
+    def _devices_changed(self, warnings) -> None:
+        for text in warnings or []:
+            self.warning.emit(text)
+        self.context.save_config()
+        self._after_change(None)
+
     def set_mic(self, device: str) -> None:
         self.context.config.sonar.mic_device = device
         self.context.save_config()

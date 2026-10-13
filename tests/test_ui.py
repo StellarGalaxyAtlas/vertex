@@ -261,7 +261,7 @@ def test_tracks_are_chosen_on_the_recording_page(qapp, window, monkeypatch):
     assert texts(settings.chat_audio) == [
         "None", "Default output", "Vertex Game (Sonar off: default output)",
         "Vertex Chat (Sonar off: default output)", "Vertex Media (Sonar off: default output)",
-        "Vertex Aux (Sonar off: default output)", "Arctis Nova Pro"]
+        "Arctis Nova Pro"]
     assert texts(settings.mic_audio) == [
         "None", "Default microphone", "Vertex Mic (Sonar off: default microphone)",
         "Arctis Nova Pro Mono"]
@@ -412,12 +412,43 @@ def test_unrouted_apps_badge_follows_its_channel(qapp, window, fake_audio):
     window.navigate("sonar")
     view = window.sonar_view
     assert view.unrouted_field.colour == theme.channel_colour("game")
-    assert view.mic_field.colour == theme.channel_colour("mic")
     combo = view.default_channel
     combo.setCurrentIndex(combo.findData("chat"))
     combo.activated.emit(combo.currentIndex())
     assert view.unrouted_field.colour == theme.channel_colour("chat")
     assert wait_until(qapp, lambda: Config.load().sonar.default_channel == "chat")
+
+
+def test_each_channel_shows_and_picks_its_device(qapp, window, fake_audio):
+    fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})
+    window.navigate("sonar")
+    view = window.sonar_view
+    view.toggle.setChecked(True)
+    sonar = window.context.config.sonar
+    assert wait_until(qapp, lambda: view.controller.status.active and view._outputs)
+    strips = view.strips
+    assert set(strips) == {"game", "chat", "media", "mic"}        # no Aux
+    assert wait_until(qapp, lambda: strips["chat"].current_device == "hw_headset")
+    assert strips["mic"].current_device == "hw_mic" and strips["mic"].link is None
+
+    # Linked: a device picked for one channel is every channel's.
+    popup = view.choose_device("chat")
+    assert set(popup.buttons) == {"hw_headset", "hw_speakers"}
+    popup.pick("hw_speakers")
+    assert wait_until(qapp, lambda: all(strips[c].current_device == "hw_speakers"
+                                        for c in ("game", "chat", "media")))
+    # Unlinked: each its own.
+    view.toggle_link("chat")
+    assert wait_until(qapp, lambda: not sonar.linked)
+    view.choose_device("media").pick("hw_headset")
+    assert wait_until(qapp, lambda: strips["media"].current_device == "hw_headset")
+    assert strips["game"].current_device == "hw_speakers"
+    assert "own device" in view.subtitle.text()
+    # Linking from Media: everything plays through Media's device.
+    view.toggle_link("media")
+    assert wait_until(qapp, lambda: sonar.linked and all(
+        strips[c].current_device == "hw_headset" for c in ("game", "chat", "media")))
+    assert Config.load().sonar.output_device == "hw_headset"
 
 
 def test_delete_clip(qapp, window, monkeypatch):

@@ -90,7 +90,50 @@ class TestSonar:
         sonar.set_output("hw_speakers")
         targets = {m.args["sink"] for m in fake.modules_ if m.name == "module-loopback"}
         assert targets == {"hw_speakers"}
-        assert len([m for m in fake.modules_ if m.name == "module-loopback"]) == 4
+        assert len([m for m in fake.modules_ if m.name == "module-loopback"]) == 3
+
+    def test_unlinked_channels_play_through_their_own_devices(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+
+        def targets():
+            return {name: entry.output for name, entry in sonar.status().channels.items()
+                    if entry.channel.is_output}
+
+        assert targets() == {"game": "hw_headset", "chat": "hw_headset",
+                             "media": "hw_headset"}
+        # Unlinked, each keeps the shared device until it is given its own.
+        sonar.set_linked(False, "game")
+        assert targets() == {"game": "hw_headset", "chat": "hw_headset",
+                             "media": "hw_headset"}
+        sonar.set_channel_output("media", "hw_speakers")
+        assert targets() == {"game": "hw_headset", "chat": "hw_headset",
+                             "media": "hw_speakers"}
+        # Its own device unplugged: the shared one meanwhile; back when it is.
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        assert targets()["media"] == "hw_headset"
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        assert targets()["media"] == "hw_speakers"
+        # Linking from Media plays everything through Media's device.
+        sonar.set_linked(True, "media")
+        assert set(targets().values()) == {"hw_speakers"}
+        assert sonar.config.output_device == "hw_speakers"
+        # Linked, picking a device for one channel picks it for all.
+        sonar.set_channel_output("chat", "hw_headset")
+        assert set(targets().values()) == {"hw_headset"}
+
+    def test_retired_channels_are_removed(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        # What an older Vertex left behind: Vertex Aux and its loopback.
+        fake.load_module("module-null-sink", {"sink_name": "vertex_aux"})
+        fake.load_module("module-loopback", {"source": "vertex_aux.monitor",
+                                             "sink": "hw_headset"})
+        sonar.up()
+        assert not [s for s in fake.sinks_ if s.name == "vertex_aux"]
+        assert not [m for m in fake.modules_ if "vertex_aux" in str(m.args)]
+        assert "aux" not in sonar.status().channels
 
     def test_unplugged_output_falls_back_without_stealing_defaults(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
@@ -165,10 +208,10 @@ class TestSonar:
         sonar.up()
         stubborn = fake.play("Game")
         fake.refuse_moves[stubborn.index] = -1
-        sonar.route("game", "aux")
+        sonar.route("game", "media")
         assert sonar.apply_rules() == 0
         (stream,) = sonar.streams()
-        assert stream.channel == "game" and stream.rule == "aux" and stream.stuck
+        assert stream.channel == "game" and stream.rule == "media" and stream.stuck
 
     def test_loopbacks_are_never_routed(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
@@ -208,8 +251,8 @@ class TestSonar:
         assert fake._device("vertex_chat").volume == 0.25
         sonar.set_volume("mic", 1.7)
         assert fake._device("vertex_mic").volume == 1.0
-        sonar.set_muted("aux", True)
-        assert sonar.status().channels["aux"].muted
+        sonar.set_muted("media", True)
+        assert sonar.status().channels["media"].muted
 
     def test_down_restores_everything(self, tmp_path):
         sonar, fake = _sonar(tmp_path)

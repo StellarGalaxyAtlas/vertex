@@ -101,7 +101,7 @@ colour-coded.
   apps that play straight to a device appear in a "Not routed" section; the Mic
   list is read-only and flags apps recording a mic directly.
 
-**8a.**
+**8a.** ✅ Done
 **Sonar › Channels › Device**
 Show under each channel the device it plays through (the Mic channel: the
 microphone behind Vertex Mic).
@@ -114,6 +114,16 @@ microphone behind Vertex Mic).
   "Device Manager" button at the bottom that opens 8b.
 - Keep Vertex Sonar's own look; the reference shows the behaviour, not the
   styling.
+- Done: each column shows its device under its name, with the link on the
+  output channels; clicking the device lists the others, the current one
+  ticked. Unlinked, a channel whose own device is unplugged plays through the
+  shared one meanwhile. The Devices section's Output and Microphone
+  drop-downs went; "Unrouted apps" stays, as its own section. Aux went too
+  (maintainer's call): Sonar removes a Vertex Aux left by an older version,
+  and older clips' Aux tracks keep their name. With four columns the page
+  fits the minimum window width.
+- Left for 8b: the device list's priority order, its "Excluded devices"
+  part and the "Device Manager" button.
 
 **14.** (bug, next after 8a)
 **Replay buffer › Saving more than one clip**
@@ -189,7 +199,7 @@ doesn't describe the monitor map, the primary-monitor fallback, the
 recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips").
 
-**Progress.** Done: 1–7. Next: 8a, then the bug 14, unless the maintainer says
+**Progress.** Done: 1–7 and 8a. Next: the bug 14, unless the maintainer says
 otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
@@ -303,11 +313,8 @@ shared by every output channel, and one for the input. The chain link (8a)
 changes that: linked, the outputs share one list as decided; unlinked, each
 output channel has its own device. Each channel already has its own loopback,
 so the audio side allows it. To settle:
-- 8a: once each channel shows its device, do the Output and Microphone
-  drop-downs in the Devices section (item 6) go? "Unrouted apps" would stay.
-- 8a: when the channels are linked again after being set separately, which
-  device do they all take? Proposal: the one on the channel whose link was
-  clicked.
+- 8a (settled): the Output and Microphone drop-downs went; linking again
+  takes the device of the channel whose link was clicked.
 - 8b: unlinked, does each output channel get its own priority and excluded
   lists (a tab per channel), or only its own current device?
 - 8b: SteelSeries also has "Backup device switch" (Manual/Auto: when the
@@ -340,8 +347,8 @@ before building it.
 - Plugins are written in Python, so the plugin can talk to the socket
   directly; no extra dependency is needed on either side.
 
-**Item 11.** At the minimum window width (980 px) the five channel columns
-don't fit and the Sonar page scrolls sideways. Fix as part of the overhaul.
+**Item 11.** The sideways scrolling at the minimum window width (980 px) is
+gone since 8a: Aux went and the columns may be a little narrower.
 
 **Item 7 (done).** A drop is remembered as a routing rule; right-click → "Use
 the default channel" removes it. Apps playing straight to a device appear
