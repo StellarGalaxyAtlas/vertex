@@ -10,7 +10,7 @@ from vertex.config import Config, RecorderConfig
 from vertex.recorder import gsr, monitors, presets
 from vertex.recorder.gsr import CaptureOption
 from vertex.recorder.monitors import Screen
-from vertex.recorder.replay import RecorderError, ReplayRecorder, State
+from vertex.recorder.replay import RecorderError, ReplayRecorder, State, recorder_pids
 
 FAKE_GSR = textwrap.dedent('''\
     #!{python}
@@ -28,6 +28,12 @@ FAKE_GSR = textwrap.dedent('''\
     if "bad" in args:
         print("gsr error: invalid capture target", file=sys.stderr); sys.exit(2)
     out = args[args.index("-o") + 1]
+    if os.environ.get("FAKE_GSR_HELPER"):
+        # Like gsr-kms-server: a child with no handler for the save signals.
+        import subprocess
+        helper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+        with open(os.environ["FAKE_GSR_HELPER"], "w") as handle:
+            handle.write(str(helper.pid))
     count = [0]
     def save(seconds):
         count[0] += 1
@@ -345,6 +351,30 @@ class TestReplayRecorder:
         assert states[:2] == [State.STARTING, State.RUNNING]
         with pytest.raises(RecorderError):
             recorder.save()
+
+    def test_every_save_reaches_gsr_and_only_gsr(self, fake_gsr, tmp_path, monkeypatch):
+        # GSR's helpers share its process group, and gsr-kms-server dies on
+        # the save signals. Sent to the whole group, the first save killed it,
+        # and GSR saved nothing more until restarted.
+        helper_file = tmp_path / "helper.pid"
+        monkeypatch.setenv("FAKE_GSR_HELPER", str(helper_file))
+        # Started through a wrapper that stays, as a Flatpak run line does.
+        wrapper = tmp_path / "wrapper"
+        wrapper.write_text(f'#!/bin/sh\n"{fake_gsr}" "$@"\n')
+        wrapper.chmod(0o755)
+        out, saved = tmp_path / "clips", []
+        recorder = ReplayRecorder(on_saved=saved.append)
+        recorder.start([str(wrapper), "-o", str(out)], str(out))
+        assert _wait(lambda: recorder.state == State.RUNNING and helper_file.exists()
+                     and helper_file.read_text())
+        helper = int(helper_file.read_text())
+        assert recorder_pids(recorder.pid) and recorder.pid not in recorder_pids(recorder.pid)
+        for count in (1, 2, 3):
+            recorder.save()
+            assert _wait(lambda count=count: len(saved) == count)
+        os.kill(helper, 0)              # the helper is still alive
+        assert recorder.running         # and so is the wrapper
+        recorder.stop()
 
     def test_failure_reports_stderr(self, fake_gsr, tmp_path):
         recorder = ReplayRecorder()

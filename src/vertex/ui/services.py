@@ -506,7 +506,11 @@ class RecorderController(QObject):
         """Ask for a save. Returns a message to show; the clip arrives later."""
         if not self.running:
             raise RecorderError("The replay buffer is not running.")
-        self.recorder.save(seconds)
+        if seconds is not None and int(seconds) not in gsr.SAVE_PRESETS:
+            raise RecorderError(f"Can only save the last {sorted(gsr.SAVE_PRESETS)} seconds.")
+        # Finding GSR to signal reads /proc: off the UI thread.
+        workers.run(lambda: self.recorder.save(seconds), None,
+                    lambda exc: self.context.message.emit(str(exc), "error"))
         if self.context.config.recorder.tag_from_game_channel and self.context.sonar.enabled:
             workers.run(self.context.sonar.game_apps, self._got_game_apps,
                         lambda _exc: None)

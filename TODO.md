@@ -125,11 +125,19 @@ microphone behind Vertex Mic).
 - Left for 8b: the device list's priority order, its "Excluded devices"
   part and the "Device Manager" button.
 
-**14.** (bug, next after 8a)
+**14.** ✅ Done (bug)
 **Replay buffer › Saving more than one clip**
 Only the first save of a running buffer produces a clip. Later saves show
 "Saving the replay buffer…" at the bottom of the window for a few seconds,
 then nothing is saved, until the buffer is restarted. Reported 2026-10-13.
+- Cause: Vertex sent the save signal to GSR's whole process group, which
+  includes gsr-kms-server, GSR's screen-capture helper. It has no handler for
+  that signal, so the first save killed it: GSR saved that clip from memory,
+  then got no more frames and finished no other save.
+- Fixed: save signals go to GSR alone, found in the process tree Vertex
+  started (through a Flatpak wrapper too). Stopping still signals the group.
+  A test runs GSR's stand-in with a helper like gsr-kms-server, through a
+  wrapper, and saves three times.
 
 **8b.**
 **Sonar › Device manager**
@@ -199,8 +207,8 @@ doesn't describe the monitor map, the primary-monitor fallback, the
 recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips").
 
-**Progress.** Done: 1–7 and 8a. Next: the bug 14, unless the maintainer says
-otherwise.
+**Progress.** Done: 1–7, 8a and the bug 14. Next: 8b, unless the maintainer
+says otherwise.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
