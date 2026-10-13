@@ -206,6 +206,21 @@ def test_pages_and_settings_save(qapp, window):
     assert Config.load().cache_path.endswith("-2")
 
 
+def test_shortcuts_tab_lists_commands_the_cli_takes(qapp, window):
+    import shlex
+
+    from vertex import cli
+    from vertex.ui.settings.shortcuts import COMMANDS
+
+    for _group, commands in COMMANDS:
+        for command, _title, _more in commands:
+            argv = shlex.split(command)
+            assert argv[0] == "vertex"
+            cli._parser().parse_args(argv[1:])     # exits on a command it doesn't take
+    window.settings_view.show_page("shortcuts")
+    assert window.settings_view.tabs.current == "shortcuts"
+
+
 def test_storage_gauge_fills_by_what_is_not_free(qapp):
     from vertex.core.storage import StorageStats
     from vertex.ui.widgets import StorageGauge

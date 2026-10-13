@@ -1,4 +1,4 @@
-"""Settings: folders and app behaviour, recording, notifications, import."""
+"""Settings: folders and app behaviour, recording, notifications, shortcuts, import."""
 
 from __future__ import annotations
 
@@ -41,6 +41,7 @@ from vertex.ui import screens, theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.settings import monitors as monitor_map
 from vertex.ui.settings.notifications import NotificationsPage
+from vertex.ui.settings.shortcuts import ShortcutsPage
 from vertex.ui.widgets import (
     Banner,
     Disclosure,
@@ -123,8 +124,8 @@ class SettingsView(QWidget):
         header.setContentsMargins(0, 0, 12, 0)
         layout.addLayout(header)
         self.tabs = Segmented([("general", "General"), ("recording", "Recording"),
-                               ("notifications", "Notifications"), ("import", "Import")],
-                              "general")
+                               ("notifications", "Notifications"), ("shortcuts", "Shortcuts"),
+                               ("import", "Import")], "general")
         self.tabs.changed.connect(lambda key, _d: self.show_page(key))
         layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
         self.stack = QStackedWidget()
@@ -146,6 +147,8 @@ class SettingsView(QWidget):
         self.notifications = NotificationsPage()
         self.pages["notifications"] = scroll_page(*self.notifications.sections)
         self.stack.addWidget(self.pages["notifications"])
+        self.pages["shortcuts"] = scroll_page(*ShortcutsPage().sections)
+        self.stack.addWidget(self.pages["shortcuts"])
         self._build_import()
         self.load()
 

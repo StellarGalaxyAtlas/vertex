@@ -303,6 +303,11 @@ Progress:
   the rail, is one slim accent bar, as full as the disk is (what isn't free
   to use, so it matches the text), with "Clips X · Y free of Z" under it
   (without "of Z" in the rail).
+- Shortcuts, done: a tab with the `vertex` commands worth binding to a key
+  (save a clip, the last 30 seconds, replay on/off, Sonar on/off, show
+  Vertex), each with a Copy button, and what the terminal adds (status,
+  doctor, --help). The list is `COMMANDS` in `ui/settings/shortcuts.py`; a
+  test checks each one parses with the `vertex` command's own parser.
 
 ---
 
