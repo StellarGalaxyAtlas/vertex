@@ -753,7 +753,11 @@ def test_first_run_writes_config(qapp, tmp_path, fake_audio):
     win, view = _setup(qapp, tmp_path)
     choices = view.choices
     choices.fps.setCurrentIndex(choices.fps.findData(120))
+    # The clip size, as Settings shows it, follows the choices.
+    minute = view.clip_size.figure.text()
+    assert minute.startswith("About") and minute.endswith("per clip")
     choices.duration.setCurrentIndex(choices.duration.findData(30))
+    assert view.clip_size.figure.text() != minute
     for _ in range(3):
         view._go(1)
     assert view.current() == "library"

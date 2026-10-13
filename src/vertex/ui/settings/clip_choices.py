@@ -1,5 +1,5 @@
 """The basic recording choices: the monitor, a clip's duration, its video
-quality, resolution and frame rate.
+quality, resolution and frame rate, and how big a clip comes out.
 
 Settings › Recording and first-run setup both show these, built here once so
 they look and behave the same in both places.
@@ -7,15 +7,19 @@ they look and behave the same in both places.
 
 from __future__ import annotations
 
+import dataclasses
+from collections.abc import Callable
+
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QVBoxLayout, QWidget
 
-from vertex.config import RecorderConfig
+from vertex import fmt
+from vertex.config import Config, RecorderConfig
 from vertex.recorder import gsr, monitors, presets
 from vertex.ui import screens, theme
 from vertex.ui.settings import monitors as monitor_map
-from vertex.ui.widgets import FieldGrid, Section, label
+from vertex.ui.widgets import FieldGrid, Meter, Section, label
 
 # Video quality levels by GSR's names (see recorder.presets), as Vertex calls them.
 QUALITY_NAMES = {"medium": "Low", "high": "Medium", "very_high": "High", "ultra": "Ultra"}
@@ -181,3 +185,43 @@ class ClipChoices(QObject):
                 setattr(rec, name, widget.currentData())
         if self.video_quality.currentData() not in (None, "custom"):
             rec.quality = self.video_quality.currentData()
+
+
+class ClipSize(QWidget):
+    """How big a clip gets with these settings: the size, a bar against the
+    biggest the choices allow, and what the replay buffer holds meanwhile."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        column = QVBoxLayout(self)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(6)
+        column.addWidget(label("CLIP SIZE", "Group"))
+        self.figure = label()
+        self.figure.setStyleSheet("font-size: 13pt; font-weight: 600;")
+        column.addWidget(self.figure)
+        self.meter = Meter()
+        column.addWidget(self.meter)
+        self.detail = label("", "Dim", wrap=True)
+        column.addWidget(self.detail)
+        column.addStretch(1)
+
+    def estimate(self, config: Config,
+                 recorded: Callable[[RecorderConfig], RecorderConfig]) -> int:
+        """Show the estimate for `config`, with `recorded` turning its recorder
+        settings into what GSR gets (ClipChoices.recorded). Returns the bytes."""
+        rec = config.recorder
+        tracks = len(gsr.audio_tracks(config))
+        size = presets.clip_bytes(recorded(rec), tracks)
+        largest = presets.clip_bytes(recorded(dataclasses.replace(
+            rec, quality=presets.LEVELS[-1], resolution="", fps=max(presets.FRAME_RATES),
+            replay_seconds=max(presets.DURATIONS), bitrate_kbps=0)), tracks)
+        constant = rec.bitrate_mode == "cbr"
+        self.figure.setText(f"{'About' if constant else 'Roughly'} {fmt.size(size, 0)} per clip")
+        self.meter.set_fraction(size / largest if largest else 0)
+        where = "in memory" if rec.replay_storage == "ram" else "on disk"
+        detail = f"The replay buffer holds about {fmt.size(size, 0)} {where} while it runs."
+        if not constant:
+            detail = f"It depends on what is on screen. {detail}"
+        self.detail.setText(detail)
+        return size

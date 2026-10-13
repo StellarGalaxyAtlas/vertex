@@ -28,7 +28,7 @@ from vertex.core import importing
 from vertex.library.database import DB_NAME, Library
 from vertex.recorder import gsr
 from vertex.ui import icons, theme, workers
-from vertex.ui.settings.clip_choices import ClipChoices
+from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.sonar_view import DeviceField
 from vertex.ui.widgets import (
     ChoiceCard,
@@ -337,18 +337,21 @@ class FirstRunView(QWidget):
         self._autostart_touched = self.again
         self.rec_autostart.clicked.connect(lambda: setattr(self, "_autostart_touched", True))
         section.add_row("Start the replay buffer with Vertex", self.rec_autostart)
+        # Settings' clip size, which follows the choices above.
+        self.clip_size = section.add(ClipSize())
         self.moments_error = label("", wrap=True)
         self.moments_error.setStyleSheet(f"color: {theme.DANGER};")
         self.moments_error.hide()
         section.add(self.moments_error)
         self.choices.show_capture()
-        self.choices.show(self.config.recorder)
+        self._choices_changed()
         self._find_recorder()
         return self._column(self.install, section)
 
     def _choices_changed(self) -> None:
         self.choices.apply(self.config.recorder)
         self.choices.show(self.config.recorder)
+        self.clip_size.estimate(self.config, self.choices.recorded)
 
     def _quality_picked(self) -> None:
         # As in Settings: picking a level drops a bitrate set by hand.

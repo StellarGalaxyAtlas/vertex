@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 23.
+and bugs get the next free number: 24.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -203,6 +203,12 @@ The monitor map and the four drop-downs are one `ClipChoices`
 (`ui/settings/clip_choices.py`) used by both, so they stay alike. The
 same steps run again from Settings, with Cancel.
 
+**23. First run › Vertex Moments: clip size.** The step shows how big a clip
+comes out, as Settings › Recording does: `ClipSize` in
+`ui/settings/clip_choices.py`, used by both. Only the clip size; the disk
+space half ("Room for about N more clips") stays in Settings (maintainer's
+call).
+
 ---
 
 ## Notes
@@ -212,8 +218,8 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22, including the bugs 14, 16 and
-18.
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22 and 23, including the bugs 14, 16
+and 18.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and removing 1.x.
 

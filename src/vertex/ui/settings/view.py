@@ -4,7 +4,6 @@ and setup, reset."""
 from __future__ import annotations
 
 import copy
-import dataclasses
 import shlex
 
 from PySide6.QtCore import Qt, Signal
@@ -23,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import desktop, fmt, paths
+from vertex import desktop, paths
 from vertex.audio import channels
 from vertex.config import (
     AUDIO_CODECS,
@@ -37,10 +36,10 @@ from vertex.config import (
     Config,
 )
 from vertex.core import storage
-from vertex.recorder import gsr, presets
+from vertex.recorder import gsr
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
-from vertex.ui.settings.clip_choices import ClipChoices, fill
+from vertex.ui.settings.clip_choices import ClipChoices, ClipSize, fill
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.shortcuts import ShortcutsPage
@@ -48,7 +47,6 @@ from vertex.ui.widgets import (
     Banner,
     Disclosure,
     FieldGrid,
-    Meter,
     PathField,
     Section,
     Segmented,
@@ -321,25 +319,19 @@ class SettingsView(QWidget):
         row = QHBoxLayout(box)
         row.setContentsMargins(0, 6, 0, 0)
         row.setSpacing(24)
-        halves = []
-        for title in ("CLIP SIZE", "DISK SPACE"):
-            column = QVBoxLayout()
-            column.setSpacing(6)
-            column.addWidget(label(title, "Group"))
-            figure = label()
-            figure.setStyleSheet("font-size: 13pt; font-weight: 600;")
-            column.addWidget(figure)
-            halves.append((column, figure))
-        (left, self.clip_size), (right, self.disk_room) = halves
-        self.clip_meter = Meter()
-        left.addWidget(self.clip_meter)
-        self.clip_detail = label("", "Dim", wrap=True)
-        left.addWidget(self.clip_detail)
-        left.addStretch(1)
+        # The clip size is shared with first-run setup.
+        self.clip_estimate = ClipSize()
+        self.clip_size = self.clip_estimate.figure
+        row.addWidget(self.clip_estimate, 1)
+        right = QVBoxLayout()
+        right.setSpacing(6)
+        right.addWidget(label("DISK SPACE", "Group"))
+        self.disk_room = label()
+        self.disk_room.setStyleSheet("font-size: 13pt; font-weight: 600;")
+        right.addWidget(self.disk_room)
         self.disk_gauge = StorageGauge()
         right.addWidget(self.disk_gauge)
         right.addStretch(1)
-        row.addLayout(left, 1)
         divider = QFrame()
         divider.setFixedWidth(1)
         divider.setStyleSheet(f"background: {theme.LINE};")
@@ -571,22 +563,7 @@ class SettingsView(QWidget):
             fill(widget, items, getattr(rec, setting), describe)
 
     def _show_estimate(self) -> None:
-        config = self.collect()
-        rec = config.recorder
-        tracks = len(gsr.audio_tracks(config))
-        size = presets.clip_bytes(self._as_recorded(rec), tracks)
-        largest = presets.clip_bytes(self._as_recorded(dataclasses.replace(
-            rec, quality=presets.LEVELS[-1], resolution="", fps=max(presets.FRAME_RATES),
-            replay_seconds=max(presets.DURATIONS), bitrate_kbps=0)), tracks)
-        constant = rec.bitrate_mode == "cbr"
-        self.clip_size.setText(f"{'About' if constant else 'Roughly'} "
-                               f"{fmt.size(size, 0)} per clip")
-        self.clip_meter.set_fraction(size / largest if largest else 0)
-        where = "in memory" if rec.replay_storage == "ram" else "on disk"
-        detail = f"The replay buffer holds about {fmt.size(size, 0)} {where} while it runs."
-        if not constant:
-            detail = f"It depends on what is on screen. {detail}"
-        self.clip_detail.setText(detail)
+        size = self.clip_estimate.estimate(self.collect(), self._as_recorded)
         if self._storage is None:
             self.disk_room.setText("Measuring…")
         else:
