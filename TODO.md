@@ -55,12 +55,20 @@ colour-coded.
 
 **8.**
 **Sonar › Device manager**
-Device manager like SteelSeries Sonar's: select multiple input and output
-devices. Reference: screenshot "SELECT_AUDIO_DEVICES_gg_sonar_devicemanager_handbrake.jpg".
+A device manager like SteelSeries Sonar's, opened per channel:
+- An ordered list of the channel's devices, reordered by dragging. The current
+  device is marked and has its own volume; the ones before and after it are
+  "previous" and "next", the order device hotkeys cycle through.
+- An "Excluded devices" column for devices kept out of the cycle.
+- The channel's format (e.g. 24 bit / 96 kHz), shown for information.
+- The channel's shortcuts: previous/next device, volume up/down, mute (see 9).
+- To decide: does each channel get its own device, or do all channels share one
+  list as now?
 
 **9.**
 **Sonar › Hotkeys**
 Hotkeys per channel for volume up, volume down, and switching to the next device.
+Sonar's reference also has previous device and mute (see 8).
 
 **10.**
 **Sonar › Output**
