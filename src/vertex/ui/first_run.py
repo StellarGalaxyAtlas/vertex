@@ -106,8 +106,8 @@ class FirstRunView(QWidget):
         return section
 
     def _sonar(self) -> QWidget:
-        section = Section("Sonar", "Vertex can create virtual audio devices — Game, Chat, "
-                                   "Media and Aux outputs plus a shared Vertex Mic — and "
+        section = Section("Sonar", "Vertex can create virtual audio devices — Game, Chat "
+                                   "and Media outputs plus a shared Vertex Mic — and "
                                    "record each one as its own track. Every clip then has "
                                    "the same tracks, so you can turn your mic down without "
                                    "touching the game.")

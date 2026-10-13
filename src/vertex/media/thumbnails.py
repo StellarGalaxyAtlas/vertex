@@ -118,12 +118,6 @@ class ThumbnailCache:
         """Delete cached images for clips that no longer exist. Returns count."""
         keep = {self.digest(path) for path in clip_paths}
         removed = 0
-        # Vertex 1.x kept thumbnails loose in the cache root; they are never
-        # read any more.
-        for entry in glob.glob(os.path.join(self.cache_dir, "*.jpg")):
-            if len(os.path.basename(entry)) == 44:     # sha1 hex + ".jpg"
-                _remove(entry)
-                removed += 1
         for entry in glob.glob(os.path.join(self.thumb_dir, "*.jpg")):
             if os.path.splitext(os.path.basename(entry))[0] not in keep:
                 _remove(entry)

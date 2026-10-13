@@ -1,8 +1,8 @@
 """The palette, the channel colours and the application stylesheet.
 
-The palette is the one Vertex 1.x called "Anneal": a deep page with the rail,
-the cards and the controls each lifted a step off it, so depth reads as "how
-far above the page is this" and nothing has to be outlined to be told apart.
+The palette, "Anneal", is a deep page with the rail, the cards and the
+controls each lifted a step off it, so depth reads as "how far above the page
+is this" and nothing has to be outlined to be told apart.
 Every colour the UI uses is defined here, once.
 """
 
@@ -68,7 +68,6 @@ CHANNEL_COLOURS = {
     "desktop": "#9b6bd6",
     "chat": "#3b82f6",
     "media": "#c25d7b",
-    "aux": "#8a93a6",
     "mic": "#d98d2b",
 }
 AUDIO_LANES = ("#2fb39b", "#3b82f6", "#d98d2b", "#9b6bd6", "#c25d7b", "#8a93a6")

@@ -58,7 +58,7 @@ def fake_recorder_and_monitors() -> None:
         ("vertex_game.monitor", "Monitor of Vertex Game"),
         ("vertex_chat.monitor", "Monitor of Vertex Chat"),
         ("vertex_media.monitor", "Monitor of Vertex Media"),
-        ("vertex_aux.monitor", "Monitor of Vertex Aux"), ("vertex_mic", "Vertex Mic"),
+        ("vertex_mic", "Vertex Mic"),
         ("alsa_output.usb-headset.monitor", "Monitor of Arctis Nova Pro Wireless"),
         ("alsa_input.usb-headset", "Arctis Nova Pro Wireless Mono")]
     screens.desktop_screens = lambda: [

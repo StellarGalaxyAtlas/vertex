@@ -369,13 +369,6 @@ def _media(p, c):
     p.drawEllipse(QPointF(15.8, 15.3), 2.6, 2.2)
 
 
-@_register("aux")
-def _aux(p, c):
-    _pen(p, c)
-    p.drawEllipse(QRectF(5, 5, 14, 14))
-    p.drawEllipse(QRectF(10, 10, 4, 4))
-
-
 @_register("mic")
 def _mic(p, c):
     _pen(p, c)
@@ -439,7 +432,7 @@ def icon(name: str, colour: str = theme.TEXT, size: int = 18,
 
 
 def channel_icon_name(channel_id: str) -> str:
-    return {"game": "game", "chat": "chat", "media": "media", "aux": "aux",
+    return {"game": "game", "chat": "chat", "media": "media",
             "mic": "mic", "desktop": "headphones"}.get(channel_id, "volume")
 
 

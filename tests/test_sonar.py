@@ -208,17 +208,6 @@ class TestSonar:
         sonar.set_channel_output("game", "hw_headset")
         assert all(targets(c) == ["hw_headset"] for c in ("game", "chat", "media"))
 
-    def test_retired_channels_are_removed(self, tmp_path):
-        sonar, fake = _sonar(tmp_path)
-        # What an older Vertex left behind: Vertex Aux and its loopback.
-        fake.load_module("module-null-sink", {"sink_name": "vertex_aux"})
-        fake.load_module("module-loopback", {"source": "vertex_aux.monitor",
-                                             "sink": "hw_headset"})
-        sonar.up()
-        assert not [s for s in fake.sinks_ if s.name == "vertex_aux"]
-        assert not [m for m in fake.modules_ if "vertex_aux" in str(m.args)]
-        assert "aux" not in sonar.status().channels
-
     def test_unplugged_output_falls_back_without_stealing_defaults(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         sonar.up()

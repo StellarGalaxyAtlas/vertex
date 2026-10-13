@@ -25,22 +25,20 @@ LABELS = {
     DESKTOP: "Desktop",
     channels.CHAT.id: "Chat",
     channels.MEDIA.id: "Media",
-    channels.AUX.id: "Aux",
     channels.MIC.id: "Microphone",
 }
 # The order lanes appear in, whatever order the streams have in the file.
-ORDER = (channels.GAME.id, DESKTOP, channels.CHAT.id, channels.MEDIA.id,
-         channels.AUX.id, channels.MIC.id)
+ORDER = (channels.GAME.id, DESKTOP, channels.CHAT.id, channels.MEDIA.id, channels.MIC.id)
 
 # Recorders name the field as well as the device — "device:Virtual_Game_Sink",
 # "Devices: Monitor of Game Audio".
 DEVICE_PREFIX = re.compile(r"^devices?\s*:\s*", re.IGNORECASE)
 MONITOR_PREFIX = re.compile(r"^monitor of\s+", re.IGNORECASE)
 VERTEX_DEVICE = re.compile(
-    rf"^vertex[ _-]?(?P<channel>"
-    rf"{'|'.join(c.id for c in (*channels.ALL, *channels.RETIRED))})(?:\.monitor)?$",
+    rf"^vertex[ _-]?(?P<channel>{'|'.join(c.id for c in channels.ALL)})(?:\.monitor)?$",
     re.IGNORECASE,
 )
+
 
 def track_devices(name: str) -> list[str]:
     """The capture devices a track's title names, one entry per device.
@@ -70,8 +68,9 @@ def guess_source(device: str) -> str | None:
         return channels.CHAT.id
     if "media" in lowered or "music" in lowered:
         return channels.MEDIA.id
+    # An Aux output has no lane of its own; numbered beats called the mic.
     if re.search(r"\baux\b", lowered):
-        return channels.AUX.id
+        return None
     if "mic" in lowered:
         return channels.MIC.id
     # "Audio 1" is a placeholder for a track with no name at all.

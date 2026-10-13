@@ -427,7 +427,7 @@ def test_each_channel_shows_and_picks_its_device(qapp, window, fake_audio):
     sonar = window.context.config.sonar
     assert wait_until(qapp, lambda: view.controller.status.active and view._outputs)
     strips = view.strips
-    assert set(strips) == {"game", "chat", "media", "mic"}        # no Aux
+    assert set(strips) == {"game", "chat", "media", "mic"}
     assert wait_until(qapp, lambda: strips["chat"].current_device == "hw_headset")
     assert strips["mic"].current_device == "hw_mic" and strips["mic"].link is None
 

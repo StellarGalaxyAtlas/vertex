@@ -9,8 +9,6 @@ machine's real hardware is called:
     vertex_media  "Vertex Media"   virtual output (sink)
     vertex_mic    "Vertex Mic"     virtual input (source) → recorded directly
 
-Earlier versions also had "Vertex Aux"; see RETIRED.
-
 This module is pure data, so the config, the recorder, the track labeller and
 the UI can all share it without importing anything that talks to PipeWire.
 """
@@ -61,16 +59,11 @@ CHAT = Channel("chat", "Chat", "output", "internet-group-chat",
                "Voice chat — Discord, TeamSpeak, Mumble.")
 MEDIA = Channel("media", "Media", "output", "audio-x-generic",
                 "Music and video — Spotify, the browser.")
-AUX = Channel("aux", "Aux", "output", "audio-card",
-              "Anything you want kept apart from the rest.")
 MIC = Channel("mic", "Mic", "input", "audio-input-microphone",
               "Your microphone, as one device every chat app can pick.")
 
 OUTPUTS: tuple[Channel, ...] = (GAME, CHAT, MEDIA)
 ALL: tuple[Channel, ...] = (*OUTPUTS, MIC)
-# Channels earlier versions created. Sonar removes their devices when it finds
-# them; clips recorded through them still get their tracks named.
-RETIRED: tuple[Channel, ...] = (AUX,)
 BY_ID: dict[str, Channel] = {channel.id: channel for channel in ALL}
 BY_NODE: dict[str, Channel] = {channel.node: channel for channel in ALL}
 

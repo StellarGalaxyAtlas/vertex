@@ -61,9 +61,9 @@ class TestTrackLabels:
         assert [(t.label, t.channel) for t in labelled] == [
             ("Game", "game"), ("Chat", "chat"), ("Media", "media"), ("Microphone", "mic")]
 
-    def test_retired_aux_tracks_of_older_clips_keep_their_name(self):
+    def test_aux_tracks_are_numbered_not_called_the_mic(self):
         labelled = tracks.label_tracks(_tracks("Vertex Game", "Devices: Monitor of Vertex Aux"))
-        assert [(t.label, t.channel) for t in labelled] == [("Game", "game"), ("Aux", "aux")]
+        assert [(t.label, t.channel) for t in labelled] == [("Audio 1", ""), ("Audio 2", "")]
 
     def test_merged_outputs_are_desktop(self):
         labelled = tracks.label_tracks(_tracks(

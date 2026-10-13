@@ -1,53 +1,23 @@
-import json
-import sqlite3
 
 from vertex.library import database
 from vertex.library.database import ClipEdit, Library
 
-# The table exactly as Vertex 1.x created it, before any of its ad-hoc ALTERs.
-V0_SCHEMA = """
-CREATE TABLE clips (
-    filename    TEXT PRIMARY KEY,
-    title       TEXT NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
-    tag         TEXT NOT NULL DEFAULT '',
-    game        TEXT NOT NULL DEFAULT '',
-    people      TEXT NOT NULL DEFAULT '[]',
-    favorite    INTEGER NOT NULL DEFAULT 0,
-    trim_start  REAL,
-    trim_end    REAL,
-    volumes     TEXT NOT NULL DEFAULT '{}',
-    updated     REAL NOT NULL DEFAULT 0
-);
-"""
 
-
-def test_upgrades_a_v1_library_in_place(tmp_path):
-    path = tmp_path / database.DB_NAME
-    conn = sqlite3.connect(path)
-    conn.executescript(V0_SCHEMA)
-    conn.execute(
-        "INSERT INTO clips (filename, title, tag, favorite, trim_start, volumes)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        ("a.mp4", "My clip", "Apex", 1, 2.5,
-         json.dumps({"Mic": {"volume": 0.4, "muted": False}, "Old": 0.7})))
-    conn.commit()
-    conn.close()
-
+def test_a_new_library_has_the_current_layout(tmp_path):
     library = Library(str(tmp_path))
     assert library.schema_version == database.SCHEMA_VERSION
-    edit = library.get_edit("a.mp4")
-    assert edit.title == "My clip"
-    assert edit.game == "Apex"               # the legacy tag column seeds it
-    assert edit.favorite and edit.trim_start == 2.5
-    assert edit.mix_for("Mic").volume == 0.4
-    assert edit.mix_for("Old").volume == 0.7  # bare numbers from early rows
-    assert edit.mix_for("missing") is None
+    columns = {row[1] for row in library.conn.execute("PRAGMA table_info(clips)")}
+    assert {"game", "people", "duration", "recorded"} <= columns
+    library.save_edit(ClipEdit("a.mp4", title="My clip",
+                               volumes={"Mic": {"volume": 0.4, "muted": False}, "Bad": 0.7}))
     library.close()
 
-    # Re-opening is a no-op.
+    # Re-opening keeps everything.
     again = Library(str(tmp_path))
-    assert again.get_edit("a.mp4").title == "My clip"
+    edit = again.get_edit("a.mp4")
+    assert edit.title == "My clip"
+    assert edit.mix_for("Mic").volume == 0.4
+    assert edit.mix_for("Bad") is None and edit.mix_for("missing") is None
     again.close()
 
 

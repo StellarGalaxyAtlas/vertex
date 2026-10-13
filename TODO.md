@@ -119,8 +119,8 @@ microphone behind Vertex Mic).
   ticked. Unlinked, a channel whose own device is unplugged plays through the
   shared one meanwhile. The Devices section's Output and Microphone
   drop-downs went; "Unrouted apps" stays, as its own section. Aux went too
-  (maintainer's call): Sonar removes a Vertex Aux left by an older version,
-  and older clips' Aux tracks keep their name. With four columns the page
+  (maintainer's call), with no clean-up of an old Vertex Aux (item 15). With
+  four columns the page
   fits the minimum window width.
 - Left for 8b: the device list's priority order, its "Excluded devices"
   part and the "Device Manager" button.
@@ -201,8 +201,14 @@ Asked 2026-10-13.
   5.15+), never needed them; other clips are named from their device names,
   and numbered if that fails. A config that still has the keys loads; they
   go on the next save.
-- Asked: whether the other code that only serves upgrades goes too (the 1.x
-  library upgrade and thumbnail clean-up, the retired Aux channel).
+- Follow-up, done: the rest of the code that only served upgrades went too.
+  The library database no longer upgrades a 1.x library (no `tag` column
+  folded into Game, no bare-number track volumes); new libraries get the
+  whole layout at once, at version 2, where libraries in use already are.
+  The cache no longer clears 1.x's loose thumbnails. Sonar no longer removes
+  a Vertex Aux left by an earlier build (a reboot does), and an Aux track in
+  a clip gets the clip's lanes numbered rather than one called Aux (or,
+  guessed from its name, Microphone).
 
 **11.**
 **Sonar › UI**
@@ -246,8 +252,9 @@ doesn't describe the monitor map, the primary-monitor fallback, the
 "Restarting…" state, `recorder/presets.py`, the start-menu marker or the
 recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
-*Settings → Older clips*, which is gone, and ARCHITECTURE still says 1.x
-config files load unchanged (item 15).
+*Settings → Older clips*, which is gone; README still lists Aux and has an
+"Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
+configs, the 1.x library upgrade and an Aux lane (item 15).
 
 **Progress.** Done: 1–8 (8a, 8b), 10, 15 and the bug 14. Next: 11, unless the
 maintainer says otherwise (9 is on hold).

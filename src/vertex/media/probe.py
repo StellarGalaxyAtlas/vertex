@@ -57,7 +57,7 @@ def track_name(tags: dict, position: int) -> tuple[str, bool]:
 
     Recorders disagree on where the source belongs: GPU Screen Recorder puts
     it in `title`, some builds in `name`, SteelSeries Moments in the handler.
-    `name` is read first, as Vertex 1.x did: the library keys each track's
+    `name` is read first and must stay first: the library keys each track's
     saved volume by this string, so changing the order would orphan them.
     """
     handler = tags.get("handler_name", "") or ""

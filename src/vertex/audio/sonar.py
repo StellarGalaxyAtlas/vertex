@@ -42,9 +42,6 @@ from vertex.audio.pulse import (
 )
 from vertex.config import SonarConfig
 
-# Every channel Sonar may find loaded, today's and retired ones.
-_OUR_NODES = {channel.node: channel for channel in (*channels.ALL, *channels.RETIRED)}
-
 NULL_SINK = "module-null-sink"
 LOOPBACK = "module-loopback"
 REMAP_SOURCE = "module-remap-source"
@@ -152,18 +149,17 @@ class Sonar:
                 if not source.is_monitor and not source.is_vertex]
 
     def _ours(self, modules: list[Module]) -> dict[str, list[Module]]:
-        """Our modules by role: 'null:<id>', 'loop:<id>', 'mic'. Retired
-        channels' modules are found too, so they can be removed."""
+        """Our modules by role: 'null:<id>', 'loop:<id>', 'mic'."""
         found: dict[str, list[Module]] = {}
         for module in modules:
             args = module.args
             if module.name == NULL_SINK:
-                channel = _OUR_NODES.get(args.get("sink_name", ""))
+                channel = channels.BY_NODE.get(args.get("sink_name", ""))
                 if channel is not None and channel.is_output:
                     found.setdefault(f"null:{channel.id}", []).append(module)
             elif module.name == LOOPBACK:
                 source = args.get("source", "").removesuffix(".monitor")
-                channel = _OUR_NODES.get(source)
+                channel = channels.BY_NODE.get(source)
                 if channel is not None and channel.is_output:
                     found.setdefault(f"loop:{channel.id}", []).append(module)
             elif module.name == REMAP_SOURCE and args.get("source_name") == channels.MIC.node:
@@ -287,10 +283,6 @@ class Sonar:
             if second and second not in targets:
                 targets.append(second)
             self._ensure_loopbacks(channel, targets, ours.get(f"loop:{channel.id}", []))
-        for channel in channels.RETIRED:
-            # Loopback before sink, as in down().
-            for module in ours.get(f"loop:{channel.id}", []) + ours.get(f"null:{channel.id}", []):
-                self._unload(module)
         if not output:
             warnings.append("No output device was found, so the channels are not "
                             "connected to anything you can hear.")
