@@ -418,20 +418,26 @@ class Section(QFrame):
         return widget
 
     def add_row(self, title: str, widget: QWidget, hint: str = "") -> QWidget:
-        if isinstance(widget, (QComboBox, QAbstractSpinBox, QLineEdit)):
-            widget.setMinimumWidth(max(widget.minimumWidth(), CONTROL_WIDTH))
-        row = QWidget()
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(0, 0, 0, 0)
-        text = QVBoxLayout()
-        text.setSpacing(2)
-        text.addWidget(label(title))
-        if hint:
-            text.addWidget(label(hint, "Dim", wrap=True))
-        layout.addLayout(text, 1)
-        layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        row = setting_row(title, widget, hint)
         self.body.addWidget(row)
         return row
+
+
+def setting_row(title: str, widget: QWidget, hint: str = "") -> QWidget:
+    """One setting: its name, a hint under it, and its control on the right."""
+    if isinstance(widget, (QComboBox, QAbstractSpinBox, QLineEdit)):
+        widget.setMinimumWidth(max(widget.minimumWidth(), CONTROL_WIDTH))
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    text = QVBoxLayout()
+    text.setSpacing(2)
+    text.addWidget(label(title))
+    if hint:
+        text.addWidget(label(hint, "Dim", wrap=True))
+    layout.addLayout(text, 1)
+    layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+    return row
 
 
 class FieldGrid(QWidget):

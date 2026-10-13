@@ -295,6 +295,8 @@ Progress:
   Sonar on or off, output device and microphone changed (all but the last
   two off by default); the ones that only showed in the window (a track's
   device missing, Sonar's and the library's problems) can now pop up too.
+- General, done: Library, State and Cache sit under a collapsed "Advanced"
+  in Folders (opened by itself when Save finds one of them blank).
 
 ---
 

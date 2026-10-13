@@ -53,6 +53,7 @@ from vertex.ui.widgets import (
     Toggle,
     button,
     label,
+    setting_row,
 )
 
 LABELS = {
@@ -167,9 +168,16 @@ class SettingsView(QWidget):
         self.data_path = PathField(placeholder=str(paths.default_data_dir()))
         self.state_path = PathField(placeholder=str(paths.default_state_dir()))
         self.cache_path = PathField(placeholder=str(paths.default_cache_dir()))
-        folders.add_row("Library", self.data_path, "Tags, titles, trims and mixes")
-        folders.add_row("State", self.state_path)
-        folders.add_row("Cache", self.cache_path, "Thumbnails; safe to delete")
+        # Vertex's own folders: set up once, and best left alone.
+        self.folders_advanced = Disclosure("Advanced", "Where Vertex keeps its library, "
+                                                       "state and cache")
+        self.folders_advanced.body_layout.setSpacing(12)
+        for title, field, hint in (
+                ("Library", self.data_path, "Tags, titles, trims and mixes"),
+                ("State", self.state_path, "What Vertex remembers between runs"),
+                ("Cache", self.cache_path, "Thumbnails; safe to delete")):
+            self.folders_advanced.add(setting_row(title, field, hint))
+        folders.add(self.folders_advanced)
         for field in (self.clip_path, self.export_path, self.data_path, self.state_path,
                       self.cache_path):
             field.setMinimumWidth(420)
@@ -481,6 +489,7 @@ class SettingsView(QWidget):
         if not new.is_complete():
             self.banner.show_message("Set the clips, exports, library, state and cache "
                                      "folders (blank uses the defaults).", "error", 10000)
+            self.folders_advanced.set_expanded(True)
             if not new.resolved_clip_dir() or not new.resolved_export_dir():
                 self.show_page("general")
                 return False

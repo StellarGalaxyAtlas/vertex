@@ -199,6 +199,11 @@ def test_pages_and_settings_save(qapp, window):
     assert not settings.is_dirty()
     settings.show_page("recording")
     assert "-r 90" in settings.preview.toPlainText()
+    # Vertex's own folders are folded away, and still saved.
+    assert not settings.folders_advanced.expanded
+    settings.cache_path.set_value(str(window.context.config.resolved_cache_dir()) + "-2")
+    assert settings.save()
+    assert Config.load().cache_path.endswith("-2")
 
 
 def test_capture_is_picked_on_the_monitor_map(qapp, window, monkeypatch):
