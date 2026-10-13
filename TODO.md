@@ -210,10 +210,18 @@ Asked 2026-10-13.
   a clip gets the clip's lanes numbered rather than one called Aux (or,
   guessed from its name, Microphone).
 
-**11.**
+**11.** ✅ Done
 **Sonar › UI**
 Overhaul the Sonar page's UI and UX, bringing items 5 and 7–10 together.
 Keep Vertex Sonar's look rather than copying SteelSeries'.
+- Done without changes (maintainer's call, 2026-10-13): items 5 and 7–10
+  already brought the page together. Points raised and left as they are:
+  the page is one long scroll (Unrouted apps is a card of its own and the
+  device manager is always open), device names are cut short at the minimum
+  width, the Mic column's rows sit a few pixels off the others, mute is
+  only the speaker icon, Manual | Auto barely shows which is on, "Also play
+  through" shows a slider while set to "Nothing else", and the header
+  repeats the device each column shows.
 
 **12.**
 **Rail (left-hand menu) › Games / People**
@@ -256,11 +264,8 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
 configs, the 1.x library upgrade and an Aux lane (item 15).
 
-**Progress.** Done: 1–8 (8a, 8b), 10, 15 and the bug 14. Next: 11, unless the
-maintainer says otherwise (9 is on hold). For 11, the maintainer was asked
-(2026-10-13) to look at the Sonar page as it is now and say what bothers them,
-or send a screenshot with notes; no answer yet, so start by asking again.
-Their last test round (item 10's follow-ups) found the page working.
+**Progress.** Done: 1–8 (8a, 8b), 10, 11, 15 and the bug 14. Next: 12, unless
+the maintainer says otherwise (9 is on hold).
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
@@ -390,7 +395,7 @@ before building it.
 - Plugins are written in Python, so the plugin can talk to the socket
   directly; no extra dependency is needed on either side.
 
-**Item 11.** The sideways scrolling at the minimum window width (980 px) is
+**Item 11 (done).** The sideways scrolling at the minimum window width (980 px) is
 gone since 8a: Aux went and the columns may be a little narrower. The page now
 has, top to bottom: the header (subtitle, Enabled switch), the channel
 columns (each with its device, link button and "Also on" switch), "Not
