@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 24.
+and bugs get the next free number: 25.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -49,6 +49,17 @@ behind:
   Sonar and Vertex Moments steps and brings an existing library along
   (item 22); the import tools are no longer where setup points.
 - The screenshots in `docs/` (first-run.png shows the old step 1).
+
+**24.** Waiting on the maintainer's pick
+**Design: colour, contrast and dead space**
+Three directions, drawn as Library and Sonar mockups on a private design
+canvas with the contrast of each palette measured: A · Anneal, sharpened
+(today's navy and periwinkle with AA contrast and a 216 px rail),
+B · Graphite (neutral greys, colour only for channels, games and recording;
+icon rail; Sonar as a mixer) and C · Showcase (black, a volt accent, top
+navigation, chip filters). The maintainer picks one; it is then saved under
+`temp/design/` for later sessions to build from. Building it is a separate
+item.
 
 ## Waiting on the maintainer
 
@@ -220,8 +231,9 @@ committed.
 
 **Progress.** Done: 1–8 (8a, 8b), 10–20, 22 and 23, including the bugs 14, 16
 and 18.
-Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
-maintainer: the checks listed above, and removing 1.x.
+Open: 9 (on hold), 21 (documentation, at the end) and 24 (design
+directions, waiting on the maintainer's pick). Waiting on the maintainer:
+the checks listed above, and removing 1.x.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
 a channel's gear with its shortcut fields; a channel's device list; the
