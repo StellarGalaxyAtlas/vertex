@@ -98,3 +98,43 @@ command already handle `save-clip`, `replay start/stop/toggle/status` and
 - A subscription that pushes changes, so buttons update live without polling.
 - Every command also available as `vertex …`, so it can be bound to a desktop
   shortcut. Item 9's hotkeys can be built on the same commands.
+
+---
+
+## Notes
+
+Decisions already made, and questions to settle when their item comes up.
+
+**Order.** Do item 13 before or together with item 9. Any action exposed as a
+`vertex …` command can be bound to a desktop keyboard shortcut, which is the
+simplest reliable way to get global hotkeys on Wayland.
+
+**Item 8.** Not one device manager per channel: one for the outputs (shared by
+every output channel, as now) and one for the input.
+
+**Item 9.** Since the output device list is shared, "next device" switches all
+channels at once, while volume up/down and mute are per channel. Confirm this
+with the maintainer before building it.
+
+**Item 13 and the StreamController plugin.**
+- The plugin for [StreamController](https://github.com/StreamController/StreamController)
+  is a separate project in its own repository. Only the control API belongs in
+  this repo.
+- Today's protocol: one JSON object per line over the Unix socket
+  `$XDG_RUNTIME_DIR/vertex/control.sock`. A request is
+  `{"command": "save-clip", "args": {"seconds": 60}}`; a reply is
+  `{"ok": true, "message": "…"}` (see `src/vertex/ipc.py`). Commands are
+  dispatched on the UI thread in `Commands._run` (`src/vertex/ui/app.py`), and
+  the `vertex` command in `src/vertex/cli.py` wraps them.
+- To build: structured reply fields and error codes next to `message`
+  (existing callers must keep working), an API version reported by `ping`, the
+  commands and state queries listed under item 13, a subscription that keeps
+  the connection open and pushes changes, and `docs/CONTROL.md` describing it
+  all.
+- Plugins are written in Python, so the plugin can talk to the socket
+  directly; no extra dependency is needed on either side.
+
+**Item 7 (done).** A drop is remembered as a routing rule; right-click → "Use
+the default channel" removes it. Apps playing straight to a device appear
+under "Not routed". The Mic list is read-only and flags apps recording a
+microphone directly.
