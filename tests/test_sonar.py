@@ -176,6 +176,38 @@ class TestSonar:
         sonar.reconcile()
         assert sonar.status().output == "hw_speakers"    # not switched to the new one
 
+    def test_channels_also_play_through_a_second_device(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+
+        def targets(channel_id):
+            return sorted(m.args["sink"] for m in fake.modules_ if m.name == "module-loopback"
+                          and m.args["source"] == f"vertex_{channel_id}.monitor")
+
+        sonar.set_second_output("hw_speakers")
+        assert all(targets(c) == ["hw_headset", "hw_speakers"]
+                   for c in ("game", "chat", "media"))
+        entry = sonar.status().channels["chat"]
+        assert entry.output == "hw_headset" and entry.also
+        # Chat kept private: headset only.
+        sonar.set_also_second("chat", False)
+        assert targets("chat") == ["hw_headset"]
+        assert targets("game") == ["hw_headset", "hw_speakers"]
+        assert not sonar.status().channels["chat"].also
+        # Second device unplugged: the first carries on alone; back, it joins in.
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        assert targets("game") == ["hw_headset"]
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        assert targets("game") == ["hw_headset", "hw_speakers"]
+        # The second device being the first one too: one loopback, not two.
+        sonar.set_channel_output("game", "hw_speakers")
+        assert targets("game") == ["hw_speakers"]
+        sonar.set_second_output("")
+        sonar.set_channel_output("game", "hw_headset")
+        assert all(targets(c) == ["hw_headset"] for c in ("game", "chat", "media"))
+
     def test_retired_channels_are_removed(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         # What an older Vertex left behind: Vertex Aux and its loopback.

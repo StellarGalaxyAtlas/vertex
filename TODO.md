@@ -173,9 +173,16 @@ Hotkeys per channel for volume up, volume down, and switching to the next device
 Sonar's reference also has previous device and mute. On hold: the maintainer
 said to leave keybinds out for now.
 
-**10.**
+**10.** ✅ Done
 **Sonar › Output**
 Play the sound Sonar manages through two audio devices at the same time.
+- Done as the maintainer chose: one second device, picked once under "Also
+  play through" in the device manager's Output devices panel, with its own
+  volume. Each output channel has an "Also on <device>" switch, on by
+  default, shown once a second device is set; switch Chat off to keep it in
+  the headset. Unplugged, the channels carry on through the first device
+  alone; back, it joins in again. Two devices can be a little out of step
+  (Bluetooth especially); that is the devices', not fixable here.
 
 **11.**
 **Sonar › UI**
@@ -220,7 +227,7 @@ doesn't describe the monitor map, the primary-monitor fallback, the
 recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips").
 
-**Progress.** Done: 1–8 (8a, 8b) and the bug 14. Next: 10, unless the
+**Progress.** Done: 1–8 (8a, 8b), 10 and the bug 14. Next: 11, unless the
 maintainer says otherwise (9 is on hold).
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an

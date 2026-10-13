@@ -46,6 +46,7 @@ class ChannelStatus:
     present: bool = False
     routed: bool = False         # an output channel is looped to a real device
     output: str = ""             # the real device an output channel plays through
+    also: bool = False           # and it plays through the second device too
     volume: float = 1.0
     muted: bool = False
 
@@ -179,6 +180,14 @@ class Sonar:
             cfg.output_device, outputs,
             [self.state.output, self.state.previous_sink, self._default_sink()])
 
+    def second_output(self, channel: Channel, outputs: list[Device]) -> str:
+        """The second device a channel also plays through, if one is set, the
+        channel asks for it, and it is plugged in."""
+        second = self.config.second_output
+        if not second or not self.config.channel(channel.id).also_second:
+            return ""
+        return second if second in {device.name for device in outputs} else ""
+
     def channel_output(self, channel: Channel, outputs: list[Device], shared: str) -> str:
         """The device an output channel plays through: the shared one while
         linked, else its own, unless that is unplugged (then the shared one)."""
@@ -230,7 +239,11 @@ class Sonar:
                 entry.volume, entry.muted = device.volume, device.muted
             loops = ours.get(f"loop:{channel.id}", [])
             entry.routed = bool(loops) if channel.is_output else bool(ours.get("mic"))
-            entry.output = loops[0].args.get("sink", "") if loops else ""
+            targets = [module.args.get("sink", "") for module in loops]
+            second = self.config.second_output
+            entry.output = next((sink for sink in targets if sink != second),
+                                targets[0] if targets else "")
+            entry.also = bool(second) and second in targets and entry.output != second
             status.channels[channel.id] = entry
         status.active = all(entry.present for entry in status.channels.values())
         return status
@@ -258,9 +271,12 @@ class Sonar:
         created = False
         for channel in channels.OUTPUTS:
             created |= self._ensure_sink(channel, ours.get(f"null:{channel.id}", []))
-            target = self.channel_output(channel, outputs, output)
-            if target:
-                self._ensure_loopback(channel, target, ours.get(f"loop:{channel.id}", []))
+            targets = [target] if (target := self.channel_output(channel, outputs, output)) \
+                else []
+            second = self.second_output(channel, outputs)
+            if second and second not in targets:
+                targets.append(second)
+            self._ensure_loopbacks(channel, targets, ours.get(f"loop:{channel.id}", []))
         for channel in channels.RETIRED:
             # Loopback before sink, as in down().
             for module in ours.get(f"loop:{channel.id}", []) + ours.get(f"null:{channel.id}", []):
@@ -308,18 +324,23 @@ class Sonar:
         })
         return True
 
-    def _ensure_loopback(self, channel: Channel, output: str, existing: list[Module]) -> None:
-        keep = None
+    def _ensure_loopbacks(self, channel: Channel, targets: list[str],
+                          existing: list[Module]) -> None:
+        """One loopback from `channel` to each of `targets`, and no others."""
         latency = str(max(1, int(self.config.latency_ms)))
+        kept: set[str] = set()
         for module in existing:
-            args = module.args
-            if keep is None and args.get("sink") == output and \
-                    args.get("latency_msec") == latency:
-                keep = module
+            sink = module.args.get("sink", "")
+            if sink in targets and sink not in kept and \
+                    module.args.get("latency_msec") == latency:
+                kept.add(sink)
             else:
                 self._unload(module)
-        if keep is not None:
-            return
+        for target in targets:
+            if target not in kept:
+                self._load_loopback(channel, target, latency)
+
+    def _load_loopback(self, channel: Channel, output: str, latency: str) -> None:
         self.pactl.load_module(LOOPBACK, {
             "source": channel.record_source,
             "sink": output,
@@ -501,6 +522,16 @@ class Sonar:
         if self.config.mic_auto and device:
             self.config.mic_priority, self.config.mic_excluded = devices.promote(
                 self.config.mic_priority, self.config.mic_excluded, device)
+        return self.up() if self.config.enabled else []
+
+    def set_second_output(self, device: str) -> list[str]:
+        """A device the output channels also play through ("" for none)."""
+        self.config.second_output = device
+        return self.up() if self.config.enabled else []
+
+    def set_also_second(self, channel_id: str, also: bool) -> list[str]:
+        """Whether a channel also plays through the second device."""
+        self.config.channel(channel_id).also_second = also
         return self.up() if self.config.enabled else []
 
     def learn_devices(self, outputs: list[Device], inputs: list[Device]) -> bool:

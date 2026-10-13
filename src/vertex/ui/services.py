@@ -321,6 +321,12 @@ class SonarController(QObject):
         """One device for every output channel (`channel_id`'s), or one each."""
         self._job(lambda: self.sonar.set_linked(linked, channel_id), self._devices_changed)
 
+    def set_second_output(self, device: str) -> None:
+        self._job(lambda: self.sonar.set_second_output(device), self._devices_changed)
+
+    def set_also_second(self, channel_id: str, also: bool) -> None:
+        self._job(lambda: self.sonar.set_also_second(channel_id, also), self._devices_changed)
+
     def _devices_changed(self, warnings) -> None:
         for text in warnings or []:
             self.warning.emit(text)

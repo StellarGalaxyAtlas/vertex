@@ -91,6 +91,7 @@ class ChannelSettings:
     volume: float = 1.0      # 0..1, applied to the virtual device
     muted: bool = False
     output_device: str = ""  # an output channel's own device, while not linked; "" = shared
+    also_second: bool = True  # an output channel also plays through SonarConfig.second_output
 
 
 def _default_channels() -> dict[str, ChannelSettings]:
@@ -104,6 +105,7 @@ class SonarConfig:
     enabled: bool = False
     output_device: str = ""          # real sink the channels play through; "" = system default
     linked: bool = True              # every output channel plays through output_device
+    second_output: str = ""          # a device the output channels also play through; "" = none
     mic_device: str = ""             # real source behind Vertex Mic; "" = system default
     default_channel: str = "game"    # becomes the system default output while Sonar runs
     set_default_mic: bool = True     # make Vertex Mic the system default input

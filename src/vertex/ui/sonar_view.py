@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from vertex import fmt
 from vertex.audio import channels, devices
 from vertex.audio.sonar import AppCapture, AppStream, SonarStatus
 from vertex.ui import icons, theme
@@ -388,6 +389,42 @@ class DevicePanel(QFrame):
         self._volume_timer = QTimer(self, singleShot=True, interval=120)
         self._volume_timer.timeout.connect(self._send_volume)
 
+        # Outputs: a device every channel also plays through, unless the
+        # channel's own "Also on" switch is off.
+        self.second = None
+        self.second_device = ""
+        if kind == "output":
+            layout.addSpacing(4)
+            layout.addWidget(label("ALSO PLAY THROUGH", "Group"))
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            self.second = QComboBox()
+            self.second.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.second.setMinimumContentsLength(10)
+            self.second.activated.connect(lambda _i: view.controller.set_second_output(
+                self.second.currentData() or ""))
+            row.addWidget(self.second, 1)
+            self.second_volume = QSlider(Qt.Orientation.Horizontal)
+            self.second_volume.setRange(0, 100)
+            self.second_volume.setFixedWidth(110)
+            self.second_volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self.second_volume.setToolTip("The second device's own volume")
+            self.second_volume.valueChanged.connect(self._on_second_volume)
+            row.addWidget(self.second_volume)
+            self.second_readout = label("", "Muted")
+            self.second_readout.setFixedWidth(38)
+            self.second_readout.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(self.second_readout)
+            layout.addLayout(row)
+            layout.addWidget(label("Every channel plays here too, unless its “Also on” "
+                                   "switch is off.", "Dim", wrap=True))
+            layout.addSpacing(6)
+            self._second_timer = QTimer(self, singleShot=True, interval=120)
+            self._second_timer.timeout.connect(lambda: view.controller.set_device_volume(
+                "sink", self.second_device, self.second_volume.value() / 100))
+
         layout.addSpacing(4)
         layout.addWidget(label("PRIORITY", "Group"))
         self.priority = DeviceOrder("No devices found.")
@@ -417,6 +454,34 @@ class DevicePanel(QFrame):
         self.readout.setText(f"{self.volume.value()}%" if current is not None else "")
         self.format.setText(devices.describe_format(current.sample_spec)
                             if current is not None else "")
+
+    def show_second(self, choices: list[tuple[str, str]], current: str, device,
+                    current_text: str) -> None:
+        """The second device's drop-down: none, or any output plugged in."""
+        if self.second is None:
+            return
+        self.second.blockSignals(True)
+        self.second.clear()
+        self.second.addItem("Nothing else", "")
+        for name, text in choices:
+            self.second.addItem(text, name)
+        if current and self.second.findData(current) < 0:
+            self.second.addItem(f"{current_text} (not connected)", current)
+        self.second.setCurrentIndex(max(0, self.second.findData(current)))
+        self.second.blockSignals(False)
+        self.second_device = device.name if device is not None else ""
+        self._quiet = True
+        if device is not None and not self.second_volume.isSliderDown():
+            self.second_volume.setValue(round(device.volume * 100))
+        self._quiet = False
+        self.second_volume.setEnabled(device is not None)
+        self.second_readout.setText(f"{self.second_volume.value()}%" if device is not None
+                                    else "")
+
+    def _on_second_volume(self, value: int) -> None:
+        self.second_readout.setText(f"{value}%")
+        if not self._quiet and self.second_device:
+            self._second_timer.start()
 
     def _on_mode(self, key: str, _descending: bool = True) -> None:
         self._show_hint(key == "auto")
@@ -490,6 +555,21 @@ class ChannelColumn(QFrame):
         self.current_device = ""
         layout.addLayout(row)
 
+        # Whether it also plays through the second device, when one is set.
+        self.also_row = QWidget()
+        also = QHBoxLayout(self.also_row)
+        also.setContentsMargins(4, 0, 0, 0)
+        also.setSpacing(6)
+        self.also_label = ElidedLabel("")
+        self.also_label.setObjectName("Dim")
+        also.addWidget(self.also_label, 1)
+        self.also = Toggle()
+        self.also.toggled.connect(
+            lambda on: None if self._quiet else controller.set_also_second(channel.id, on))
+        also.addWidget(self.also)
+        layout.addWidget(self.also_row)
+        self.also_row.hide()
+
         volume = QHBoxLayout()
         volume.setSpacing(6)
         self.mute = IconButton("volume", "Mute", 16, theme.TEXT_MUTED)
@@ -524,6 +604,19 @@ class ChannelColumn(QFrame):
         self._quiet = False
         self._paint_mute()
         self.set_apps([])
+
+    def show_also(self, device_text: str, on: bool, shown: bool) -> None:
+        self.also_row.setVisible(shown and self.channel.is_output)
+        self.also_label.setText(f"Also on {device_text}")
+        self.also_row.setToolTip(f"{self.channel.label} also plays through {device_text}, "
+                                 f"the second device set in the device manager."
+                                 if on else f"{self.channel.label} stays off {device_text}.")
+        if self.also.isChecked() != on:
+            self._quiet = True
+            self.also.blockSignals(True)
+            self.also.setChecked(on)
+            self.also.blockSignals(False)
+            self._quiet = False
 
     def show_device(self, name: str, text: str, linked: bool) -> None:
         self.current_device = name
@@ -769,6 +862,12 @@ class SonarView(QWidget):
         elif enabled and status.active:
             output = self._names.get(status.output, status.output)
             where = f" through {output}" if output else ""
+            second = self.context.config.sonar.second_output
+            also = [entry.channel.label for entry in status.channels.values() if entry.also]
+            outputs = [entry for entry in status.channels.values() if entry.channel.is_output]
+            if second and also:
+                where += (f", and also {self._label(second)}" if len(also) == len(outputs)
+                          else f", and {fmt.oxford(also)} also through {self._label(second)}")
             self.subtitle.setText(f"Running — every channel plays{where}.")
         elif enabled:
             self.subtitle.setText("Starting…")
@@ -797,6 +896,10 @@ class SonarView(QWidget):
                 current = status.mic or sonar.mic_device
             text = self._names.get(current, current) or "System default"
             self.strips[channel.id].show_device(current, text, sonar.linked)
+            second = sonar.second_output
+            self.strips[channel.id].show_also(self._label(second) if second else "",
+                                              sonar.channel(channel.id).also_second,
+                                              bool(second))
         self._show_manager(status)
 
     def _ordered(self, kind: str) -> tuple[list[str], list[str]]:
@@ -832,6 +935,10 @@ class SonarView(QWidget):
                 "Sonar is off" if not sonar.enabled else "No device in use")
             panel.show_devices(shown_priority, shown_excluded, getattr(sonar, f"{kind}_auto"),
                                now, text)
+        second = sonar.second_output
+        self.output_panel.show_second([(d.name, d.label) for d in self._outputs], second,
+                                      next((d for d in self._outputs if d.name == second), None),
+                                      self._label(second) if second else "")
 
     def device_order_changed(self, kind: str, priority: list[str], excluded: list[str]) -> None:
         """A drag in the device manager: lay the shown order back onto the full

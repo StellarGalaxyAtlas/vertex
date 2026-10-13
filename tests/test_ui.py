@@ -491,6 +491,32 @@ def test_device_manager_orders_the_devices(qapp, window, fake_audio):
     assert "you pick" in panel.mode_hint.text()
 
 
+def test_channels_also_play_through_a_second_device(qapp, window, fake_audio):
+    fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})
+    window.navigate("sonar")
+    view = window.sonar_view
+    view.toggle.setChecked(True)
+    sonar = window.context.config.sonar
+    strips = view.strips
+    combo = view.output_panel.second
+    assert wait_until(qapp, lambda: combo.findData("hw_speakers") >= 0)
+    assert strips["game"].also_row.isHidden()            # no second device yet
+
+    combo.setCurrentIndex(combo.findData("hw_speakers"))
+    combo.activated.emit(combo.currentIndex())
+    assert wait_until(qapp, lambda: view.controller.status.channels["chat"].also)
+    assert not strips["game"].also_row.isHidden() and strips["mic"].also_row.isHidden()
+    assert strips["chat"].also_label.full_text() == "Also on Speakers"
+    assert "and also Speakers" in view.subtitle.text()
+    assert Config.load().sonar.second_output == "hw_speakers"
+
+    strips["chat"].also.setChecked(False)                 # Chat stays in the headset
+    assert wait_until(qapp, lambda: not view.controller.status.channels["chat"].also)
+    assert view.controller.status.channels["game"].also
+    assert sonar.channel("chat").also_second is False
+    assert "and Game and Media also through Speakers" in view.subtitle.text()
+
+
 def test_delete_clip(qapp, window, monkeypatch):
     state = window.state
     clip = state.find("Replay_2026-01-02_03-04-05.mp4")
