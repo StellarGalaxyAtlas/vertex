@@ -347,6 +347,29 @@ Progress:
 - Tabs: General · Recording · Notifications · Shortcuts · Import and setup ·
   Reset and delete; they fit the minimum window width.
 
+**19.**
+**Library › Card size**
+"There is so much wasted space. I'd rather have bigger clips and fewer than
+more and small ones": a way to set how big the cards are. Asked 2026-10-13,
+with a screenshot of 22 Overwatch clips.
+- Found first: the empty strip on the right is a bug. Cards are meant to
+  stretch to fill each row, but while the clips fit without scrolling, the
+  grid plans one column more than Qt lays out (Qt keeps room for a scrollbar
+  that isn't there), so a whole column's width stays empty.
+- Decided (2026-10-13): a card-size slider in the library's header, next to
+  Date/Game, plus Ctrl+scroll and Ctrl+plus/minus over the grid, remembered
+  between runs. It sets the card size; cards always stretch to fill the row,
+  so how many fit per row follows the window. Not in Settings.
+
+**20.**
+**Settings › General › Appearance**
+"The appearance radio button does nothing." It switches the logo ink of the
+window, tray and start-menu icon, and of the rail's logo, where dark ink is
+dark on dark. Asked 2026-10-13.
+- Decided (2026-10-13): the choice goes. The window, tray and start-menu
+  icon follow the desktop's light/dark setting by themselves; the rail's
+  logo is always the light ink, as the app is always dark.
+
 ---
 
 ## Notes
@@ -367,8 +390,8 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
 configs, the 1.x library upgrade and an Aux lane (item 15).
 
-**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17 and the bugs 14, 16 and 18. Next: 13,
-unless the maintainer says otherwise (9 is on hold). Open question for 13:
+**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17 and the bugs 14, 16 and 18. Next: 19,
+then 20, then 13 (the maintainer's order, 2026-10-13; 9 is on hold). Open question for 13:
 may `docs/CONTROL.md` be written, given the freeze on `docs/`? The
 notification stream (`Context.notified`) is ready for 13's subscription.
 The maintainer is collecting reference screenshots of SteelSeries GG on
