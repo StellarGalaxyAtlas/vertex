@@ -72,11 +72,12 @@ where the work stands. New requests and bugs get the next free number in
 
 ## The design
 
-`temp/design/` holds the look the maintainer chose (TODO item 24): Graphite
-colours with a tightened layout. Read its README before UI work. New UI
-follows its rules: colour only where it means something, every text colour
-at AA contrast, no dead space. Its colours live in `ui/theme.py`; use the
-tokens there, never a new hex value in a widget.
+`temp/design/` holds the look the maintainer chose (TODO items 24 and 25):
+Vertex's navy and periwinkle at AA contrast, with a tightened layout. Read
+its README before UI work. New UI follows its rules: every text colour at AA
+contrast, the accent never on an audio control, red only for recording, no
+dead space. A grey palette was tried and rejected. The colours live in
+`ui/theme.py`; use the tokens there, never a new hex value in a widget.
 
 ## Reference screenshots
 

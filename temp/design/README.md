@@ -1,30 +1,30 @@
-# Vertex design: Graphite colours, tightened layout
+# Vertex design: Anneal, sharpened
 
-The look the maintainer chose on 2026-10-13 (TODO item 24), out of three
-directions drawn on a design canvas: **B · Graphite's colours** with
-**A · Anneal-sharpened's layout**. It has been applied: `src/vertex/ui/theme.py`
-holds the palette and is the source of truth for every value below. This
-folder is the reference for later work, so new UI follows the same rules.
+The look the maintainer chose on 2026-10-13 (TODO items 24 and 25):
+Vertex's own navy and periwinkle, made readable, with a tightened layout. It
+was "Direction A · Anneal, sharpened" of three drawn on a design canvas.
+It has been applied: `src/vertex/ui/theme.py` holds the palette and is the
+source of truth for every value below. This folder is the reference for
+later work, so new UI follows the same rules.
 
-- `library.html`, `sonar.html`: the two mockups of the chosen design. Open
-  them in a browser. Thumbnails are grey boxes on purpose.
-- This file: the rules, the palette with its measured contrast, and what is
-  still open.
+- `library.html`, `sonar.html`: mockups of the design. Open them in a
+  browser. Thumbnails are grey boxes on purpose.
+- This file: the rules, the palette with its measured contrast, what was
+  tried and rejected, and what is still open.
 
 ## The rules
 
-1. **Colour only where it means something.** Vertex's own controls are black,
-   grey and white. The colours on screen are the channels (Game, Chat,
-   Media, Mic), the games' dots, recording (red), the meanings OK, warning and
-   danger, and one blue for *selected or focused* (keyboard focus, trim
-   handles, selected text, "Add tags" on hover).
-2. **Red means recording, and only that.** Nothing is red while the replay
-   buffer is off.
-3. **The accent never colours an audio control.** In Graphite the accent is
-   near-white, so a device slider is white and a channel's slider is the
-   channel's colour. The two can't be confused.
-4. **Text passes WCAG AA everywhere:** 4.5:1 for every text colour on every
+1. **Keep Vertex's colour.** A deep navy page, surfaces lifted a step off
+   it, a periwinkle accent. A neutral grey look was tried and rejected as
+   "sad" (see below).
+2. **Text passes WCAG AA everywhere:** 4.5:1 for every text colour on every
    ground it sits on, 3:1 for a field's edge and a switch that is on.
+3. **The accent never colours an audio control.** A channel's slider takes
+   the channel's colour; a device's slider is neutral grey
+   (`sonar_view.NEUTRAL_SLIDER`). The accent marks what is selected, what
+   can be pressed and plain settings, so Chat's blue never looks like it.
+4. **Red means recording, and only that.** Nothing is red while the replay
+   buffer is off.
 5. **No dead space.** Nothing keeps room for something that isn't there:
    no empty boxes, no strip held for a status line, cards as tall as their
    content, one control instead of a card holding one control.
@@ -33,23 +33,23 @@ folder is the reference for later work, so new UI follows the same rules.
 
 | Token (`theme.py`) | Hex | Used for |
 |---|---|---|
-| `MAIN_BG` | `#0f1012` | the page |
-| `SIDEBAR_BG` | `#141517` | the rail |
-| `SECTION_BG` | `#191a1d` | panels, sections |
-| `CARD_BG` | `#222327` | cards, and controls on a card |
-| `CARD_HOVER` | `#303137` | hover |
-| `CONTROL_BG` | `#2a2b30` | buttons, an off switch's track |
-| `FIELD_BG` | `#0b0c0d` | text fields and drop-downs (recessed) |
-| `EDGE` | `#6c6e76` | a field's edge, an off switch's outline |
-| `LINE` / `SEAM` | `#2e2f34` / `#3a3b41` | dividers / menu and tooltip edges |
-| `TEXT` | `#f4f4f5` | body text |
-| `TEXT_MUTED` | `#b6b7bd` | secondary text |
-| `TEXT_DIM` | `#909299` | hints, group labels, placeholders |
-| `ACCENT` | `#f4f4f5` | primary button, switch on, plain sliders, gauges |
-| `ON_ACCENT` | `#111214` | text and icons on `ACCENT` (and on app avatars) |
-| `ACCENT_SOFT` | `#3b3c43` | the selected row, tab, segment or menu item |
-| `SELECT` | `#8ab4ff` | keyboard focus, trim handles, links |
-| `SELECTION` | `#2f4c7c` | selected text |
+| `MAIN_BG` | `#0b0e14` | the page |
+| `SIDEBAR_BG` | `#10141c` | the rail |
+| `SECTION_BG` | `#161b26` | panels, sections |
+| `CARD_BG` | `#1f2533` | cards, and controls on a card |
+| `CARD_HOVER` | `#29303f` | hover |
+| `CONTROL_BG` | `#262d3c` | buttons, an off switch's track |
+| `FIELD_BG` | `#0d1017` | text fields and drop-downs (recessed) |
+| `EDGE` | `#66718a` | a field's edge, an off switch's outline |
+| `LINE` / `SEAM` | `#2a3141` / `#343c4e` | dividers / menu and tooltip edges |
+| `TEXT` | `#eef0f3` | body text |
+| `TEXT_MUTED` | `#aab2bf` | secondary text, a device's slider |
+| `TEXT_DIM` | `#8c95a5` | hints, group labels, placeholders |
+| `ACCENT` | `#4a62ec` | primary button, switch on, plain sliders, gauges, selected text |
+| `ON_ACCENT` | `#ffffff` | text and icons on `ACCENT` |
+| `ACCENT_EDGE` / `SELECT` | `#9aabff` | the accent as a line or icon; focus, trim handles, links |
+| `ACCENT_SOFT` | `#27336a` | the selected row, tab, segment or menu item |
+| `INK` | `#0b0e14` | text on a bright colour: an app's badge, a red button on hover |
 | `RECORDING` | `#ff5c6c` | the replay buffer while it records |
 | `DANGER` / `WARN` / `OK` | `#ff6b70` / `#e6b422` / `#3fb950` | meanings |
 
@@ -58,18 +58,17 @@ are unchanged.
 
 ### Measured contrast
 
-| Check | Before (Anneal) | Graphite |
+| Check | Before | Now |
 |---|---|---|
-| Body text on a card | 13.2 | 14.3 |
-| Secondary text on a card | 5.1 | 7.8 |
+| Body text on a card | 13.2 | 13.4 |
+| Secondary text on a card | 5.1 | 7.2 |
 | Hint text on a card | 2.8 (fails) | 5.1 |
-| Primary button label | 3.8 (fails) | 17.1 |
-| Field edge on its panel | 1.2 (fails) | 3.4 |
-| Switch "on" against a card | 4.2 | 14.3 |
-| Danger text on a button | 3.8 (fails) | 5.1 |
-| Text on a selected row | 9.5 | 10.0 |
+| Primary button label | 3.8 (fails) | 4.9 |
+| Field edge on its panel / card | 1.2 (fails) | 3.5 / 3.1 |
+| Switch "on" against a card | 4.2 | 3.1 |
+| Danger text on a button | 3.8 (fails) | 5.0 |
 
-## The layout (A's)
+## The layout
 
 - **Rail** 216 px wide (was 252). The filters sit on the rail itself, with no
   box behind them. The replay buffer card shows its state on top and a
@@ -85,6 +84,16 @@ are unchanged.
   game · people · age · size. An untagged clip says "Untagged", which turns
   into "Add tags" on hover. A click on that line edits the tags, and a click
   on the title renames the clip.
+
+## Tried and rejected
+
+- **Graphite** (item 24, undone in 25): neutral greys with black-and-white
+  controls, colour only for channels, games and recording. It passed every
+  contrast check, but looked "sad". Don't suggest a grey or colourless
+  palette again.
+- Not chosen on the canvas: an icon rail with Sonar as a vertical mixer
+  (B's layout), and a top bar with chip filters on a true-black ground with a
+  lime accent (C).
 
 ## Still open
 

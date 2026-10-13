@@ -56,7 +56,7 @@ def app_icon(icon_name: str, key: str, name: str, size: int = 22) -> QLabel:
             return badge
     badge.setText((name[:1] or "?").upper())
     badge.setStyleSheet(f"background: {theme.game_colour(key)}; border-radius: 6px; "
-                        f"color: {theme.ON_ACCENT}; font-weight: 700; font-size: 8pt;")
+                        f"color: {theme.INK}; font-weight: 700; font-size: 8pt;")
     return badge
 
 
@@ -337,6 +337,10 @@ class DeviceOrder(QListWidget):
                        Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self.placeholder)
 
 
+NEUTRAL_SLIDER = (f"QSlider::sub-page:horizontal {{ background: {theme.TEXT_MUTED}; "
+                  f"border-radius: 2px; }}")
+
+
 class DevicePanel(QFrame):
     """One kind of device in the device manager: the outputs, or the mics."""
 
@@ -379,6 +383,8 @@ class DevicePanel(QFrame):
         self.volume.setRange(0, 100)
         self.volume.setFixedWidth(96)
         self.volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # A device's volume, not a channel's: neutral, never the accent.
+        self.volume.setStyleSheet(NEUTRAL_SLIDER)
         self.volume.setToolTip("The device's own volume")
         self.volume.valueChanged.connect(self._on_volume)
         now.addWidget(self.volume)
@@ -413,6 +419,7 @@ class DevicePanel(QFrame):
             self.second_volume.setRange(0, 100)
             self.second_volume.setFixedWidth(96)
             self.second_volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self.second_volume.setStyleSheet(NEUTRAL_SLIDER)
             self.second_volume.setToolTip("The second device's own volume")
             self.second_volume.valueChanged.connect(self._on_second_volume)
             row.addWidget(self.second_volume)

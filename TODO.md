@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 25.
+and bugs get the next free number: 26.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -70,7 +70,7 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
-- 24: the new look on their desktop, in their font and display scale:
+- 24, 25: the new look on their desktop, in their font and display scale:
   toasts appear bottom-right and go after a few seconds; at 980 px wide the
   Sonar page doesn't scroll sideways.
 
@@ -215,15 +215,19 @@ call).
 
 **24. Design: colour, contrast and dead space.** Three directions were drawn
 (A · Anneal sharpened, B · Graphite, C · Showcase); the maintainer chose
-Graphite's colours with A's layout, and it is built. `temp/design/` holds the
-rules, the palette with its measured contrast, two mockups and what is still
-open; `theme.py` is the source of truth for the values. In short: neutral
-greys with black-and-white controls, colour only for channels, games,
-recording, meanings and a blue for focus; every text colour AA; a 216 px
-rail with no empty box; messages as toasts; Sonar's "New apps go to" in its
-header, channel cards as tall as their apps, two by two when four don't fit;
-library cards of two lines. Not built, each its own item if wanted: the
-monitor map's oversized frame, first run's empty space, drop-down arrows.
+Graphite's colours with A's layout, and it was built. The layout stays: a
+216 px rail with no empty box, messages as toasts, Sonar's "New apps go to"
+in its header, channel cards as tall as their apps (two by two when four
+don't fit), library cards of two lines. The colours went in 25.
+
+**25. Graphite undone.** It looked "sad" to the maintainer. The colours are
+Vertex's navy and periwinkle again, at AA contrast (A's palette), with the
+layout of 24 kept; a device's slider is neutral grey so the accent never
+marks an audio control. `temp/design/` holds the rules, the palette with
+its measured contrast, two mockups, what was rejected (don't suggest a grey
+palette again) and what is still open (the monitor map's oversized frame,
+first run's empty space, drop-down arrows); `theme.py` is the source of
+truth for the values.
 
 ---
 
@@ -234,7 +238,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–24, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–25, including the bugs 14,
 16 and 18.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and removing 1.x.

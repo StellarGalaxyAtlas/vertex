@@ -1,11 +1,11 @@
 """The palette, the channel colours and the application stylesheet.
 
-The palette, "Graphite", is neutral greys: the page, the rail, the cards and
-the controls are each a step lighter, and Vertex's own controls are black and
-white. Colour is kept for what means something: a channel, a game, recording,
-a warning, and blue for what is selected or has the keyboard focus. Every
-text colour reads at 4.5:1 or better on every ground it sits on, and a field's
-edge at 3:1 (the design is in temp/design/).
+The palette is the one Vertex 1.x called "Anneal", sharpened: a deep navy
+page with the rail, the cards and the controls each lifted a step off it,
+and a periwinkle accent. Every text colour reads at 4.5:1 or better on every
+ground it sits on, and a field's edge at 3:1. The accent never colours an
+audio control: a channel's slider takes the channel's colour, a device's
+slider is neutral. The design and its rules are in temp/design/.
 Every colour the UI uses is defined here, once.
 """
 
@@ -13,41 +13,42 @@ from __future__ import annotations
 
 from PySide6.QtGui import QColor, QFont, QPalette
 
-# --- Accent: the primary button, a switch that is on, a plain slider ---------
-ACCENT = "#f4f4f5"
-ACCENT_HOVER = "#dcdde0"
-ACCENT_EDGE = "#ffffff"
-ACCENT_SOFT = "#3b3c43"     # the selected row, tab or menu item
-ON_ACCENT = "#111214"       # text and icons on ACCENT
+# --- Accent -----------------------------------------------------------------
+ACCENT = "#4a62ec"
+ACCENT_HOVER = "#3d55dd"
+ACCENT_EDGE = "#9aabff"     # the accent as a line or an icon on a dark ground
+ACCENT_SOFT = "#27336a"     # the selected row, tab or menu item
+ON_ACCENT = "#ffffff"       # text and icons on ACCENT
+INK = "#0b0e14"             # text on a bright colour: an app's badge, a red button
 
-# Selected and focused: the keyboard focus, the trim handles, selected text.
-SELECT = "#8ab4ff"
-SELECTION = "#2f4c7c"
+# Selected and focused: the keyboard focus, the trim handles, links.
+SELECT = "#9aabff"
+SELECTION = ACCENT          # selected text
 
 # --- Grounds, darkest first -------------------------------------------------
-MAIN_BG = "#0f1012"         # the page behind everything
-SECTION_BG = "#191a1d"      # panels: above the page, under the cards
-SIDEBAR_BG = "#141517"      # the rail
-CARD_BG = "#222327"         # cards, and the controls that sit on one
-CARD_HOVER = "#303137"
-FIELD_BG = "#0b0c0d"        # text fields, recessed
-CONTROL_BG = "#2a2b30"      # buttons and empty thumbnails
-LINE = "#2e2f34"            # dividers
-SEAM = "#3a3b41"            # the edge of a menu or tooltip
-EDGE = "#6c6e76"            # the edge of a field: 3:1 on a panel
-PAGE_GLOW = "#16171a"       # the lit band across the top of a page
+MAIN_BG = "#0b0e14"         # the page behind everything
+SECTION_BG = "#161b26"      # panels: above the page, under the cards
+SIDEBAR_BG = "#10141c"      # the rail
+CARD_BG = "#1f2533"         # cards, and the controls that sit on one
+CARD_HOVER = "#29303f"
+FIELD_BG = "#0d1017"        # text fields, recessed
+CONTROL_BG = "#262d3c"      # buttons and empty thumbnails
+LINE = "#2a3141"            # dividers
+SEAM = "#343c4e"            # the edge of a menu or tooltip
+EDGE = "#66718a"            # the edge of a field: 3:1 on a panel or card
+PAGE_GLOW = "#151a26"       # the lit band across the top of a page
 
-CARD_TOP = "#25262a"
-CARD_BOTTOM = "#1e1f22"
-CARD_HOVER_TOP = "#2e2f34"
-CARD_HOVER_BOTTOM = "#26272b"
+CARD_TOP = "#212734"
+CARD_BOTTOM = "#191d27"
+CARD_HOVER_TOP = "#2a3040"
+CARD_HOVER_BOTTOM = "#1f2431"
 
-BADGE_BG = "#060607"
+BADGE_BG = "#06070a"
 
 # --- Text -------------------------------------------------------------------
-TEXT = "#f4f4f5"
-TEXT_MUTED = "#b6b7bd"
-TEXT_DIM = "#909299"
+TEXT = "#eef0f3"
+TEXT_MUTED = "#aab2bf"
+TEXT_DIM = "#8c95a5"
 
 # --- Meaning ----------------------------------------------------------------
 DANGER = "#ff6b70"
@@ -58,11 +59,11 @@ RECORDING = "#ff5c6c"
 
 # --- Editor -----------------------------------------------------------------
 VIDEO_BG = "#000000"
-TRIM_SHADE = "#060607"
+TRIM_SHADE = "#06080c"
 PLAYHEAD = "#ffffff"
 VIDEO_LANE = "#1f6f66"
 LANE_BG = CARD_BG
-WAVE_MUTED = "#45464d"
+WAVE_MUTED = "#3d4454"
 WAVE_SHADE = 0.40
 
 # A lane the mixer could name keeps its channel's colour however many tracks
@@ -122,7 +123,7 @@ def palette() -> QPalette:
         QPalette.ColorRole.Button: CONTROL_BG,
         QPalette.ColorRole.ButtonText: TEXT,
         QPalette.ColorRole.Highlight: SELECTION,
-        QPalette.ColorRole.HighlightedText: TEXT,
+        QPalette.ColorRole.HighlightedText: ON_ACCENT,
         QPalette.ColorRole.ToolTipBase: CARD_BG,
         QPalette.ColorRole.ToolTipText: TEXT,
         QPalette.ColorRole.Link: SELECT,
@@ -171,7 +172,7 @@ QPushButton[kind="primary"]:disabled {{
     background: {CONTROL_BG}; border-color: {CONTROL_BG}; color: {TEXT_DIM};
 }}
 QPushButton[kind="danger"] {{ color: {DANGER}; }}
-QPushButton[kind="danger"]:hover {{ background: {DANGER}; color: {ON_ACCENT}; }}
+QPushButton[kind="danger"]:hover {{ background: {DANGER}; color: {INK}; }}
 QPushButton[kind="danger"]:disabled {{ color: {TEXT_DIM}; background: {SECTION_BG}; }}
 QPushButton[kind="ghost"], QToolButton[kind="ghost"] {{ background: transparent; }}
 QPushButton[kind="ghost"]:hover, QToolButton[kind="ghost"]:hover {{ background: {CARD_HOVER}; }}
@@ -181,7 +182,7 @@ QToolButton:checked {{ background: {ACCENT_SOFT}; }}
 /* --- Fields -------------------------------------------------------------- */
 QLineEdit, QSpinBox, QDoubleSpinBox, QPlainTextEdit {{
     background: {FIELD_BG}; border: 1px solid {EDGE}; border-radius: {RADIUS_CONTROL}px;
-    padding: 7px 10px; selection-background-color: {SELECTION}; selection-color: {TEXT};
+    padding: 7px 10px; selection-background-color: {SELECTION}; selection-color: {ON_ACCENT};
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QPlainTextEdit:focus {{
     border-color: {SELECT};
