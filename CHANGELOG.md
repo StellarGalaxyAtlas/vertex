@@ -1,0 +1,38 @@
+# Changelog
+
+## 2.0.0 — unreleased
+
+A rewrite of the application around a GUI-free core, with recording and Sonar
+added.
+
+### Added
+- **Sonar**: virtual Game, Chat, Media and Aux outputs and a Vertex Mic input on
+  PipeWire/PulseAudio, with per-channel volume and mute, output and microphone
+  selection, and remembered per-app routing.
+- **Recording** through GPU Screen Recorder's replay buffer, with every recorder
+  option in Settings, a live command preview, `vertex save-clip` for desktop
+  hotkeys, and a tray menu.
+- Every Sonar channel recorded as its own consistently named track, so every new
+  clip has the same audio layout.
+- New clips can be tagged with the game playing on the Game channel.
+- `vertex` command with `save-clip`, `replay`, `sonar`, `doctor`,
+  `install-desktop` and `uninstall-desktop`; single-instance control socket.
+- Tray icon, start at login, and keep running when the window is closed.
+- Export sheet: 10 MB tier and copying the exported file to the clipboard.
+- Editor: frame stepping, Shift-seek, I/O and Home/End keys, full screen.
+- Track names read from MP4 boxes when the installed ffprobe can't see them.
+- Packaging with `pyproject.toml` (installable with pipx), tests and CI.
+
+### Changed
+- UI rebuilt on Qt 6 (PySide6). Runs natively on Wayland; video renders through
+  mpv's render API instead of an embedded X11 window.
+- The library grid is a virtualised list view; thumbnails load on demand.
+- `.mkv` clips are listed alongside `.mp4`.
+- Clips named `Replay_…` are no longer tagged *Desktop* automatically.
+- Library schema is versioned (`PRAGMA user_version`); 1.x libraries upgrade in
+  place.
+
+### Removed
+- The custom `install.py`, replaced by pipx and `vertex install-desktop`.
+- Adoption of configs and libraries from the app's pre-1.0 names.
+- CustomTkinter, Pillow and the X11 error-handler workaround.

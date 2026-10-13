@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/logo/light/vertex-stacked-light.png">
-  <img src="Assets/logo/dark/vertex-stacked-dark.png" alt="Vertex" width="200">
+  <source media="(prefers-color-scheme: dark)" srcset="src/vertex/assets/logo/light/vertex-stacked-light.png">
+  <img src="src/vertex/assets/logo/dark/vertex-stacked-dark.png" alt="Vertex" width="200">
 </picture>
 
 # **BIG DISCLAIMER AND SOME PERSONAL WORDS**
@@ -40,449 +40,363 @@ This intro section is written by me, the human behind it. The following showcase
 
 ---
 
-**A clip manager for Linux like Steelseries Moments**
+**Game clips and Sonar-style audio for Linux — a re-implementation of SteelSeries Moments and Sonar.**
 
-Vertex aims to make your gaming clips searchable, editable and easily shareable with your friends.
+Record the last minute of a game with one key, find any clip in a library of
+hundreds, trim it and turn your mic down without touching the game, and send it
+to your friends at a size Discord accepts.
 
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/01-library-all.png" alt="The Vertex clip library" width="900">
+  <img src="docs/screenshots/library.png" alt="The Vertex clip library" width="900">
 </p>
 
-> **About the screenshots:** 
->
-> Every screenshot on this page comes from a fake library —
-> fake clip titles, fake names, and generated footage that is blurred
-> at the source.
+> **About the screenshots:** every screenshot here comes from a synthetic demo
+> library — made-up titles and names, and generated test-pattern footage
+> instead of real gameplay.
 
 ---
 
 ## Contents
 
-- [Why it exists](#why-it-exists)
+- [What it does](#what-it-does)
+- [Sonar: the same tracks in every clip](#sonar-the-same-tracks-in-every-clip)
+- [Recording](#recording)
 - [The library](#the-library)
-- [Finding a clip](#finding-a-clip)
-- [Tagging](#tagging)
-- [The clip editor](#the-clip-editor)
-- [Trimming](#trimming)
-- [Exporting](#exporting)
-- [Settings](#settings)
-- [First run](#first-run)
-- [Bringing an existing library in](#bringing-an-existing-library-in)
+- [The editor](#the-editor)
+- [Trimming and exporting](#trimming-and-exporting)
+- [Settings and first run](#settings-and-first-run)
 - [Install](#install)
+- [Command line](#command-line)
+- [Your data](#your-data)
 - [How it is put together](#how-it-is-put-together)
 - [Thanks](#thanks)
 - [License](#license)
 
 ---
 
-## Why it exists
+## What it does
 
-**There is no quick way to edit a multi-track clip on Linux.**
+| | |
+|---|---|
+| **Sonar** | Virtual **Game**, **Chat**, **Media** and **Aux** outputs plus a shared **Vertex Mic**, created on PipeWire. Send each app to a channel once and it stays there; every channel has its own volume and mute. |
+| **Recording** | Runs [GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/)'s replay buffer. One hotkey saves the last minute. With Sonar on, every channel is recorded as its own, consistently named track. |
+| **Library** | Every clip in your clips folder, with thumbnails, hover previews, games, people, favourites and search. Fast with hundreds of clips. |
+| **Editor** | Plays the clip with a live slider per audio track, a waveform per lane, and trim handles. |
+| **Sharing** | Lossless trims, and exports sized to fit 10, 25, 50 or 100 MB — then copy the file and paste it straight into a chat. |
 
-Recording each source to its own audio track is the right thing to do, and GPU
-Screen Recorder does it well — game, voice chat and microphone all land in the
-same `.mp4` as separate streams. Everything downstream is where it falls apart.
-Most players pick one track and ignore the rest. Force one to play them all at
-once and they arrive welded together: you cannot pull your microphone down while
-leaving game and chat where they are, which is the one adjustment nearly every
-clip needs before anybody else should have to hear it.
+One rule holds throughout: **your recordings are never modified.** Titles,
+tags, favourites, trim points and per-track volumes live in a small SQLite
+library beside them. Vertex has no network access, no telemetry and no account.
 
-Video editors can obviously do it. They also want a project, an import, a
-timeline and an export dialog — minutes of setup for a thirty-second clip you
-wanted to send to a friend now.
+---
 
-So Vertex is built around exactly that gap:
+## Sonar: the same tracks in every clip
 
-> **Open a clip, see every audio track as its own labelled lane with a live
-> volume slider, trim it, send it.**
+<p align="center">
+  <img src="docs/screenshots/sonar.png" alt="The Sonar page" width="900">
+</p>
 
-The sliders apply as you drag them, at the frame you are already on — no
-re-render, no preview pass.
+SteelSeries Sonar gives every kind of sound its own virtual device. Vertex does
+the same with stock PipeWire/PulseAudio modules:
 
-One rule holds throughout: **your recordings are never modified.** Every edit —
-title, tags, favourites, trim points, per-track volumes — lives in a SQLite file
-beside them, not in the files themselves.
+| Channel | Device apps see | What goes there | Recorded as |
+|---|---|---|---|
+| Game | **Vertex Game** | Games — and anything without a rule | `Vertex Game` |
+| Chat | **Vertex Chat** | Discord, TeamSpeak, Mumble | `Vertex Chat` |
+| Media | **Vertex Media** | Spotify, the browser | `Vertex Media` |
+| Aux | **Vertex Aux** | Anything you want kept apart | `Vertex Aux` (off by default) |
+| Mic | **Vertex Mic** | Your microphone, as one input every chat app can pick | `Vertex Mic` |
 
-- Scanning is read-only. Exports are written to a separate folder you choose.
-- A trim either writes a new file, or moves the original to your desktop Trash
-  and puts the trimmed one in its place — your choice, asked every time.
-- Every path is yours to set at first run, XDG-aligned by default.
-- No network, no telemetry, no account. It reads your disk and talks to ffmpeg
-  and mpv. That is the whole surface.
+- **Routing.** The Applications list shows everything that is playing. Pick a
+  channel for an app and the choice is remembered: Vertex moves it there
+  whenever it starts playing again.
+- **Volumes.** Each channel's fader and mute apply on the way to your headset,
+  and follow changes made in your desktop's own sound settings.
+- **Your headset.** All channels play through the output you choose. Unplug it
+  and they move to another device; plug it back in and they return.
+- **Vertex Mic.** Pick it as the input in Discord and friends. It is fed by
+  whichever real microphone you choose in Vertex, so swapping mics never means
+  touching every app's settings again.
+- **In your clips.** Every channel ticked "In clips" becomes its own audio
+  track in every recording, titled after the channel. So every clip has the
+  same layout — Game, Chat, Media, Mic — and the editor labels the lanes
+  without guessing.
+- **Leaving no mess.** While Sonar runs, the default channel and Vertex Mic
+  become the system defaults; turning Sonar off (or quitting Vertex) removes
+  every device and gives the system its previous defaults back. Running it
+  twice, or after a crash, never creates duplicates.
+
+---
+
+## Recording
+
+<p align="center">
+  <img src="docs/screenshots/settings-recording.png" alt="Recording settings" width="900">
+</p>
+
+Vertex uses **GPU Screen Recorder** as its recording backend: it keeps the last
+_N_ seconds of your screen in memory (or on disk) and writes them to a clip on
+demand, encoded on the GPU so games don't notice. Every recorder option —
+capture target, frame rate, codec, quality, bitrate mode, replay length, audio
+codec, cursor, and more — is a setting in Vertex, and the Recording page shows
+the exact command it will run.
+
+- **Saving a clip.** Bind `vertex save-clip` to a key in your desktop's
+  keyboard settings (see [Install](#bind-a-key-to-save-clips)), use **Save
+  clip** in the tray menu, or the save button in the rail.
+  `vertex save-clip --last 30` saves only the end of the buffer.
+- **New clips appear by themselves** in the library, and a notification says so.
+- **Automatic game tags.** With Sonar on, a saved clip is tagged with the game
+  playing on the Game channel — when exactly one app is playing there.
+- **Tracks.** With Sonar on, one track per recorded channel. Without it, the
+  tracks you list (default: desktop audio and microphone, separately).
+  GPU Screen Recorder 5.15 or newer titles tracks by channel ("Vertex Game");
+  older versions title them by device ("Monitor of Vertex Game"), which Vertex
+  recognises just the same.
+
+Vertex doesn't need to be the recorder: clips from SteelSeries Moments, older
+GPU Screen Recorder setups or anything else dropped into the clips folder are
+listed and edited just the same.
 
 ---
 
 ## The library
 
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/library-game.png" alt="Filtered to one game"></td>
+<td width="50%"><img src="docs/screenshots/library-search.png" alt="Search"></td>
+</tr>
+<tr>
+<td align="center"><b>By game.</b> Every game with its colour and clip count; people get a list of their own.</td>
+<td align="center"><b>Search</b> covers game, people, title and file name — every word has to match.</td>
+</tr>
+</table>
+
+Each card shows a thumbnail (one second in, to skip black intro frames), the
+duration, the game and people, the title and the clip's age. Rest the pointer
+on a card and it plays a few frames spanning the whole clip. Click the title to
+rename it, the tag line to tag it, the star to favourite it; right-click for
+the rest (show in folder, copy path, delete to the Trash).
+
+Clips named the SteelSeries Moments way (`Apex-Legends__2026-08-11__22-14-07.mp4`)
+are tagged with their game automatically, and spellings are merged so
+`THE FINALS` joins an existing `The Finals`. Sort by date or game, either way.
+
+The grid only paints the cards on screen, so a library of hundreds of clips
+scrolls as smoothly as one of ten.
+
+---
+
+## The editor
+
 <p align="center">
-  <img src="docs/screenshots/01-library-all.png" alt="Clip grid with the rail" width="900">
+  <img src="docs/screenshots/editor.png" alt="The clip editor" width="900">
 </p>
 
-**Each card shows:**
+Click a clip and the editor takes the window. Every audio track gets a lane
+with its waveform and a live volume slider (0–150%) — pull the mic down and you
+hear it immediately, at the frame you are on. Tracks are named by their Sonar
+channel; clips from before Sonar are matched against the capture devices you
+name under *Settings → Older clips*, or by their device names.
 
-| | |
+| Key | |
 |---|---|
-| **Thumbnail** | A frame pulled with ffmpeg one second in, so you don't get a black intro frame. Cached as a JPEG, keyed on the file's size and mtime — re-record over a name and the thumbnail regenerates by itself. |
-| **Hover preview** | Rest on a card for a moment and it plays back twenty frames spanning the whole clip, at about 3 fps. Enough to recognise the moment without opening it. |
-| **Duration badge** | Probed in the background and remembered in the library, so it is there instantly the next time. |
-| **Favourite star** | One click, top of the star list in the rail. |
-| **Game and people** | The tag line, click to edit. |
-| **Title** | Click to rename. The name is library metadata; the file on disk keeps its recorder-given name. |
-| **Age and size** | "2 days ago" while a clip is recent, a real date once it is older than a month — because "412 days ago" is a number to decode, not a date. |
+| Space / click the video | Play / pause |
+| ← / → | Seek 5 s (Shift: 1 s) |
+| , / . | Step one frame |
+| I / O | Set In / Out at the playhead |
+| Home / End | Jump to In / Out |
+| Double-click the video | Full screen |
+| Esc | Back to the library |
 
-The grid only builds the cards that are actually on screen and recycles them as
-you scroll, so a library of hundreds of clips opens as fast as one of ten.
-
-**Per-clip actions**
-
-<p align="center">
-  <img src="docs/screenshots/09-card-menu.png" alt="The per-clip context menu" width="900">
-</p>
-
-At the foot of the rail, the **disk gauge** splits the drive your clips are on
-into what the clips take, what everything else takes, and what's free — and it
-updates after a delete or a trim without a full rescan.
+Volumes, mutes and trim points are saved per clip as you make them.
 
 ---
 
-## Finding a clip
+## Trimming and exporting
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/02-library-game.png" alt="Filtered to one game"></td>
-<td width="50%"><img src="docs/screenshots/03-library-favorites.png" alt="Favorites"></td>
-</tr>
-<tr>
-<td align="center"><b>By game.</b> Every game in the library, each with its own colour and its clip count.</td>
-<td align="center"><b>Favourites.</b> Everything you starred, in one row of the rail.</td>
+<td width="50%"><img src="docs/screenshots/export.png" alt="The export sheet"></td>
+<td width="50%"><img src="docs/screenshots/tags.png" alt="Tagging a clip"></td>
 </tr>
 </table>
 
-<p align="center">
-  <img src="docs/screenshots/04-library-search.png" alt="Search" width="900">
-</p>
+**Trim** cuts the clip to the selection without re-encoding: every audio track
+survives at full quality, so a trimmed clip can be edited again. Save it as a
+copy, or replace the original (which goes to your Trash; the clip keeps its
+name, tags and mix).
 
-**Search** covers the game, the people, the title and the file name at once, and
-filters the clips already scanned — it never goes back to disk, so it keeps up
-with typing. **People** get their own list in the rail, so "every clip Marco is
-in" is one click.
+**Export** mixes the tracks down at your volumes and writes a shareable MP4.
+*Original* copies the video untouched; the capped sizes re-encode with two-pass
+x264, stepping the resolution down until the bitrate looks good. When it's done,
+**Copy file** puts the file on the clipboard — paste it into Discord or any
+upload field.
 
-**Sort** is one control with a direction: pick Date or Game, click again to flip
-it. Only the active button carries an arrow, so the one arrow on screen always
-describes the order the grid is really in. Untagged clips stay at the end either
-way.
-
----
-
-## Tagging
-
-<p align="center">
-  <img src="docs/screenshots/10-tag-dialog.png" alt="The tag dialog" width="520">
-</p>
-
-A clip has one **game** and any number of **people**. Both fields suggest tags
-you have already used, so you don't end up with `Elden Ring` and `elden ring` as
-two separate entries — matching ignores case and punctuation, but still requires
-the words to match, so `Overwatch 2` stays distinct from `Overwatch`.
-
-Most clips never need this. Vertex reads the game straight out of the file name
-for recorders that put it there (`Apex-Legends__2026-08-11__22-14-07.mp4` →
-*Apex Legends*), strips the ® and ™ that recorders keep, and tags GPU Screen
-Recorder's fixed `Replay_…` naming as **Desktop**. A name that matches neither
-convention is left untagged rather than guessed at — a wrong tag is worse than
-no tag.
+Trims and exports are written under a hidden name and moved into place when
+finished, so a cancelled job leaves nothing behind.
 
 ---
 
-## The clip editor
-
-<p align="center">
-  <img src="docs/screenshots/06-editor-playing.png" alt="The clip editor" width="900">
-</p>
-
-Click a thumbnail and the editor takes over the window. The rail steps aside and
-the video gets the space.
-
-### Playback
-
-Proper playback, not a slideshow of decoded frames. Space or clicking the video plays and pauses, ← and
-→ seek five seconds, Escape goes back to the grid. 
-
-### The mixer
-
-**The sliders are live.** Pull your microphone down and you hear it straight
-away, at the frame you are already on — no re-render, no waiting for a preview.
-You set the mix by ear, while the clip plays.
-
-**Tracks are named, not numbered.** Tell Vertex once in Settings which devices
-record your game, your chat and your mic, and from then on every clip labels its
-lanes properly.
-
-Clips recorded before you set that up are matched on the device name instead. If
-the tracks genuinely can't be told apart they all fall back to numbers.
-
-Each lane draws its own waveform, so you can see where somebody was actually
-talking and scrub straight to it.
-
-Volumes and mutes are remembered per clip and saved to a database. Files will remain untouched.
-
----
-
-## Trimming
-
-<p align="center">
-  <img src="docs/screenshots/07-editor-trim.png" alt="Trim markers on the timeline" width="900">
-</p>
-
-Drag the handles, or set In and Out at the playhead. Everything outside the
-selection greys out across all lanes at once, and the estimate on the transport
-bar follows the selection as you move it.
-
-**Trim writes without re-encoding.** The cut starts at the nearest keyframe
-before your In marker, and every audio track survives, so a trimmed clip can be
-opened and edited again exactly like the original. You are asked what to do with
-the result:
-
-- **Save Trim as Copy** — writes `<name> (trimmed).mp4` beside the original and
-  leaves the original alone.
-- **Save Trim and Delete Clip** — keeps the original's name and sends the
-  original to your desktop Trash (via `Send2Trash`; without it installed, that
-  option deletes permanently and says so).
-
-Either way the work is staged next to its destination under a hidden name and
-only moved into place once it finishes — a cancelled trim leaves nothing behind.
-
----
-
-## Exporting
-
-<p align="center">
-  <img src="docs/screenshots/08-export.png" alt="The export window" width="560">
-</p>
-
-Pick how big the file is allowed to be. **Original** leaves the picture untouched
-and only re-encodes the audio mix. The capped tiers re-encode to fit whatever
-limit you are up against.
-
-A size cap is hit rather than aimed at: the budget sets the bitrate, the
-resolution steps down a ladder (1440 → 1080 → … → 360) until that bitrate is
-enough to still look decent, and the encode is two-pass — single-pass overshoots
-badly on high-motion gameplay. Progress is live and the export can be cancelled;
-nothing appears in your Exports folder until it finishes.
-
----
-
-## Settings
-
-
+## Settings and first run
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/11-settings-folders.png" alt="Folders"></td>
-<td width="50%"><img src="docs/screenshots/12-settings-devices.png" alt="Audio devices"></td>
-</tr>
-<tr>
-<td align="center"><b>Folders.</b> Where clips are scanned from and exports are written to, plus the XDG data/state/cache dirs behind a disclosure.</td>
-<td align="center"><b>Audio devices.</b> Name your game, chat and mic capture devices once, and every clip's mixer labels itself correctly. Read live from PipeWire/PulseAudio, typed by hand if neither answers.</td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/13-settings-look.png" alt="Appearance"></td>
-<td width="50%"><img src="docs/screenshots/14-settings-import.png" alt="Import"></td>
-</tr>
-<tr>
-<td align="center"><b>Appearance.</b> The logo ships in two inks — light artwork for dark desktops, dark for light ones — and you pick, because the app can't see the desktop it's sitting on.</td>
-<td align="center"><b>Import.</b> Pull an existing recording library in, and tag what's already there.</td>
+<td width="50%"><img src="docs/screenshots/first-run.png" alt="First-run setup"></td>
+<td width="50%"><img src="docs/screenshots/settings.png" alt="Settings"></td>
 </tr>
 </table>
 
-If a folder a saved config names has since been renamed or unplugged, Vertex
-catches it **before** it opens the library.
+First run asks for your clips folder (found by role, so `Vidéos` or `Видео`
+work), offers to set up Sonar and the replay buffer, and points at the import
+tools. Settings covers folders, running in the tray, starting at login, the
+logo ink for your panel, every recorder option, and importing: copy an
+existing library (a Moments folder, say) into the clips folder, then review
+the games read from its file names before anything is written.
 
-Instead you get a dialog and a setup wizard pre-seeded with your existing settings.
-
----
-
-## First run
-
-<p align="center">
-  <img src="docs/screenshots/00-first-run.png" alt="First-run setup" width="900">
-</p>
-
-Pick the folder where your game recordings are located.
-Non-English desktops (`Vidéos`, `Видео`) should resolve correctly. 
-
-The export folder is created upon finishing the first run experience.
-
----
-
-## Bringing an existing library in
-
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/15-copy-dialog.png" alt="Copy clips"></td>
-<td width="50%"><img src="docs/screenshots/16-import-dialog.png" alt="Tag import"></td>
-</tr>
-<tr>
-<td align="center"><b>Copy clips in.</b> Points at a folder you already have and copies the <code>.mp4</code>s into your clips folder on a worker thread, with progress. Originals are only read; a name that already exists is skipped rather than overwritten.</td>
-<td align="center"><b>Review the tags.</b> Every game derived from the file names is shown as an editable field before anything is written, so a recorder's <code>THE FINALS</code> can be pointed at the <code>The Finals</code> you already use.</td>
-</tr>
-</table>
-
-Nothing is written from the review dialog until you confirm — cancelling really
-does leave no trace.
+If a configured folder has been renamed or its drive isn't mounted, Vertex says
+so before opening the library instead of quietly starting empty.
 
 ---
 
 ## Install
 
+> **Note:** Vertex is tested on Ubuntu 24.04 (CI) and has been developed
+> against PipeWire 1.0. The Arch and Fedora package names below are
+> believed to be right but haven't been verified. If one is wrong for your
+> distro, please open an issue or a PR.
 
-> ## ⚠️ These instructions are AI-generated and unverified
->
-> **Read every command before you run it. Do not paste them in blindly.**
->
-> **IF YOU DO NOT KNOW OR DO NOT UNDERSTAND WHAT DOES COMMANDS DO, DO NOT RUN THEM BLINDLY**
->
-> This project was ENTIRELY built with an AI assistant, and this section is no exception.
-> The commands below were written from the model's own recollection of how these
-> distros package things — **they have not been tested on Debian, Ubuntu or
-> Fedora.** Package names drift between releases, `libmpv1` and `libmpv2` split
-> depending on how old your distro is, and Tkinter is bundled with Python on some
-> distros and a separate package on others.
->
-> Every one of these lines is a `sudo` command touching your system packages.
-> Check them against your own distro's package repository first. If something
-> here is wrong, please open an issue or a PR with the correct line for your
-> distro — that is genuinely the fastest way for this to get fixed.
->
-> The same caution applies to the rest of this README: it describes the code as
-> the assistant read it, not as anyone has independently audited it.
+### 1. System packages
 
-**System packages** (not pip — install these with your distro's package manager):
-
-| Package | Why |
+| Needed | Why |
 |---|---|
-| `tk` | Tkinter, the toolkit the UI is built on |
-| `ffmpeg` | thumbnails, waveforms, trimming, exporting (needs `ffmpeg` **and** `ffprobe`) |
-| `mpv` / `libmpv` | video playback and the live audio mixing |
-
-<details>
-<summary>Distro one-liners</summary>
+| Python 3.10+ and `pipx` | Vertex itself |
+| `ffmpeg` (with `ffprobe`) | thumbnails, waveforms, trims, exports |
+| `libmpv` | playback and live mixing |
+| `pactl` (PipeWire's pulse server or PulseAudio) | Sonar |
+| [GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/) 5.0+ | recording (optional — the library works without it) |
 
 ```bash
 # Arch
-sudo pacman -S tk ffmpeg mpv
+sudo pacman -S python-pipx ffmpeg mpv libpulse
+yay -S gpu-screen-recorder            # AUR
 
-# Debian / Ubuntu  (older releases ship libmpv1 instead of libmpv2)
-sudo apt install python3-tk ffmpeg libmpv2
+# Debian / Ubuntu
+sudo apt install pipx ffmpeg libmpv2 pulseaudio-utils libxcb-cursor0
 
-# Fedora
-sudo dnf install python3-tkinter ffmpeg mpv-libs
+# Fedora (ffmpeg with x264 from RPM Fusion)
+sudo dnf install pipx ffmpeg mpv-libs pulseaudio-utils
 ```
-</details>
 
-**Then:**
+GPU Screen Recorder is also available as a Flatpak
+(`com.dec05eba.gpu_screen_recorder`); set its command under
+*Settings → Recording → Command* to
+`flatpak run --command=gpu-screen-recorder com.dec05eba.gpu_screen_recorder`.
+The native package is the tested setup. If whole-screen capture fails on
+Wayland, set *Capture* to *Portal*.
+
+### 2. Vertex
 
 ```bash
-git clone https://github.com/StellarGalaxyAtlas/vertex.git
-cd vertex
-python install.py
+pipx install git+https://github.com/StellarGalaxyAtlas/vertex.git
+vertex doctor                         # checks everything above
+vertex install-desktop --autostart    # start menu entry, icon, start at login
 ```
 
-Python 3.10 or newer. No `pip install` step and no virtualenv to activate — the
-installer builds the app one of its own.
+`vertex uninstall-desktop` removes the start-menu entry and autostart again;
+`pipx uninstall vertex-clips` removes the program. Neither touches your clips,
+library or settings.
 
-**The clone is only the source.** `install.py` copies the app to a permanent
-home, so once it has run the checkout can be moved, updated or deleted without
-breaking anything:
+### Bind a key to save clips
 
-```
-~/.local/lib/vertex/app/     the program — main.py, src/, Assets/
-~/.local/lib/vertex/venv/    its dependencies, kept across upgrades
-~/.local/bin/vertex          the launcher, so `vertex` also works in a terminal
-```
+Desktops bind global shortcuts to commands, so add one that runs
+`vertex save-clip`:
 
-The start-menu entry points at that copy, not at your clone. To upgrade, pull
-and run `python install.py` again: only `app/` is replaced, and it is swapped in
-whole, so an interrupted upgrade leaves the version you had running.
+- **KDE Plasma:** System Settings → Keyboard → Shortcuts → Add New → Command or Script.
+- **GNOME:** Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts → +.
+- **Hyprland / Sway:** `bind = , F9, exec, vertex save-clip` / `bindsym F9 exec vertex save-clip`.
 
-### Nothing of yours is written to
+### Upgrading from Vertex 1.x
 
-The installer touches the program and the desktop entry. **Your config,
-library, thumbnail cache, clips and exports are read to report on them and
-otherwise left exactly where they are** — including a library still sitting
-under one of the app's older directory names, which is found, reported, and not
-migrated. Before it copies anything it prints what it found:
+Your config, library, thumbnails and clips carry over as they are. Remove the
+old program first (it lived in its own folder), then install as above:
 
-```
-Your data
-  read to report on it here; never written, moved or overwritten
-  ✓ config   ~/.config/vertex/config.json
-  ✓ library  ~/.local/share/vertex/library.db · 136.0 KB
-  ✓ clip     ~/Videos/Game Recordings
+```bash
+cp ~/.local/share/vertex/library.db ~/library.db.backup   # just in case
+rm -rf ~/.local/lib/vertex ~/.local/bin/vertex            # the old program only
+pipx install git+https://github.com/StellarGalaxyAtlas/vertex.git
+vertex install-desktop
 ```
 
-It refuses outright to install into a folder that holds your files, and
-`--uninstall` removes only the program, printing the `rm` lines for the rest
-rather than running them.
-
-### What else it checks
-
-Requirements are verified against **the interpreter that will actually run the
-app**, so a missing `libmpv` is reported before the first launch rather than as
-a traceback during it. The distro packages are checked first, before anything is
-copied, since no amount of installing will conjure those up.
-
-```
-python install.py --check           only report on the requirements
-python install.py --prefix DIR      install somewhere other than ~/.local/lib
-python install.py --icon light|dark which logo ink the desktop icon uses
-python install.py --recreate-venv   rebuild the app's virtualenv from scratch
-python install.py --no-venv         use the python running the installer instead
-python install.py --reset-config    re-run first-run setup on next launch
-python install.py --uninstall       remove the program, keeping all your data
-```
-
-`Send2Trash` is optional. With it, deleting a clip sends it to your desktop
-Trash; without it, deletes are permanent and the UI tells you so.
+The library is upgraded in place on first start (it gains two indexes; nothing
+is rewritten). One behaviour changed: clips named `Replay_…` are no longer
+tagged *Desktop* automatically, because GPU Screen Recorder is now the game
+recorder. Tags already on your clips stay as they are.
 
 <details>
-<summary>Running from the checkout instead, for development</summary>
-
-Nothing stops you running the source directly — the installed copy is a copy,
-not a lock:
+<summary>Running from a checkout, for development</summary>
 
 ```bash
+git clone https://github.com/StellarGalaxyAtlas/vertex.git && cd vertex
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python main.py
+pip install -e ".[dev]"
+vertex                 # or: python -m vertex
+pytest                 # see CONTRIBUTING.md
+```
+</details>
+
+---
+
+## Command line
+
+```
+vertex                        open Vertex, or bring the running one forward
+vertex --background           start hidden in the tray (what autostart uses)
+vertex save-clip [--last N]   save the replay buffer (N = 10/30/60/300/600/1800)
+vertex replay start|stop|toggle|status
+vertex sonar up|down|status   works without the app running, too
+vertex doctor                 check dependencies and settings
+vertex install-desktop [--icon light|dark] [--autostart|--no-autostart]
+vertex uninstall-desktop
 ```
 
-Note that the start-menu entry still launches the *installed* copy, so run
-`python install.py` when you want your edits to land there too.
-</details>
+---
+
+## Your data
+
+| What | Where |
+|---|---|
+| Settings | `~/.config/vertex/config.json` |
+| Library (tags, titles, trims, mixes) | `~/.local/share/vertex/library.db` |
+| Sonar state (the defaults to restore) | `~/.local/state/vertex/sonar.json` |
+| Thumbnails and previews | `~/.cache/vertex/` — safe to delete |
+| Control socket | `$XDG_RUNTIME_DIR/vertex/control.sock` |
+
+All of these follow the `XDG_*` variables and can be moved in Settings.
 
 ---
 
 ## How it is put together
 
-Short explanation of each file 
+Python, split into packages by concern; only `vertex.ui` imports Qt.
 
-| File | What's in it |
+| Package | What's in it |
 |---|---|
-| `core.py` | Config, path derivation, clip scanning, file-name parsing, storage stats. **No GUI imports** — runnable and testable on its own. |
-| `database.py` | The SQLite library: titles, tags, favourites, trim points, per-track volumes. Clips are keyed by file name. |
-| `export.py` | ffprobe/ffmpeg: probing, waveform peaks, the size→bitrate→resolution maths, two-pass command construction. Also GUI-free. |
-| `gui.py` | The rail, the clip grid, cards, settings, first-run setup, the app shell. |
-| `player.py` | The editor view: embedded mpv, the mixer, waveform lanes, the timeline, trimming. |
-| `export_window.py` | The export sheet around `export.py`. |
-| `widgets.py` | Shared widgets — modals, tag fields with suggestions, tooltips, editable labels. |
-| `theme.py` | Every colour and radius in the app, in one place. |
-| `paint.py` | Pillow-rendered gradients, drop shadows and card surfaces — the three things Tk cannot draw. |
-| `thumbnails.py` | Thumbnail, preview and duration generation on a background pool, cached on disk. |
-| `xguard.py` | Keeps libmpv's X error-handler reset from taking the whole process down when a video output is torn down. |
-| `install.py` | Requirement checks, the copy into `~/.local/lib/vertex` and its virtualenv, XDG directories, desktop entry and icons. Never writes to anything the user made. |
+| `vertex.core` | Clips on disk: scanning, file-name parsing, importing, storage |
+| `vertex.library` | The SQLite library, with versioned schema migrations |
+| `vertex.media` | ffmpeg/ffprobe: probing, mixing graphs, waveforms, trims, exports, thumbnails, track labelling |
+| `vertex.audio` | Sonar: the channel definitions, a `pactl` wrapper, and the device/routing manager |
+| `vertex.recorder` | GPU Screen Recorder: capability detection, command building, the replay-buffer process |
+| `vertex.ui` | The PySide6 application |
+| `vertex.cli`, `ipc`, `desktop`, `doctor` | The `vertex` command, its control socket, desktop integration, checks |
+
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains the design: threading,
+how Sonar is built and kept consistent, how recording and track naming work,
+and the data formats. [CONTRIBUTING.md](CONTRIBUTING.md) covers development and
+tests.
 
 ---
 
@@ -492,6 +406,11 @@ Some more personal words from the human behind the scene. This "project" would h
 
 ### Runtime
 
+- **[GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/)** by dec05eba ·
+  *GPL-3.0-only*
+  The recording backend: the replay buffer, GPU encoding, and one track per
+  audio device. Vertex runs it as a separate program and talks to it through
+  its command line and signals.
 - **[mpv](https://mpv.io/)** — [github.com/mpv-player/mpv](https://github.com/mpv-player/mpv) ·
   *GPLv2+ / LGPLv2.1+*
   The video playback, and the reason the multi-track mixer is possible at all:
@@ -499,50 +418,40 @@ Some more personal words from the human behind the scene. This "project" would h
   you can swap out mid-playback.
 - **[FFmpeg](https://ffmpeg.org/)** — [git.ffmpeg.org](https://git.ffmpeg.org/ffmpeg.git) ·
   *LGPLv2.1+ / GPLv2+*
-  Thumbnails, hover previews, waveform peaks, keyframe-accurate trims and every
-  export. `ffprobe` is what tells the app what is inside a clip in the first place.
+  Thumbnails, hover previews, waveform peaks, lossless trims and every export.
+  `ffprobe` is what tells the app what is inside a clip in the first place.
 - **[x264](https://www.videolan.org/developers/x264.html)** — *GPLv2+*
   The two-pass encoder behind every size-capped export.
+- **[PipeWire](https://pipewire.org/)** and **[PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/)** —
+  the null sinks, loopbacks and remapped sources Sonar is built from, and
+  `pactl`, which Vertex drives them with.
+- **[Qt](https://www.qt.io/)** — *LGPLv3*
+  The toolkit underneath everything on screen.
 - **[SQLite](https://sqlite.org/)** — *public domain*
   The whole library. Every edit you make is a row in one file you can copy,
   back up, or open with any tool you like.
-- **[Tcl/Tk](https://www.tcl-lang.org/)** — *BSD-style*
-  The toolkit underneath everything on screen.
 - **[Python](https://www.python.org/)** — *PSF License*
 
 ### Python packages
 
-- **[CustomTkinter](https://customtkinter.tomschimansky.com/)** by Tom Schimansky —
-  [github.com/TomSchimansky/CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) ·
-  *MIT*
-  Every widget in this app is one of these. It is the reason a Tkinter program
-  can look like the screenshots above.
+- **[PySide6](https://doc.qt.io/qtforpython-6/)** (Qt for Python) — *LGPLv3*
+  The official Qt bindings every window and widget is built with.
 - **[python-mpv](https://github.com/jaseg/python-mpv)** by jaseg · *GPLv2+ / LGPLv2.1+*
-  The ctypes binding that puts libmpv inside a Tk window and exposes its
-  property API. `xguard.py` exists because of a sharp edge in that integration,
-  not because of anything wrong with the binding.
-- **[Pillow](https://python-pillow.github.io/)** —
-  [github.com/python-pillow/Pillow](https://github.com/python-pillow/Pillow) ·
-  *MIT-CMU*
-  Thumbnail scaling, and all of `paint.py`: the gradients, drop shadows and
-  composited card surfaces that Tk has no way to draw itself.
+  The ctypes binding to libmpv, including the render API that draws video
+  inside the Qt window.
 - **[Send2Trash](https://github.com/arsenetar/send2trash)** by Virgil Dupras and
   Andrew Senetar · *BSD-3-Clause*
   Deletes that go to the desktop Trash instead of into the void.
-- **[darkdetect](https://github.com/albertosottile/darkdetect)** by Alberto Sottile ·
-  *BSD-3-Clause* — pulled in by CustomTkinter.
 
 ### Prior art
 
-- **SteelSeries Moments** and **[GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/)**
-  by dec05eba — the recorders whose output this reads. The file-naming
-  conventions Vertex parses are theirs, and the export sheet's shape is
-  modelled on Moments' share sheet.
-- **[freedesktop.org](https://www.freedesktop.org/)** — the XDG Base Directory
-  and Desktop Entry specifications, which are why the app knows where to put its
-  files and how to land in your start menu.
-- **[PipeWire](https://pipewire.org/)** and **[PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/)** —
-  where the list of capture devices in Settings comes from.
+- **SteelSeries Moments** and **SteelSeries Sonar** — the apps Vertex
+  re-implements for Linux. The file-naming convention Vertex parses is
+  Moments', the export sheet is modelled on its share sheet, and the channel
+  layout is Sonar's.
+- **[freedesktop.org](https://www.freedesktop.org/)** — the XDG Base Directory,
+  Desktop Entry and Trash specifications, which are why the app knows where to
+  put its files, how to land in your start menu, and where deleted clips go.
 
 Game titles shown in the screenshots are trademarks of their respective owners
 and appear only as example data in a synthetic demo library.

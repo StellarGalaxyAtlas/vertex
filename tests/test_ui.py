@@ -53,8 +53,9 @@ def fake_audio(monkeypatch):
 def library_dir(tmp_path, sample_clip):
     clips = tmp_path / "clips"
     clips.mkdir()
-    shutil.copy(sample_clip, clips / os.path.basename(sample_clip))
-    shutil.copy(sample_clip, clips / "Replay_2026-01-02_03-04-05.mp4")
+    # copy2 keeps the file's date, so the clips don't count as still being written.
+    shutil.copy2(sample_clip, clips / os.path.basename(sample_clip))
+    shutil.copy2(sample_clip, clips / "Replay_2026-01-02_03-04-05.mp4")
     return clips
 
 

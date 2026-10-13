@@ -7,7 +7,7 @@ from collections import OrderedDict
 from PySide6.QtCore import QAbstractListModel, QSize, Qt
 from PySide6.QtGui import QImage, QPixmap
 
-from vertex.ui.library.state import LibraryState
+from vertex.ui.library.state import LibraryState, is_settling
 
 ClipRole = Qt.ItemDataRole.UserRole + 1
 
@@ -22,10 +22,10 @@ class ClipModel(QAbstractListModel):
         super().__init__(parent)
         self.state = state
         self.context = context
-        self._thumbs: OrderedDict[str, QPixmap] = OrderedDict()
-        self._missing: set[str] = set()      # generation failed; don't retry this session
+        self._thumbs: OrderedDict[tuple, QPixmap] = OrderedDict()
+        self._missing: set[tuple] = set()    # generation failed for this version of a file
         self._asked: set[str] = set()
-        self._durations_asked: set[str] = set()
+        self._durations_asked: set[tuple] = set()
         self._rows: dict[str, int] = {}
         self.preview_row = -1
         self.preview_frames: list[QPixmap] = []
@@ -93,55 +93,65 @@ class ClipModel(QAbstractListModel):
 
     # --- Images ----------------------------------------------------------------
 
+    @staticmethod
+    def _key(clip) -> tuple:
+        """Images belong to a version of a file: a clip re-recorded or still
+        being written under the same name gets new ones."""
+        return (clip.path, clip.size_bytes, clip.mtime)
+
     def thumbnail(self, clip) -> QPixmap | None:
         """The clip's thumbnail if it is loaded; asks for it otherwise."""
         if not clip.path:
             return None
-        cached = self._thumbs.get(clip.path)
+        key = self._key(clip)
+        cached = self._thumbs.get(key)
         if cached is not None:
-            self._thumbs.move_to_end(clip.path)
+            self._thumbs.move_to_end(key)
             return cached
         thumbs = self.context.thumbs
-        if thumbs is None or clip.path in self._missing:
+        if thumbs is None or key in self._missing or is_settling(clip):
             return None
         on_disk = thumbs.cached_thumbnail(clip.path)
         if on_disk:
-            return self._load(clip.path, on_disk)
+            return self._load(key, on_disk)
         if clip.path not in self._asked:
             self._asked.add(clip.path)
             thumbs.request_thumbnail(clip.path)
         return None
 
-    def _load(self, clip_path: str, image_path: str) -> QPixmap | None:
+    def _load(self, key: tuple, image_path: str) -> QPixmap | None:
         image = QImage(image_path)
         if image.isNull():
-            self._missing.add(clip_path)
+            self._missing.add(key)
             return None
         pixmap = QPixmap.fromImage(image.scaled(
             THUMB_SIZE, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
             Qt.TransformationMode.SmoothTransformation))
-        self._thumbs[clip_path] = pixmap
+        self._thumbs[key] = pixmap
         while len(self._thumbs) > THUMB_CACHE:
             self._thumbs.popitem(last=False)
         return pixmap
 
     def _thumbnail_ready(self, clip_path: str, image_path: str) -> None:
         self._asked.discard(clip_path)
-        if not image_path:
-            self._missing.add(clip_path)
-            return
-        self._load(clip_path, image_path)
         row = self.row_of_path(clip_path)
-        if row is not None:
-            self.dataChanged.emit(self.index(row), self.index(row))
+        if row is None:
+            return
+        key = self._key(self.state.visible[row])
+        if not image_path:
+            self._missing.add(key)
+            return
+        self._load(key, image_path)
+        self.dataChanged.emit(self.index(row), self.index(row))
 
     def duration(self, clip) -> float | None:
         seconds = self.state.durations.get(clip.name)
         if seconds:
             return seconds
         thumbs = self.context.thumbs
-        if clip.path and thumbs is not None and clip.path not in self._durations_asked:
-            self._durations_asked.add(clip.path)
+        if clip.path and thumbs is not None and not is_settling(clip) and \
+                self._key(clip) not in self._durations_asked:
+            self._durations_asked.add(self._key(clip))
             thumbs.request_duration(clip.path)
         return None
 

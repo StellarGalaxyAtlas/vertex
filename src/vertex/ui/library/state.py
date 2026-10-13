@@ -9,14 +9,23 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 from dataclasses import dataclass
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from vertex import fmt
 from vertex.core import clips as clips_mod
 from vertex.core import storage
 from vertex.core.clips import Clip
+
+# A file modified this recently may still be being written by a recorder:
+# probing it now would store a truncated duration for good.
+SETTLE_SECONDS = 6.0
+
+
+def is_settling(clip: Clip) -> bool:
+    return time.time() - clip.mtime < SETTLE_SECONDS
 
 
 @dataclass
@@ -50,6 +59,8 @@ class LibraryState(QObject):
         self.sort_key = "date"
         self.descending = True
         self.error = ""
+        self._settle_timer = QTimer(self, singleShot=True)
+        self._settle_timer.timeout.connect(self.reload)
 
     @property
     def library(self):
@@ -72,6 +83,10 @@ class LibraryState(QObject):
         self._refilter()
         self.counts_changed.emit()
         self.refresh_storage()
+        if any(is_settling(clip) for clip in self.all_clips):
+            # Look again once they have stopped growing; the folder watcher
+            # only reports a file appearing, not it being finished.
+            self._settle_timer.start(int(SETTLE_SECONDS * 1000) + 500)
         if tagged:
             self.status.emit(f"Tagged {fmt.plural(tagged, 'clip')} from their file names", "info")
 
