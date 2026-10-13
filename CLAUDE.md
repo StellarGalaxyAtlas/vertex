@@ -87,11 +87,16 @@ layout and behaviour, but never commit them: they show SteelSeries' own UI,
 and this repository is public. Vertex should be inspired by them, not copy
 them.
 
-## The maintainer's test install
+## The maintainer's installation
 
-They test from a separate copy in `~/vertex-test`, next to their 1.x install.
-After each push, give them the update command:
+They run one installation, installed with pipx from the working branch as
+the README describes (`~/vertex-test` and 1.x are gone). After each push,
+give them the update command with the branch you pushed to. It works in
+fish:
 
 ```bash
-cd ~/vertex-test/src && git pull && ~/vertex-test/venv/bin/pip install --no-cache-dir .
+pipx install --force "git+https://github.com/StellarGalaxyAtlas/vertex.git@claude/loving-curie-0t4h2o"
 ```
+
+A running Vertex keeps the old code until it is quit from the tray and opened
+again: say so. Once the work is merged into `main`, the `@…` part goes.

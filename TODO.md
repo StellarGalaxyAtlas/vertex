@@ -54,10 +54,11 @@ behind:
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
-- Removing 1.x (steps given 2026-10-13: delete `~/.local/lib/vertex` and the
-  old `~/.local/bin/vertex`, link `~/vertex-test/venv/bin/vertex` there, run
-  `vertex install-desktop`). Then update CLAUDE.md's test-install section,
-  which still says "next to their 1.x install".
+- Switching to one installation (steps given 2026-10-13): quit Vertex, back
+  up the library, remove 1.x (`~/.local/lib/vertex`, the old
+  `~/.local/bin/vertex`) and `~/vertex-test`, `pipx install` from the
+  working branch, then `vertex install-desktop --autostart` so the start
+  menu and autostart entries point at it. CLAUDE.md gives the update command.
 - 1: Qt and GPU Screen Recorder name the monitors alike; if not, a monitor
   is drawn to the side of the map instead of in place.
 - 13: the commands against real audio (`vertex state`, `volume`, `mute`,
@@ -241,7 +242,7 @@ committed.
 **Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–25, including the bugs 14,
 16 and 18.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
-maintainer: the checks listed above, and removing 1.x.
+maintainer: the checks listed above, and switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
 a channel's gear with its shortcut fields; a channel's device list; the
