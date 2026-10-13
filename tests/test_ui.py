@@ -8,6 +8,7 @@ import ctypes.util
 import os
 import shutil
 import time
+from concurrent import futures
 
 import pytest
 
@@ -76,6 +77,9 @@ def window(qapp, tmp_path, library_dir, fake_audio):
     win.resize(1280, 800)
     win.show()
     yield win
+    # It reads HOME as it goes, and the next test has another one: finishing
+    # after this test would leave half an entry here and half there.
+    futures.wait([win.start_menu_job], timeout=30)
     win._quitting = True
     win._close_editor()
     context.shutdown()
@@ -609,6 +613,7 @@ def test_first_run_writes_config(qapp, tmp_path, fake_audio):
     assert saved.clip_path == str(tmp_path / "clips")
     assert saved.is_complete()
     assert os.path.isdir(tmp_path / "clips")
+    futures.wait([win.start_menu_job], timeout=30)    # see the window fixture
     win._quitting = True
     context.shutdown()
 

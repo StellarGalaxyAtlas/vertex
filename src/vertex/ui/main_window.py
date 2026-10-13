@@ -177,7 +177,8 @@ class MainWindow(QMainWindow):
             context.recorder.start()
         # Into the start menu on the first run; never again once removed.
         variant = context.config.logo_variant
-        workers.run(lambda: desktop.ensure(variant), None, lambda _exc: None)
+        self.start_menu_job = workers.run(lambda: desktop.ensure(variant), None,
+                                          lambda _exc: None)
 
     def _settings_saved(self, folders_changed: bool) -> None:
         self.setWindowIcon(icons.app_icon(self.context.config.logo_variant))
