@@ -194,11 +194,15 @@ Play the sound Sonar manages through two audio devices at the same time.
 **Settings › Older clips**
 Remove the page, without breaking how old clips' tracks are named.
 Asked 2026-10-13.
-- Done: the tab went. The three devices it named are 1.x's own config keys
-  (`game_device`, `chat_device`, `mic_device`, the devices 1.x recorded), so
-  they stay in the config file and the editor still reads them for clips
-  without Vertex track titles; they are just no longer shown. Clips recorded
-  through Sonar, or titled by role (GSR 5.15+), never needed them.
+- Done: the tab went, and so did the three config keys it set
+  (`game_device`, `chat_device`, `mic_device`, kept from 1.x). Maintainer's
+  call: nobody went from 1.x to 2.0, so the published software shouldn't
+  carry that migration. Clips recorded through Sonar, or titled by role (GSR
+  5.15+), never needed them; other clips are named from their device names,
+  and numbered if that fails. A config that still has the keys loads; they
+  go on the next save.
+- Asked: whether the other code that only serves upgrades goes too (the 1.x
+  library upgrade and thumbnail clean-up, the retired Aux channel).
 
 **11.**
 **Sonar › UI**
@@ -242,7 +246,8 @@ doesn't describe the monitor map, the primary-monitor fallback, the
 "Restarting…" state, `recorder/presets.py`, the start-menu marker or the
 recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
-*Settings → Older clips*, which is gone (item 15).
+*Settings → Older clips*, which is gone, and ARCHITECTURE still says 1.x
+config files load unchanged (item 15).
 
 **Progress.** Done: 1–8 (8a, 8b), 10, 15 and the bug 14. Next: 11, unless the
 maintainer says otherwise (9 is on hold).

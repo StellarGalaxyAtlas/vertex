@@ -4,26 +4,25 @@ import os
 from vertex import config, paths
 
 
-def test_v1_config_loads_unchanged(tmp_path):
-    """A config.json written by Vertex 1.x keeps every setting it had."""
-    legacy = {
+def test_unknown_keys_are_ignored_and_dropped(tmp_path):
+    """Settings Vertex no longer has don't stop a config from loading, and go
+    on the next save; missing sections fall back to their defaults."""
+    data = {
         "clip_path": "~/Videos/Game Recordings",
-        "data_path": "~/.local/share/vertex",
-        "state_path": "",
         "export_path": "~/Videos/Game Recordings/Vertex/Exports",
-        "cache_path": "",
-        "game_device": "Virtual_Game_Sink.monitor",
-        "chat_device": "",
-        "mic_device": "alsa_input.usb-mic",
         "logo_variant": "dark",
+        "game_device": "Virtual_Game_Sink.monitor",
     }
     path = tmp_path / "config.json"
-    path.write_text(json.dumps(legacy))
+    path.write_text(json.dumps(data))
     loaded = config.Config.load(path)
-    for key, value in legacy.items():
-        assert getattr(loaded, key) == value
+    assert loaded.clip_path == data["clip_path"]
+    assert loaded.export_path == data["export_path"]
+    assert loaded.logo_variant == "dark"
     assert loaded.sonar.enabled is False
     assert loaded.recorder.replay_seconds == 60
+    loaded.save(path)
+    assert "game_device" not in json.loads(path.read_text())
 
 
 def test_round_trip_with_new_sections(tmp_path):

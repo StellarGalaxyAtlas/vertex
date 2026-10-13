@@ -3,7 +3,6 @@ import threading
 
 import pytest
 
-from vertex.config import Config
 from vertex.media import export, mixing, probe, thumbnails, tracks, trim, waveform
 from vertex.media.ffmpeg import Cancelled, MediaError
 from vertex.media.probe import AudioTrack
@@ -75,10 +74,9 @@ class TestTrackLabels:
         labelled = tracks.label_tracks(_tracks("device:a.monitor|device:my_mic", "Vertex Game"))
         assert [t.label for t in labelled] == ["Audio 1", "Audio 2"]
 
-    def test_legacy_configured_devices(self):
-        config = Config(game_device="Virtual_Game_Sink", mic_device="alsa_input.usb-Blue")
+    def test_devices_named_by_what_they_carry(self):
         labelled = tracks.label_tracks(_tracks(
-            "device:alsa_input.usb-Blue_Yeti", "device:Virtual_Game_Sink.monitor"), config)
+            "device:alsa_input.usb-Blue_Yeti", "device:Virtual_Game_Sink.monitor"))
         assert [t.label for t in labelled] == ["Game", "Microphone"]
 
     def test_moments_handlers(self):

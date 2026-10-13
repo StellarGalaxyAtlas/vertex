@@ -1,8 +1,7 @@
 """The user's settings, stored as JSON in ~/.config/vertex/config.json.
 
-Config files written by Vertex 1.x load unchanged: every key they used is still
-read from the same place, and the sections added since — `recorder` and
-`sonar` — fall back to their defaults when absent.
+Keys Vertex doesn't know are ignored (and dropped on the next save), and
+anything missing or of the wrong type falls back to its default.
 """
 
 from __future__ import annotations
@@ -141,13 +140,6 @@ class Config:
     state_path: str = ""
     export_path: str = ""
     cache_path: str = ""
-
-    # The devices Vertex 1.x recorded. Kept (no longer shown in Settings) so
-    # the editor names the tracks of those clips by what recorded them rather
-    # than guess from the names.
-    game_device: str = ""
-    chat_device: str = ""
-    mic_device: str = ""
 
     logo_variant: str = paths.DEFAULT_LOGO_VARIANT
     close_to_tray: bool = True

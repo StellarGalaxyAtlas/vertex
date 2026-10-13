@@ -51,7 +51,7 @@ class EditorView(QWidget):
             self.info = probe.probe(clip.path)
         except MediaError:
             self.info = probe.MediaInfo()
-        self.tracks = track_labels.label_tracks(self.info.tracks, context.config)
+        self.tracks = track_labels.label_tracks(self.info.tracks)
         self.duration = self.info.duration
         self.trim_start, self.trim_end = 0.0, self.duration
         self.position = 0.0
