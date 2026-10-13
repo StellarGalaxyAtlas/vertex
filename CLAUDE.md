@@ -66,8 +66,9 @@ where the work stands. New requests and bugs get the next free number in
   standing up). `xvfb-run -a python tools/first_run_screenshot.py /tmp/shot`
   shoots every step of first-run setup, with and without a recorder.
 - Workflow agents with `isolation: "worktree"` get a worktree made from the
-  repository's default branch (the old 1.x code), not the working branch. Have
-  them `git reset --hard` to the working branch's commit first.
+  repository's default branch (`main`, an early 2.0 merged long before the
+  work on this branch), not the working branch. Have them `git reset --hard`
+  to the working branch's commit first.
 
 ## Reference screenshots
 
