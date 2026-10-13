@@ -13,7 +13,7 @@ from vertex.ui import icons
 
 class Tray(QSystemTrayIcon):
     def __init__(self, window, context):
-        super().__init__(icons.app_icon(context.config.logo_variant), window)
+        super().__init__(icons.app_icon(icons.desktop_ink()), window)
         self.window = window
         self.context = context
         self.setToolTip(APP_NAME)
@@ -82,5 +82,4 @@ class Tray(QSystemTrayIcon):
             self.showMessage(title, notice.body, QSystemTrayIcon.MessageIcon.Warning,
                              8000 if level == "error" else 6000)
         else:
-            self.showMessage(title, notice.body,
-                             icons.app_icon(self.context.config.logo_variant), 4000)
+            self.showMessage(title, notice.body, icons.app_icon(icons.desktop_ink()), 4000)

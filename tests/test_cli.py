@@ -99,7 +99,11 @@ def test_entry_is_added_once_and_stays_removed(isolated_home):
     # Just "Vertex" in every menu: no generic name for menus to show instead.
     assert "\nName=Vertex\n" in entry and "GenericName" not in entry
     assert desktop.ensure("light") == []
-    assert any(p.suffix == ".svg" for p in desktop.update_icons("dark"))
+    # The desktop turned light: the icon is redrawn in the dark ink, once.
+    assert desktop.icon_ink() == "light"
+    assert any(p.suffix == ".svg" for p in desktop.ensure("dark"))
+    assert desktop.icon_ink() == "dark"
+    assert desktop.ensure("dark") == []
     desktop.uninstall()
     assert desktop.ensure("light") == []
     assert not desktop.desktop_file().exists()

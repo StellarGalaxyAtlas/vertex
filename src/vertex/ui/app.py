@@ -93,7 +93,7 @@ def _create_app() -> QApplication:
 def run(background: bool = False) -> int:
     app = _create_app()
     config = Config.load_or_default()
-    app.setWindowIcon(icons.app_icon(config.logo_variant))
+    app.setWindowIcon(icons.app_icon(icons.desktop_ink()))
     context = Context(config)
     window = MainWindow(context)
 

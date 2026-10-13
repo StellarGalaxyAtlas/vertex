@@ -18,11 +18,11 @@ def test_unknown_keys_are_ignored_and_dropped(tmp_path):
     loaded = config.Config.load(path)
     assert loaded.clip_path == data["clip_path"]
     assert loaded.export_path == data["export_path"]
-    assert loaded.logo_variant == "dark"
     assert loaded.sonar.enabled is False
     assert loaded.recorder.replay_seconds == 60
     loaded.save(path)
-    assert "game_device" not in json.loads(path.read_text())
+    saved = json.loads(path.read_text())
+    assert "game_device" not in saved and "logo_variant" not in saved
 
 
 def test_round_trip_with_new_sections(tmp_path):
@@ -43,7 +43,6 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps({
         "clip_path": 5,
-        "logo_variant": "neon",
         "rail_collapsed": ["games", 3],
         "card_width": 5000,
         "recorder": {"fps": "sixty", "cursor": "yes", "replay_seconds": 30},
@@ -55,7 +54,6 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     }))
     loaded = config.Config.load(path)
     assert loaded.clip_path == ""
-    assert loaded.logo_variant == paths.DEFAULT_LOGO_VARIANT
     assert loaded.rail_collapsed == ["games"]
     assert loaded.card_width == config.CARD_WIDTH_RANGE[1]
     assert loaded.recorder.fps == 60 and loaded.recorder.cursor is True

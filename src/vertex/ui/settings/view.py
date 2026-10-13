@@ -202,13 +202,7 @@ class SettingsView(QWidget):
         self.autostart = Toggle()
         behaviour.add_row("Start Vertex when you log in", self.autostart,
                           "Starts hidden in the tray.")
-
-        look = Section("Appearance", "The logo ships in two inks; the app cannot see the "
-                                     "panel its icon sits on, so you pick.")
-        self.logo = Segmented([("light", "Light ink (dark panels)"),
-                               ("dark", "Dark ink (light panels)")], "light")
-        look.add(self.logo)
-        self.pages["general"] = scroll_page(folders, behaviour, look)
+        self.pages["general"] = scroll_page(folders, behaviour)
         self.stack.addWidget(self.pages["general"])
 
     def _build_recording(self) -> None:
@@ -407,7 +401,6 @@ class SettingsView(QWidget):
         self.cache_path.set_value(config.cache_path)
         self.close_to_tray.setChecked(config.close_to_tray)
         self.autostart.setChecked(desktop.autostart_enabled())
-        self.logo.set_current(config.logo_variant)
         self.notifications.load(config.notifications)
 
         rec = config.recorder
@@ -443,7 +436,6 @@ class SettingsView(QWidget):
         config.state_path = self.state_path.value()
         config.cache_path = self.cache_path.value()
         config.close_to_tray = self.close_to_tray.isChecked()
-        config.logo_variant = self.logo.current
         config.notifications = self.notifications.choices()
         rec = config.recorder
         rec.command = self.command.text().strip() or "gpu-screen-recorder"
@@ -499,12 +491,8 @@ class SettingsView(QWidget):
         folders_changed = any(getattr(new, key) != getattr(old, key) for key in
                               ("clip_path", "data_path", "cache_path", "state_path"))
         recorder_changed = new.recorder != old.recorder
-        if new.logo_variant != old.logo_variant:
-            # The start-menu icon follows the logo ink.
-            variant = new.logo_variant
-            workers.run(lambda: desktop.update_icons(variant), None, lambda _exc: None)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
-                    "close_to_tray", "logo_variant", "notifications"):
+                    "close_to_tray", "notifications"):
             setattr(old, key, getattr(new, key))
         old.recorder = new.recorder
         old.ensure_dirs()

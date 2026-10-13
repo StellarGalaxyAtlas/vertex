@@ -146,7 +146,6 @@ class Config:
     export_path: str = ""
     cache_path: str = ""
 
-    logo_variant: str = paths.DEFAULT_LOGO_VARIANT
     close_to_tray: bool = True
     rail_collapsed: list[str] = field(default_factory=list)   # folded groups: games, people
     card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
@@ -225,7 +224,6 @@ class Config:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
         config = _fill(cls(), data, skip=("recorder", "sonar"))
-        config.logo_variant = paths.logo_variant(config.logo_variant)
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])

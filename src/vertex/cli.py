@@ -132,9 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         return doctor.report(doctor.run_checks())
     if args.command == "install-desktop":
         from vertex import desktop, paths
-        from vertex.config import Config
 
-        variant = args.icon or Config.load_or_default().logo_variant
+        variant = args.icon or paths.DEFAULT_LOGO_VARIANT
         for path in desktop.install(variant, args.autostart):
             print(f"  wrote {paths.tilde(str(path))}")
         return 0

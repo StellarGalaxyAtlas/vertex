@@ -370,7 +370,7 @@ with a screenshot of 22 Overwatch clips.
   made again as they are shown and the old ones pruned. In memory they load
   at the cards' size, within the same budget as before (about 120 MB).
 
-**20.**
+**20.** ✅ Done
 **Settings › General › Appearance**
 "The appearance radio button does nothing." It switches the logo ink of the
 window, tray and start-menu icon, and of the rail's logo, where dark ink is
@@ -378,6 +378,14 @@ dark on dark. Asked 2026-10-13.
 - Decided (2026-10-13): the choice goes. The window, tray and start-menu
   icon follow the desktop's light/dark setting by themselves; the rail's
   logo is always the light ink, as the app is always dark.
+- Done: the Appearance section and the `logo_variant` setting are gone (a
+  config that still has it loads; it goes on the next save). The window and
+  tray icon take the ink from Qt's colour scheme (dark ink on a light
+  desktop, light otherwise) and change with it while Vertex runs. The
+  start-menu icon is redrawn when the desktop's look no longer matches the
+  ink it was drawn in, which the start-menu marker now records; `vertex
+  install-desktop --icon` still picks one by hand. The rail and first-run
+  logos are always light.
 
 ---
 
@@ -397,10 +405,12 @@ recorded tracks no longer depending on Sonar (it still says channels are
 ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 *Settings → Older clips*, which is gone; README still lists Aux and has an
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
-configs, the 1.x library upgrade and an Aux lane (item 15).
+configs, the 1.x library upgrade and an Aux lane (item 15). README still
+mentions picking the logo ink for your panel, and ARCHITECTURE lists
+`logo_variant` among the config keys (item 20).
 
-**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17, 19 and the bugs 14, 16 and 18. Next:
-20, then 13 (the maintainer's order, 2026-10-13; 9 is on hold). Open question for 13:
+**Progress.** Done: 1–8 (8a, 8b), 10–12, 15, 17, 19, 20 and the bugs 14, 16 and 18.
+Next: 13 (the maintainer's order, 2026-10-13; 9 is on hold). Open question for 13:
 may `docs/CONTROL.md` be written, given the freeze on `docs/`? The
 notification stream (`Context.notified`) is ready for 13's subscription.
 The maintainer is collecting reference screenshots of SteelSeries GG on

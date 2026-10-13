@@ -6,7 +6,7 @@ import copy
 import os
 
 from PySide6.QtCore import QFileSystemWatcher, QTimer
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -41,7 +41,9 @@ class MainWindow(QMainWindow):
         self._told_about_tray = False
         self._services_started = False
         self.setWindowTitle(APP_NAME)
-        self.setWindowIcon(icons.app_icon(context.config.logo_variant))
+        self.setWindowIcon(icons.app_icon(icons.desktop_ink()))
+        # The icon on the desktop's panels follows its light or dark look.
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._ink_changed)
         self.resize(1280, 820)
         self.setMinimumSize(980, 640)
 
@@ -297,15 +299,22 @@ class MainWindow(QMainWindow):
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:
             context.recorder.start()
         # Into the start menu on the first run; never again once removed.
-        variant = context.config.logo_variant
-        self.start_menu_job = workers.run(lambda: desktop.ensure(variant), None,
+        ink = icons.desktop_ink()
+        self.start_menu_job = workers.run(lambda: desktop.ensure(ink), None,
+                                          lambda _exc: None)
+
+    def _ink_changed(self, *_args) -> None:
+        """The desktop turned light or dark: the icons on it follow."""
+        ink = icons.desktop_ink()
+        icon = icons.app_icon(ink)
+        QApplication.instance().setWindowIcon(icon)
+        self.setWindowIcon(icon)
+        if self.tray is not None:
+            self.tray.setIcon(icon)
+        self.start_menu_job = workers.run(lambda: desktop.ensure(ink), None,
                                           lambda _exc: None)
 
     def _settings_saved(self, folders_changed: bool) -> None:
-        self.setWindowIcon(icons.app_icon(self.context.config.logo_variant))
-        self.rail.set_logo(self.context.config.logo_variant)
-        if self.tray is not None:
-            self.tray.setIcon(icons.app_icon(self.context.config.logo_variant))
         if folders_changed:
             self.context.open_library()
             self.state.reload()

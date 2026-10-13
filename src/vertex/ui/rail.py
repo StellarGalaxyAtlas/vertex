@@ -213,7 +213,7 @@ class Rail(QFrame):
 
         self.logo = QLabel()
         self.logo.setFixedHeight(46)
-        self.set_logo(context.config.logo_variant)
+        self._show_logo()
         layout.addWidget(self.logo)
         layout.addSpacing(4)
 
@@ -269,8 +269,9 @@ class Rail(QFrame):
         state.storage_changed.connect(self.gauge.set_stats)
         self.rebuild_facets()
 
-    def set_logo(self, variant: str) -> None:
-        pixmap = QPixmap(str(paths.wordmark_path(variant)))
+    def _show_logo(self) -> None:
+        # The light ink: the rail is dark whatever the desktop looks like.
+        pixmap = QPixmap(str(paths.wordmark_path("light")))
         if not pixmap.isNull():
             ratio = self.devicePixelRatioF() or 1.0
             scaled = pixmap.scaledToHeight(int(46 * ratio),

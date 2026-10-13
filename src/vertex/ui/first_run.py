@@ -51,7 +51,7 @@ class FirstRunView(QWidget):
         outer.addStretch(1)
 
         mark = QLabel()
-        pixmap = QPixmap(str(paths.mark_path(self.config.logo_variant)))
+        pixmap = QPixmap(str(paths.mark_path("light")))     # on Vertex's dark page
         if not pixmap.isNull():
             ratio = self.devicePixelRatioF() or 1.0
             scaled = pixmap.scaledToHeight(int(72 * ratio),

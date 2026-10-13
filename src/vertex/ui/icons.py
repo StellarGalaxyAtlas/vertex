@@ -11,7 +11,7 @@ import math
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 from vertex import paths
 from vertex.ui import theme
@@ -439,6 +439,13 @@ def channel_icon_name(channel_id: str) -> str:
 @lru_cache(maxsize=4)
 def app_icon(variant: str = paths.DEFAULT_LOGO_VARIANT) -> QIcon:
     return QIcon(str(paths.mark_path(variant)))
+
+
+def desktop_ink() -> str:
+    """The logo ink for the desktop's panels and menus: dark on a light
+    desktop, light otherwise (dark, or the desktop doesn't say)."""
+    scheme = QGuiApplication.styleHints().colorScheme()
+    return "dark" if scheme == Qt.ColorScheme.Light else "light"
 
 
 def names() -> list[str]:

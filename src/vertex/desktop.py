@@ -6,7 +6,8 @@ recorded by name, so `vertex uninstall-desktop` removes exactly what
 
 Vertex adds its start-menu entry by itself the first time it runs, and only
 then: a marker remembers it was done, so an entry the user removed stays
-removed.
+removed. The marker also holds the logo ink the icon was drawn in, so the
+icon is redrawn only when the desktop turns from dark to light or back.
 """
 
 from __future__ import annotations
@@ -39,8 +40,17 @@ def autostart_file() -> Path:
 
 
 def added_marker() -> Path:
-    """Present once the entry has been added, by Vertex or by the user."""
+    """Present once the entry has been added, by Vertex or by the user. Holds
+    the ink its icon was last drawn in."""
     return paths.state_home() / APP_ID / "start-menu-entry-added"
+
+
+def icon_ink() -> str:
+    """The logo ink the start-menu icon was last drawn in ("" if unknown)."""
+    try:
+        return added_marker().read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 def launch_command() -> list[str]:
@@ -142,24 +152,29 @@ def install(variant: str = paths.DEFAULT_LOGO_VARIANT, autostart: bool | None = 
         set_autostart(autostart, argv)
         if autostart:
             written.append(autostart_file())
-    _write(added_marker(), "")
+    _write(added_marker(), paths.logo_variant(variant))
     refresh_caches()
     return written
 
 
 def ensure(variant: str = paths.DEFAULT_LOGO_VARIANT) -> list[Path]:
     """Add the entry if it never has been: on the first run, so Vertex is in
-    the start menu without asking. Returns what was written, usually nothing."""
-    if added_marker().exists():
-        return []
-    return install(variant)
+    the start menu without asking. After that, redraw its icon if it is in
+    another ink. Returns what was written, usually nothing."""
+    if not added_marker().exists():
+        return install(variant)
+    if icon_ink() != paths.logo_variant(variant):
+        return update_icons(variant)
+    return []
 
 
 def update_icons(variant: str) -> list[Path]:
     """Redraw the start-menu icon in another logo ink, if there is an entry."""
     if not desktop_file().exists():
         return []
-    written = install_icons(paths.logo_variant(variant))
+    variant = paths.logo_variant(variant)
+    written = install_icons(variant)
+    _write(added_marker(), variant)
     refresh_caches()
     return written
 

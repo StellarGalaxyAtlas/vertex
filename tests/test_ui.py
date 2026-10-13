@@ -224,6 +224,20 @@ def test_first_run_adds_the_start_menu_entry(qapp, window):
     assert desktop.added_marker().exists()
 
 
+def test_icons_follow_the_desktop_turning_light_or_dark(qapp, window, monkeypatch):
+    from vertex import desktop
+    from vertex.ui import icons
+
+    futures.wait([window.start_menu_job], timeout=30)
+    assert desktop.icon_ink() == icons.desktop_ink()
+    other = "dark" if icons.desktop_ink() == "light" else "light"
+    monkeypatch.setattr(icons, "desktop_ink", lambda: other)
+    window._ink_changed()
+    futures.wait([window.start_menu_job], timeout=30)
+    assert desktop.icon_ink() == other
+    assert not hasattr(window.settings_view, "logo")       # no choice left to make
+
+
 def test_pages_and_settings_save(qapp, window):
     for page in ("sonar", "settings", "library"):
         window.navigate(page)
