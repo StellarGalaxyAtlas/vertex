@@ -143,6 +143,7 @@ class Config:
 
     logo_variant: str = paths.DEFAULT_LOGO_VARIANT
     close_to_tray: bool = True
+    rail_collapsed: list[str] = field(default_factory=list)   # folded groups: games, people
 
     recorder: RecorderConfig = field(default_factory=RecorderConfig)
     sonar: SonarConfig = field(default_factory=SonarConfig)

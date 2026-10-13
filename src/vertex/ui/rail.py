@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractButton,
     QButtonGroup,
@@ -82,6 +82,58 @@ class FacetRow(QAbstractButton):
                                   int(rect.width() - x - count_w - 10))
         p.drawText(QRectF(x, 0, rect.width() - x, rect.height()),
                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, name)
+
+
+class GroupHeader(QAbstractButton):
+    """A group's heading in the rail: its name, how many entries it has, and a
+    chevron. Clicking it folds the group away or brings it back."""
+
+    HEIGHT = 26
+
+    def __init__(self, text: str, count: int, parent=None):
+        super().__init__(parent)
+        self.setObjectName("Group")          # the group heading's font
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setText(text.upper())
+        self.count = str(count)
+        self.expanded = True
+        self.setFixedHeight(self.HEIGHT)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self._noun = text.lower()
+
+    def sizeHint(self):
+        return QSize(200, self.HEIGHT)
+
+    def set_expanded(self, expanded: bool) -> None:
+        self.expanded = expanded
+        self.setToolTip(f"Hide the {self._noun}" if expanded else f"Show the {self._noun}")
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect())
+        hover = self.underMouse()
+        if hover:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(theme.CARD_BG))
+            p.drawRoundedRect(rect, 8, 8)
+        colour = QColor(theme.TEXT_MUTED if hover else theme.TEXT_DIM)
+        chevron = 14
+        p.drawPixmap(int(rect.width()) - chevron - 8, (self.height() - chevron) // 2,
+                     icons.pixmap("chevron-down" if self.expanded else "chevron-right",
+                                  colour.name(), chevron))
+        x = 10.0
+        p.setPen(colour)
+        p.drawText(QRectF(x, 0, rect.width() - x, rect.height()),
+                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.text())
+        x += QFontMetrics(self.font()).horizontalAdvance(self.text()) + 8
+        count_font = self.font()
+        count_font.setWeight(QFont.Weight.Normal)
+        p.setFont(count_font)
+        p.drawText(QRectF(x, 0, rect.width() - x, rect.height()),
+                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.count)
 
 
 class RecorderCard(QFrame):
@@ -206,6 +258,7 @@ class Rail(QFrame):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         layout.addWidget(scroll, 1)
         self.facet_group = QButtonGroup(self)
+        self.group_headers: dict[str, GroupHeader] = {}
 
         self.gauge = StorageGauge()
         layout.addWidget(self.gauge)
@@ -237,15 +290,25 @@ class Rail(QFrame):
             if item.widget() is not None:
                 item.widget().deleteLater()
 
-    def _add_facet(self, text: str, facet: Facet, count: int | None, dot: str = "") -> None:
+    def _add_facet(self, text: str, facet: Facet, count: int | None, dot: str = "",
+                   group: str = "") -> None:
         row = FacetRow(text, count, dot)
         row.facet = facet
+        row.group = group
         row.clicked.connect(lambda _c=False, f=facet: self._pick(f))
         self.facet_group.addButton(row)
         self.facets.addWidget(row)
 
+    def _add_group(self, key: str, title: str, entries: int) -> None:
+        self.facets.addSpacing(8)
+        header = GroupHeader(title, entries)
+        header.clicked.connect(lambda _c=False, k=key: self.toggle_group(k))
+        self.group_headers[key] = header
+        self.facets.addWidget(header)
+
     def rebuild_facets(self) -> None:
         self._clear_facets()
+        self.group_headers = {}
         state = self.state
         self._add_facet("All clips", Facet("all"), len(state.all_clips))
         self._add_facet("Favorites", Facet("favorites"), state.favorite_count())
@@ -254,18 +317,35 @@ class Rail(QFrame):
             self._add_facet("Untagged", Facet("untagged"), untagged)
         games = state.games()
         if games:
-            self.facets.addSpacing(8)
-            self.facets.addWidget(label("  GAMES", "Group"))
+            self._add_group("games", "Games", len(games))
             for game, count in games:
-                self._add_facet(game, Facet("game", game), count, theme.game_colour(game))
+                self._add_facet(game, Facet("game", game), count, theme.game_colour(game),
+                                "games")
         people = state.people()
         if people:
-            self.facets.addSpacing(8)
-            self.facets.addWidget(label("  PEOPLE", "Group"))
+            self._add_group("people", "People", len(people))
             for person, count in people:
-                self._add_facet(person, Facet("person", person), count)
+                self._add_facet(person, Facet("person", person), count, group="people")
         self.facets.addStretch(1)
         self._sync_facet()
+
+    def toggle_group(self, key: str) -> None:
+        folded = self.context.config.rail_collapsed
+        if key in folded:
+            folded.remove(key)
+        else:
+            folded.append(key)
+        self.context.save_config_later()
+        self._apply_folds()
+
+    def _apply_folds(self) -> None:
+        """Hide the rows of folded groups, all but the one the library is
+        filtered by: what the list shows should always be visible in the rail."""
+        folded = self.context.config.rail_collapsed
+        for key, header in self.group_headers.items():
+            header.set_expanded(key not in folded)
+        for row in self.facet_group.buttons():
+            row.setHidden(bool(row.group) and row.group in folded and not row.isChecked())
 
     def _pick(self, facet: Facet) -> None:
         self.state.set_facet(facet)
@@ -276,4 +356,5 @@ class Rail(QFrame):
         for button in self.facet_group.buttons():
             if button.facet == current:
                 button.setChecked(True)
-                return
+                break
+        self._apply_folds()

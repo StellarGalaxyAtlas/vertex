@@ -32,6 +32,7 @@ def test_round_trip_with_new_sections(tmp_path):
     cfg.sonar.app_rules["spotify"] = "media"
     cfg.recorder.chat_audio = ""
     cfg.recorder.mic_audio = "device:alsa_input.usb-mic"
+    cfg.rail_collapsed = ["people"]
     path = tmp_path / "config.json"
     cfg.save(path)
     again = config.Config.load(path)
@@ -43,6 +44,7 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     path.write_text(json.dumps({
         "clip_path": 5,
         "logo_variant": "neon",
+        "rail_collapsed": ["games", 3],
         "recorder": {"fps": "sixty", "cursor": "yes", "replay_seconds": 30},
         "sonar": {
             "default_channel": "mic",
@@ -53,6 +55,7 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     loaded = config.Config.load(path)
     assert loaded.clip_path == ""
     assert loaded.logo_variant == paths.DEFAULT_LOGO_VARIANT
+    assert loaded.rail_collapsed == ["games"]
     assert loaded.recorder.fps == 60 and loaded.recorder.cursor is True
     assert loaded.recorder.replay_seconds == 30
     assert loaded.sonar.default_channel == "game"     # mic is not an output

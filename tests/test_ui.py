@@ -107,6 +107,39 @@ def test_library_lists_and_tags_clips(qapp, window):
     assert state.title_of(clip) == "Big play"
 
 
+def test_rail_groups_fold_and_keep_the_filter_in_view(qapp, window):
+    from vertex.ui.library.state import Facet
+
+    state, rail = window.state, window.rail
+    state.set_tags(state.find("Replay_2026-01-02_03-04-05.mp4"), "The Finals", ["Anna"])
+
+    def shown(group):
+        return {row.text(): row.isVisibleTo(rail) for row in rail.facet_group.buttons()
+                if row.group == group}
+
+    games = rail.group_headers["games"]
+    assert games.count == "2" and games.expanded
+    assert shown("games") == {"Apex Legends": True, "The Finals": True}
+    games.click()
+    assert not games.expanded
+    assert shown("games") == {"Apex Legends": False, "The Finals": False}
+    assert shown("people") == {"Anna": True}
+    # The game the library is filtered by stays in view while its group is folded.
+    state.set_facet(Facet("game", "The Finals"))
+    assert shown("games") == {"Apex Legends": False, "The Finals": True}
+    state.set_facet(Facet("all"))
+    assert shown("games") == {"Apex Legends": False, "The Finals": False}
+    # Remembered: saved with the settings, and kept when the rail is rebuilt.
+    window.context.save_config()
+    assert Config.load().rail_collapsed == ["games"]
+    rail.rebuild_facets()
+    assert not rail.group_headers["games"].expanded
+    assert shown("games") == {"Apex Legends": False, "The Finals": False}
+    rail.group_headers["games"].click()
+    assert shown("games") == {"Apex Legends": True, "The Finals": True}
+    assert window.context.config.rail_collapsed == []
+
+
 def test_first_run_adds_the_start_menu_entry(qapp, window):
     from vertex import desktop
 

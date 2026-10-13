@@ -223,9 +223,15 @@ Keep Vertex Sonar's look rather than copying SteelSeries'.
   through" shows a slider while set to "Nothing else", and the header
   repeats the device each column shows.
 
-**12.**
+**12.** ✅ Done
 **Rail (left-hand menu) › Games / People**
 Make the Games and People groups collapsible.
+- Done: each group's heading shows its name, how many entries it has and a
+  chevron (down when open, right when folded, as in Settings' Advanced);
+  clicking it folds the group. Settled with the maintainer (2026-10-13): the
+  folds are remembered (`rail_collapsed` in config.json); a folded group
+  still shows the row the library is filtered by, so the filter in use is
+  always in view; no reference screenshot.
 
 **13.**
 **Control API (for a StreamController / Stream Deck plugin)**
@@ -264,7 +270,7 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
 configs, the 1.x library upgrade and an Aux lane (item 15).
 
-**Progress.** Done: 1–8 (8a, 8b), 10, 11, 15 and the bug 14. Next: 12, unless
+**Progress.** Done: 1–8 (8a, 8b), 10–12, 15 and the bug 14. Next: 13, unless
 the maintainer says otherwise (9 is on hold).
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
