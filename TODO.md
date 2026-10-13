@@ -257,7 +257,10 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 configs, the 1.x library upgrade and an Aux lane (item 15).
 
 **Progress.** Done: 1–8 (8a, 8b), 10, 15 and the bug 14. Next: 11, unless the
-maintainer says otherwise (9 is on hold).
+maintainer says otherwise (9 is on hold). For 11, the maintainer was asked
+(2026-10-13) to look at the Sonar page as it is now and say what bothers them,
+or send a screenshot with notes; no answer yet, so start by asking again.
+Their last test round (item 10's follow-ups) found the page working.
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an
 item, and don't commit them (see CLAUDE.md).
@@ -349,21 +352,9 @@ the maintainer's. Each track is titled by its role ("Vertex Game"), so the
 editor names its lane Game whatever device it came from (GSR 5.15+; older
 versions title tracks after the device). A missing Sonar channel is stood in
 for silently, as it is the plan while Sonar is off; any other missing device
-gets a message. The questions below were answered by that:
-- What each drop-down offers. Proposal: "None" (no track), the Vertex
-  channels (Vertex Game, Chat, Media, Aux; Vertex Mic for the microphone) and
-  the real devices. Defaults with Sonar on: Vertex Game, Vertex Chat, Vertex
-  Mic.
-- Whether the three drop-downs also replace the "Tracks without Sonar" text box,
-  so the same three settings apply with Sonar on or off.
-- Clips then have at most three tracks: Media and Aux only reach a clip when
-  picked in one of the drop-downs. Confirm that's wanted.
-- In 1.x, the config keys `game_device`, `chat_device` and `mic_device` were
-  the devices recorded. 2.0 uses them for "Capture devices of older clips",
-  which names the tracks of old clips. Decide whether the new drop-downs get
-  their own keys under `recorder` (keeping that page as it is) or take those
-  keys back.
-- Ask for a Moments screenshot of its recording audio settings if there is one.
+gets a message. Each drop-down offers "None" (no track), the Vertex channels
+(Vertex Mic for the microphone) and the real devices; the same three settings
+apply with Sonar on or off, so clips have at most three tracks.
 
 **Items 8a and 8b.** Earlier decision: one device manager for the outputs,
 shared by every output channel, and one for the input. The chain link (8a)
@@ -400,7 +391,15 @@ before building it.
   directly; no extra dependency is needed on either side.
 
 **Item 11.** The sideways scrolling at the minimum window width (980 px) is
-gone since 8a: Aux went and the columns may be a little narrower.
+gone since 8a: Aux went and the columns may be a little narrower. The page now
+has, top to bottom: the header (subtitle, Enabled switch), the channel
+columns (each with its device, link button and "Also on" switch), "Not
+routed" (only while apps play straight to a device), "Unrouted apps" (the
+channel they go to), and the device manager (show
+disconnected devices; Output and Microphone panels with Manual/Auto, the
+device in use, its volume and format, "Also play through" for outputs, and
+the priority and excluded lists). The only reference is the mixer overview
+screenshot described above.
 
 **Item 7 (done).** A drop is remembered as a routing rule; right-click → "Use
 the default channel" removes it. Apps playing straight to a device appear
