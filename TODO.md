@@ -190,6 +190,16 @@ Play the sound Sonar manages through two audio devices at the same time.
   cubic scale, where 25% (≈ -36 dB) was all but silent; settings hold slider
   levels, converted only when sent (`audio.pulse.to_server`).
 
+**15.** ✅ Done
+**Settings › Older clips**
+Remove the page, without breaking how old clips' tracks are named.
+Asked 2026-10-13.
+- Done: the tab went. The three devices it named are 1.x's own config keys
+  (`game_device`, `chat_device`, `mic_device`, the devices 1.x recorded), so
+  they stay in the config file and the editor still reads them for clips
+  without Vertex track titles; they are just no longer shown. Clips recorded
+  through Sonar, or titled by role (GSR 5.15+), never needed them.
+
 **11.**
 **Sonar › UI**
 Overhaul the Sonar page's UI and UX, bringing items 5 and 7–10 together.
@@ -231,9 +241,10 @@ install-desktop` (still works, but no longer needed); `docs/ARCHITECTURE.md`
 doesn't describe the monitor map, the primary-monitor fallback, the
 "Restarting…" state, `recorder/presets.py`, the start-menu marker or the
 recorded tracks no longer depending on Sonar (it still says channels are
-ticked "In clips").
+ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
+*Settings → Older clips*, which is gone (item 15).
 
-**Progress.** Done: 1–8 (8a, 8b), 10 and the bug 14. Next: 11, unless the
+**Progress.** Done: 1–8 (8a, 8b), 10, 15 and the bug 14. Next: 11, unless the
 maintainer says otherwise (9 is on hold).
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an

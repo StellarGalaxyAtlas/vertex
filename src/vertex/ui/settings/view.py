@@ -1,4 +1,4 @@
-"""Settings: folders and app behaviour, recording, legacy devices, import."""
+"""Settings: folders and app behaviour, recording, import."""
 
 from __future__ import annotations
 
@@ -121,7 +121,7 @@ class SettingsView(QWidget):
         header.setContentsMargins(0, 0, 12, 0)
         layout.addLayout(header)
         self.tabs = Segmented([("general", "General"), ("recording", "Recording"),
-                               ("devices", "Older clips"), ("import", "Import")], "general")
+                               ("import", "Import")], "general")
         self.tabs.changed.connect(lambda key, _d: self.show_page(key))
         layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
         self.stack = QStackedWidget()
@@ -140,7 +140,6 @@ class SettingsView(QWidget):
         self._audio_devices: list[tuple[str, str]] = []
         self._build_general()
         self._build_recording()
-        self._build_devices()
         self._build_import()
         self.load()
 
@@ -370,23 +369,6 @@ class SettingsView(QWidget):
         row.addLayout(right, 1)
         return box
 
-    def _build_devices(self) -> None:
-        section = Section("Capture devices of older clips",
-                          "Clips recorded before Sonar name their tracks after whatever "
-                          "device recorded them. Name those devices here and the editor "
-                          "labels their lanes Game, Chat and Microphone. Clips recorded "
-                          "through Sonar don't need this.")
-        self.legacy = {}
-        for key, title in (("game_device", "Game audio"), ("chat_device", "Chat audio"),
-                           ("mic_device", "Microphone")):
-            field = QComboBox()
-            field.setEditable(True)
-            field.setMinimumWidth(380)
-            self.legacy[key] = field
-            section.add_row(title, field)
-        self.pages["devices"] = scroll_page(section)
-        self.stack.addWidget(self.pages["devices"])
-
     def _build_import(self) -> None:
         copy_section = Section("Copy clips in", "Bring recordings from another folder — "
                                                 "a SteelSeries Moments library, say — into "
@@ -433,8 +415,6 @@ class SettingsView(QWidget):
         _set_combo(self.audio_codec, rec.audio_codec)
         self.audio_bitrate.setValue(rec.audio_bitrate)
         self.extra_args.setText(rec.extra_args)
-        for key, field in self.legacy.items():
-            field.setEditText(getattr(config, key))
         self._show_clip_choices(rec)
         self._update_preview()
         self._show_estimate()
@@ -478,8 +458,6 @@ class SettingsView(QWidget):
             if widget.currentData() is not None:
                 setattr(rec, name, widget.currentData())
         rec.extra_args = self.extra_args.text().strip()
-        for key, field in self.legacy.items():
-            setattr(config, key, field.currentText().strip())
         return config
 
     def is_dirty(self) -> bool:
@@ -508,8 +486,7 @@ class SettingsView(QWidget):
             variant = new.logo_variant
             workers.run(lambda: desktop.update_icons(variant), None, lambda _exc: None)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
-                    "close_to_tray", "logo_variant", "game_device", "chat_device",
-                    "mic_device"):
+                    "close_to_tray", "logo_variant"):
             setattr(old, key, getattr(new, key))
         old.recorder = new.recorder
         old.ensure_dirs()
@@ -553,13 +530,6 @@ class SettingsView(QWidget):
         self._audio_devices = devices
         self._show_capture()
         self._clip_settings_changed()
-        sources = [name for name, _desc in devices if name.endswith(".monitor") or
-                   not name.startswith("default_")]
-        for field in self.legacy.values():
-            text = field.currentText()
-            field.clear()
-            field.addItems(sources)
-            field.setEditText(text)
 
     # --- Capture --------------------------------------------------------------------
 

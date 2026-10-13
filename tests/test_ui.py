@@ -119,11 +119,16 @@ def test_pages_and_settings_save(qapp, window):
         window.navigate(page)
         qapp.processEvents()
     settings = window.settings_view
+    assert "devices" not in settings.pages
+    # The capture devices of 1.x clips, which name their tracks, have no page
+    # any more; saving keeps them.
+    window.context.config.game_device = "Virtual_Game_Sink.monitor"
     settings.load()
     settings.duration.setCurrentIndex(settings.duration.findData(90))
     assert settings.is_dirty()
     assert settings.save()
     assert Config.load().recorder.replay_seconds == 90
+    assert Config.load().game_device == "Virtual_Game_Sink.monitor"
     assert not settings.is_dirty()
     settings.show_page("recording")
     assert "-r 90" in settings.preview.toPlainText()

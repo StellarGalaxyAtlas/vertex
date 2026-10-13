@@ -6,8 +6,8 @@ Screen Recorder's own "Devices: Monitor of Vertex Game"), whatever the
 hardware is called.
 
 Older clips go by what is known about the machine that recorded them — the
-capture devices named in Settings — and failing that, by how the device
-happens to be named. All or nothing: a half-recognised mixer reads like a bug,
+devices Vertex 1.x recorded, still in the config — and failing that, by how
+the device happens to be named. All or nothing: a half-recognised mixer reads like a bug,
 so unless every track maps to a distinct source they all get numbered.
 """
 

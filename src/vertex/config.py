@@ -142,8 +142,9 @@ class Config:
     export_path: str = ""
     cache_path: str = ""
 
-    # Capture devices of clips recorded before Sonar, so the editor can name
-    # their tracks by what recorded them rather than guess from the names.
+    # The devices Vertex 1.x recorded. Kept (no longer shown in Settings) so
+    # the editor names the tracks of those clips by what recorded them rather
+    # than guess from the names.
     game_device: str = ""
     chat_device: str = ""
     mic_device: str = ""
