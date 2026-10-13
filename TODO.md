@@ -14,20 +14,29 @@ least offer a drop-down with every capture option GPU Screen Recorder reports
   Screen Recorder reports. Click a monitor, or use the arrow keys, to record it.
 - Decided: a diagram rather than pictures of each screen. Moments shows
   pictures, but they get vertical monitors wrong.
+- Follow-up, to do: the drop-down lists monitors only: no Automatic, portal,
+  region, focused window or cameras. Until a monitor is picked (and for old
+  settings naming one of those), Vertex records the desktop's primary monitor.
 
 **2.**
 **Settings › Recording**
-- Show only the basic settings; move everything else into a collapsible
-  "Advanced" section.
+Like the "Clip settings" of Moments (reference in the Notes), in Vertex's look:
+- One row of drop-downs with their labels above, wrapping at narrow widths:
+  - Duration: 30, 60, 90, 120 seconds.
+  - Video quality: Low, Medium, High, Ultra, each showing the bitrate it gives
+    ("High · 20 Mbps"). The bitrate follows resolution and frame rate.
+  - Resolution: 720p, 1080p, 1440p, 2160p, only up to the recorded monitor's
+    own size, plus "Native". Turned for a vertical monitor (1080p = 1080×1920).
+  - FPS: 30, 60, 120.
+- Record cursor is a basic setting, a toggle like the rest of Settings.
+- Estimates: the size of one clip, the memory the buffer uses while running,
+  and how many clips fit on the disk the clips folder is on, with bars.
+- Everything else goes into a collapsible "Advanced" section, including
+  constant bitrate (on by default) and a custom bitrate.
 - Rename "Replay buffer" to "Recording Settings".
-- "Keep the last" becomes "Duration", a drop-down with 15, 30, 45, 60, 90 and
-  120 seconds.
-- Bitrate is a basic setting.
-- Show an estimate of how much space one clip takes with the current settings,
-  and roughly how many clips fit on the current disk.
-- "Save clips to" shows the clips folder configured under General.
-- "Record cursor" moves into Recording Settings.
+- "Save clips to" (Advanced) shows the clips folder configured under General.
 - Controls look and behave the same across all settings pages.
+- Changes restart the replay buffer when they need to (question in the Notes).
 
 **3.**
 **Settings › General › Start menu entry**
@@ -189,6 +198,29 @@ matched to GSR's monitors by name. "Whole screen" became "Automatic": GSR's
 "focused monitor" option, so there is none. `window` is left out of the list
 because it needs a window id, which changes every time the window opens.
 Cameras GSR reports are listed as "Camera /dev/videoN".
+
+**Item 2.** Decided on 2026-10-13:
+- Video quality at 1080p60 (H.264): Low 8, Medium 12, High 20, Ultra 35 Mbps,
+  scaled for other resolutions and frame rates. A bitrate set by hand in
+  Advanced shows as "Custom (40 Mbps)". With constant bitrate off, the four
+  levels map to GSR's own medium, high, very high and ultra, and the size
+  estimate is marked as approximate.
+- GSR's `-s WxH` fits the picture inside the box keeping its shape, and
+  scales up as well as down. So a vertical monitor needs the box turned, and
+  sizes above the monitor's own aren't offered.
+- A value that isn't in a list (e.g. a 45 s duration from an older config)
+  stays selected and is shown as it is.
+- No migration for the new defaults: 2.0 isn't released, and the maintainer
+  resets the recording settings of their test install with the next update.
+- Open: should changes apply on Save (as now: one restart of the replay
+  buffer per Save), or as soon as they are made? A restart empties the buffer.
+
+Reference (Moments › Settings › Clips): a "Clip settings" row of four
+drop-downs with labels above (Duration "1 Minute", Video quality "High",
+Resolution "1080p", FPS "30"), a line saying lower settings mean smaller
+files, then two halves: "Clip size estimate: up to 180 MB each, based on clip
+settings" and "Hard drive space: 0 B of clips, 139.81 GB free on C:\", each
+with a bar.
 
 **Order.** Do item 13 before or together with item 9. Any action exposed as a
 `vertex …` command can be bound to a desktop keyboard shortcut, which is the
