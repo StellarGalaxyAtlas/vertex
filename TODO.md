@@ -37,11 +37,14 @@ Media is not recorded into clips by default ("In clips" off).
 **Sonar › Channels**
 Rename the checkbox under each channel ("In clips") to something more intuitive.
 
-**6.**
+**6.** ✅ Done
 **Sonar › Devices**
 Move the explanations for "Output", "Microphone" and "Unrouted apps" from the
 right-hand side to directly above or below their drop-downs, possibly
 colour-coded.
+- Done as three columns, each a badge and title, its explanation, then the
+  drop-down. Microphone uses the Mic channel's colour; Unrouted apps takes the
+  colour and icon of the channel it is set to.
 
 **7.** ✅ Done
 **Sonar › Channels**
@@ -133,6 +136,9 @@ with the maintainer before building it.
   all.
 - Plugins are written in Python, so the plugin can talk to the socket
   directly; no extra dependency is needed on either side.
+
+**Item 11.** At the minimum window width (980 px) the five channel columns
+don't fit and the Sonar page scrolls sideways. Fix as part of the overhaul.
 
 **Item 7 (done).** A drop is remembered as a routing rule; right-click → "Use
 the default channel" removes it. Apps playing straight to a device appear

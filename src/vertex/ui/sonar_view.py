@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -274,6 +273,42 @@ class ChannelColumn(QFrame):
             self.view.route(key, self.channel.id)
 
 
+class DeviceField(QWidget):
+    """One device setting: a badge and title, what it does, then its drop-down."""
+
+    def __init__(self, title: str, hint: str, combo: QComboBox, parent=None):
+        super().__init__(parent)
+        self.colour = ""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        header = QHBoxLayout()
+        header.setSpacing(8)
+        self.badge = QLabel()
+        self.badge.setFixedSize(26, 26)
+        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.addWidget(self.badge)
+        name = label(title)
+        name.setStyleSheet("font-weight: 600;")
+        header.addWidget(name, 1)
+        layout.addLayout(header)
+        self.hint = label(hint, "Dim", wrap=True)
+        layout.addWidget(self.hint)
+        # Hints wrap to different heights; the stretch keeps the three
+        # drop-downs level with each other.
+        layout.addStretch(1)
+        # A combo box is as wide as its longest device name unless told
+        # otherwise, and some are very long.
+        combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        combo.setMinimumContentsLength(10)
+        layout.addWidget(combo)
+
+    def set_colour(self, icon_name: str, colour: str) -> None:
+        self.colour = colour
+        self.badge.setPixmap(icons.pixmap(icon_name, colour, 16))
+        self.badge.setStyleSheet(f"background: {theme.shade(colour, 0.25)}; border-radius: 8px;")
+
+
 class SonarView(QWidget):
     def __init__(self, context, parent=None):
         super().__init__(parent)
@@ -327,36 +362,38 @@ class SonarView(QWidget):
         self.unrouted.hide()
         layout.addWidget(self.unrouted)
 
-        devices = Section("Devices", "Where the channels play, and which microphone feeds "
-                                     "Vertex Mic. Pick “Vertex Mic” as the input in Discord "
-                                     "and other chat apps.")
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(10)
+        self.devices = Section("Devices")
+        row = QHBoxLayout()
+        row.setSpacing(16)
         self.output = QComboBox()
         self.mic = QComboBox()
         self.default_channel = QComboBox()
         for output in channels.OUTPUTS:
-            self.default_channel.addItem(output.label, output.id)
+            self.default_channel.addItem(
+                icons.icon(icons.channel_icon_name(output.id), theme.channel_colour(output.id), 16),
+                output.label, output.id)
         self.default_channel.setCurrentIndex(
             max(0, self.default_channel.findData(context.config.sonar.default_channel)))
-        for row, (text, widget, hint) in enumerate((
-                ("Output", self.output, "Your headset or speakers"),
-                ("Microphone", self.mic, "The real mic behind Vertex Mic"),
-                ("Unrouted apps", self.default_channel,
-                 "The channel any app without a rule plays on"))):
-            grid.addWidget(label(text), row, 0)
-            grid.addWidget(widget, row, 1)
-            grid.addWidget(label(hint, "Dim"), row, 2)
-        grid.setColumnStretch(1, 1)
-        devices.body.addLayout(grid)
-        layout.addWidget(devices)
+        self.output_field = DeviceField(
+            "Output", "The headset or speakers every channel plays through.", self.output)
+        self.output_field.set_colour("headphones", theme.TEXT_MUTED)
+        self.mic_field = DeviceField(
+            "Microphone", "The real mic behind Vertex Mic. In Discord and other chat apps, "
+                          "pick Vertex Mic as the input.", self.mic)
+        self.mic_field.set_colour(icons.channel_icon_name("mic"), theme.channel_colour("mic"))
+        self.unrouted_field = DeviceField(
+            "Unrouted apps", "The channel apps play on until you drag them to another one.",
+            self.default_channel)
+        self._paint_unrouted()
+        for field in (self.output_field, self.mic_field, self.unrouted_field):
+            row.addWidget(field, 1)
+        self.devices.body.addLayout(row)
+        layout.addWidget(self.devices)
         self.output.activated.connect(lambda _i: self.controller.set_output(
             self.output.currentData() or ""))
         self.mic.activated.connect(lambda _i: self.controller.set_mic(
             self.mic.currentData() or ""))
-        self.default_channel.activated.connect(lambda _i: self.controller.set_default_channel(
-            self.default_channel.currentData()))
+        self.default_channel.activated.connect(self._on_default_channel)
 
         self.clips = Section("In your clips", "")
         self.tracks_text = label("", "Muted", wrap=True)
@@ -403,6 +440,17 @@ class SonarView(QWidget):
         for channel_id, entry in status.channels.items():
             if entry.present:
                 self.strips[channel_id].show_status(entry.volume, entry.muted)
+
+    def _on_default_channel(self, _index: int) -> None:
+        self._paint_unrouted()
+        self.controller.set_default_channel(self.default_channel.currentData())
+
+    def _paint_unrouted(self) -> None:
+        """The Unrouted apps badge takes the colour of the channel it names, so
+        it matches that channel's column above."""
+        channel_id = self.default_channel.currentData() or channels.OUTPUTS[0].id
+        self.unrouted_field.set_colour(icons.channel_icon_name(channel_id),
+                                       theme.channel_colour(channel_id))
 
     def _show_devices(self, outputs, inputs) -> None:
         self._names = {device.name: device.label for device in [*outputs, *inputs]}

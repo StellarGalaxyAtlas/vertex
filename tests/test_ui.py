@@ -194,6 +194,20 @@ def test_app_left_half_behind_after_a_drop_heals(qapp, window, fake_audio):
     assert wait_until(qapp, lambda: keys("chat") == ["discord"] and keys("game") == [])
 
 
+def test_unrouted_apps_badge_follows_its_channel(qapp, window, fake_audio):
+    from vertex.ui import theme
+
+    window.navigate("sonar")
+    view = window.sonar_view
+    assert view.unrouted_field.colour == theme.channel_colour("game")
+    assert view.mic_field.colour == theme.channel_colour("mic")
+    combo = view.default_channel
+    combo.setCurrentIndex(combo.findData("chat"))
+    combo.activated.emit(combo.currentIndex())
+    assert view.unrouted_field.colour == theme.channel_colour("chat")
+    assert wait_until(qapp, lambda: Config.load().sonar.default_channel == "chat")
+
+
 def test_delete_clip(qapp, window, monkeypatch):
     state = window.state
     clip = state.find("Replay_2026-01-02_03-04-05.mp4")
