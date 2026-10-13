@@ -210,6 +210,20 @@ Asked 2026-10-13.
   a clip gets the clip's lanes numbered rather than one called Aux (or,
   guessed from its name, Microphone).
 
+**16.** ✅ Done (bug)
+**Library › Tagging a clip**
+The tag dialog suggests nothing, and doesn't apply the changes. Reported
+2026-10-13.
+- Cause: the list of games and people behind each field's suggestions was a
+  model nothing kept hold of, so Python collected it as soon as the dialog
+  was built, leaving nothing to suggest (since the PySide6 rebuild). And
+  Cancel was the dialog's default button, so Enter in the Game field closed
+  it without saving; only clicking Save saved.
+- Fixed: the suggestions stay with the dialog. Enter saves (in the People
+  field it adds the person, as before). Picking a suggested person adds them
+  straight away. A test tags a clip through the library's dialog: the
+  suggestions, a person added with Enter, and Enter saving.
+
 **11.** ✅ Done
 **Sonar › UI**
 Overhaul the Sonar page's UI and UX, bringing items 5 and 7–10 together.
@@ -270,7 +284,7 @@ ticked "In clips"). README and `docs/ARCHITECTURE.md` still point to
 "Upgrading from Vertex 1.x" section, and ARCHITECTURE still describes 1.x
 configs, the 1.x library upgrade and an Aux lane (item 15).
 
-**Progress.** Done: 1–8 (8a, 8b), 10–12, 15 and the bug 14. Next: 13, unless
+**Progress.** Done: 1–8 (8a, 8b), 10–12, 15 and the bugs 14 and 16. Next: 13, unless
 the maintainer says otherwise (9 is on hold).
 The maintainer is collecting reference screenshots of SteelSeries GG on
 Windows for the remaining items; ask for the relevant ones when starting an

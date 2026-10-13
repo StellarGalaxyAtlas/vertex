@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QStringListModel, Qt
+from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtWidgets import (
     QCompleter,
     QDialog,
@@ -20,7 +20,10 @@ from vertex.ui.widgets import FlowLayout, IconButton, button, label
 
 
 def _completer(words: list[str], parent) -> QCompleter:
-    completer = QCompleter(QStringListModel(words), parent)
+    completer = QCompleter(parent)
+    # Owned by the completer: a model nothing holds on to is collected at once,
+    # leaving the completer with nothing to suggest.
+    completer.setModel(QStringListModel(words, completer))
     completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
     completer.setFilterMode(Qt.MatchFlag.MatchContains)
     completer.popup().setStyleSheet(
@@ -74,6 +77,7 @@ class TagDialog(QDialog):
         self.person = QLineEdit()
         self.person.setPlaceholderText("Add a person and press Enter")
         self.person.setCompleter(_completer(list(people_pool), self))
+        self.person.completer().activated[str].connect(self._add_suggested)
         self.person.returnPressed.connect(self._add_typed)
         layout.addWidget(self.person)
         for name in people:
@@ -82,9 +86,12 @@ class TagDialog(QDialog):
         layout.addSpacing(10)
         row = QHBoxLayout()
         row.addStretch(1)
-        row.addWidget(button("Cancel", on_click=self.reject))
+        cancel = button("Cancel", on_click=self.reject)
+        cancel.setAutoDefault(False)
+        row.addWidget(cancel)
+        # Enter saves (in the people field it adds the person instead).
         save = button("Save", "primary", on_click=self._save)
-        save.setAutoDefault(False)
+        save.setDefault(True)
         row.addWidget(save)
         layout.addLayout(row)
         self.game.setFocus()
@@ -114,6 +121,10 @@ class TagDialog(QDialog):
     def _add_typed(self) -> None:
         self._add_chip(self.person.text())
         self.person.clear()
+
+    def _add_suggested(self, name: str) -> None:
+        # After the field has taken the suggestion, which would refill it.
+        QTimer.singleShot(0, self, lambda: (self._add_chip(name), self.person.clear()))
 
     def keyPressEvent(self, event):
         # Enter in the people field adds a chip rather than closing the dialog.

@@ -111,6 +111,41 @@ def test_library_lists_and_tags_clips(qapp, window):
     assert state.title_of(clip) == "Big play"
 
 
+def test_tag_dialog_suggests_and_saves_on_enter(qapp, window):
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtTest import QTest
+
+    from vertex.ui.dialogs.tags import TagDialog
+
+    state = window.state
+    state.set_tags(state.find("Replay_2026-01-02_03-04-05.mp4"), "The Finals", ["Anna"])
+    clip = next(c for c in state.all_clips if c.name != "Replay_2026-01-02_03-04-05.mp4")
+    seen = {}
+
+    def fill():
+        dialog = next(w for w in qapp.topLevelWidgets()
+                      if isinstance(w, TagDialog) and w.isVisible())
+        games, people = dialog.game.completer(), dialog.person.completer()
+        games.setCompletionPrefix("fin")
+        people.setCompletionPrefix("ann")
+        seen["suggested"] = (games.currentCompletion(), people.currentCompletion())
+        dialog.activateWindow()
+        dialog.person.setFocus()
+        seen["focus"] = wait_until(qapp, dialog.person.hasFocus, 5)
+        QTest.keyClicks(dialog.person, "Ben")
+        people.popup().hide()
+        QTest.keyClick(dialog.person, Qt.Key.Key_Return)    # adds Ben, stays open
+        seen["open"] = dialog.isVisible()
+        dialog.game.setFocus()
+        dialog.game.setText("the finals")
+        QTest.keyClick(dialog.game, Qt.Key.Key_Return)      # saves
+    QTimer.singleShot(0, fill)
+    window.library_view.edit_tags(clip)
+    assert seen == {"suggested": ("The Finals", "Anna"), "focus": True, "open": True}
+    # Saved in the spelling already in use.
+    assert state.tags_of(clip) == ("The Finals", ["Ben"])
+
+
 def test_rail_groups_fold_and_keep_the_filter_in_view(qapp, window):
     from vertex.ui.library.state import Facet
 
