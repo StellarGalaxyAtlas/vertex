@@ -22,7 +22,10 @@ from vertex.ui.widgets import IconButton, button, label
 
 HEIGHT = 60
 SEARCH_MIN = 180
-SEARCH_MAX = 400
+SEARCH_MAX = 400          # the search at most, at 1280 px; it grows on bigger screens
+SEARCH_WIDEST = 760
+PAD = 12                  # room either side of a tab's name; more on bigger screens
+PAD_WIDEST = 22
 
 
 class PageTab(QAbstractButton):
@@ -35,6 +38,7 @@ class PageTab(QAbstractButton):
         super().__init__(parent)
         self.icon_name = icon_name
         self.compact = False
+        self.pad = PAD
         self.setText(text)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -47,11 +51,17 @@ class PageTab(QAbstractButton):
         font.setWeight(QFont.Weight.DemiBold if self.isChecked() else QFont.Weight.Normal)
         return font
 
-    def width_for(self, compact: bool) -> int:
+    def width_for(self, compact: bool, pad: int = PAD) -> int:
         bold = QFont(self.font())
         bold.setWeight(QFont.Weight.DemiBold)
         text = QFontMetrics(bold).horizontalAdvance(self.text())
-        return 12 + (0 if compact else self.ICON + 7) + text + 12
+        return 2 * pad + (0 if compact else self.ICON + 7) + text
+
+    def set_pad(self, pad: int) -> None:
+        if pad != self.pad:
+            self.pad = pad
+            self.updateGeometry()
+            self.update()
 
     def set_compact(self, compact: bool) -> None:
         if compact != self.compact:
@@ -60,7 +70,7 @@ class PageTab(QAbstractButton):
             self.update()
 
     def sizeHint(self):
-        return QSize(self.width_for(self.compact), HEIGHT)
+        return QSize(self.width_for(self.compact, self.pad), HEIGHT)
 
     def paintEvent(self, _event):
         p = QPainter(self)
@@ -68,7 +78,7 @@ class PageTab(QAbstractButton):
         checked = self.isChecked()
         hover = self.underMouse()
         colour = QColor(theme.TEXT if checked or hover else theme.TEXT_MUTED)
-        x = 12.0
+        x = float(self.pad)
         if not self.compact:
             icon = icons.pixmap(self.icon_name, "ACCENT_EDGE" if checked else
                                 ("TEXT" if hover else "TEXT_MUTED"), self.ICON)
@@ -80,7 +90,8 @@ class PageTab(QAbstractButton):
                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.text())
         if checked:
             # The underline, with a glow of its own colour around it.
-            line = QRectF(9, self.height() - 3, self.width() - 18, 3)
+            inset = self.pad - 3
+            line = QRectF(inset, self.height() - 3, self.width() - 2 * inset, 3)
             glow = QColor(theme.ACCENT)
             for grow, alpha in ((6, 0.10), (3, 0.18)):
                 glow.setAlphaF(alpha)
@@ -285,8 +296,15 @@ class TopBar(QFrame):
 
     def _fit(self) -> None:
         """Too narrow for everything, the tabs drop their icons and the replay
-        buffer its second line, before the search would get too short."""
-        compact = self.width() < self.natural_width(False)
+        buffer its second line, before the search would get too short. On a
+        bigger screen the search grows with the window and the tabs get more
+        room, so the bar doesn't turn into gaps."""
+        width = self.width()
+        self.search.setMaximumWidth(max(SEARCH_MAX, min(SEARCH_WIDEST, int(width * 0.34))))
+        pad = max(PAD, min(PAD_WIDEST, PAD + (width - 1500) // 50))
+        for tab in self.tabs.values():
+            tab.set_pad(pad)
+        compact = width < self.natural_width(False)
         if compact == self._compact:
             return
         self._compact = compact

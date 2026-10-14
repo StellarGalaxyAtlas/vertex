@@ -664,6 +664,31 @@ def test_home_shows_the_newest_clips_and_leads_to_the_library(qapp, window):
     assert state.facet == Facet("favorites") and window.topbar.tabs["library"].isChecked()
 
 
+def test_home_and_top_bar_grow_with_the_window(qapp, window):
+    """A bigger window shows more newest clips, not stretched tiles under
+    them, and a wider search, not wider gaps."""
+    window.navigate("home")
+    home, bar = window.home_view, window.topbar
+    shapes = {}
+    for size in ((1280, 820), (1920, 1080), (2560, 1440)):
+        window.resize(*size)
+        qapp.processEvents()
+        assert wait_until(qapp, lambda: home.grid.layout_width() > 0)
+        home._fit()
+        qapp.processEvents()
+        shapes[size] = (home.grid.columns, home.grid.rows)
+        if size != (1280, 820):
+            # The tiles below keep near their own height: what is left over
+            # is less than a row of clips.
+            assert home.sonar_tile.height() - home._bottom_height() < \
+                home.grid.row_height(home.grid.columns)
+    assert shapes[(1280, 820)][1] == 2
+    assert shapes[(2560, 1440)][0] * shapes[(2560, 1440)][1] > \
+        shapes[(1280, 820)][0] * shapes[(1280, 820)][1]
+    assert bar.search.width() > 400                     # at 2560 px
+    window.resize(1280, 800)
+
+
 def test_home_mixer_sets_a_channel_and_follows_it(qapp, window):
     from vertex.audio.sonar import ChannelStatus, SonarStatus
 

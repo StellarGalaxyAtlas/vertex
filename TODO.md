@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 35.
+and bugs get the next free number: 36.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -71,6 +71,8 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
+- 35: Home and the top bar on their big screen: more clips, no stretched
+  tiles, a wider search.
 - 34: the Sonar page with their devices and apps: the big numbers and the
   device lists in their font; nothing cut short at their window size.
 - 32: Home with their library (632 clips, 23 games) at their window size:
@@ -319,6 +321,13 @@ device in use, the priority list (numbered, "In use" or "Connected" on each
 row) and the excluded list (a dashed drop zone while empty); two by two
 below 1000 px. Manual's explanation shows only in Manual.
 
+**35. Home and the top bar on bigger screens.** On a big window Home's
+tiles stretched into gaps (the mixer's channels far apart) and the top bar
+into empty stretches. Now the newest clips take the room: two to five rows
+of four to ten, whichever leaves the tiles under them nearest their own
+height, never a row more than there are clips. The top bar's search grows
+with the window (to 760 px) and the tabs get more room either side.
+
 ---
 
 ## Notes
@@ -328,8 +337,8 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–34, including the bugs 14,
-16, 18 and 26: the new look of round 3 is built.
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–35, including the bugs 14,
+16, 18 and 26: the new look of round 3 is built, and scales on big screens.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
 

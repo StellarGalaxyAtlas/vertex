@@ -87,7 +87,8 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
   page showing is underlined in the accent, with a glow), the search in the
   middle, the replay pill on the right. A line under it fades from the
   accent into the second colour. Too narrow, the tabs drop their icons and
-  the pill its second line. The rail of 24 to 26 is gone.
+  the pill its second line; wider, the search grows (to 760 px) and the tabs
+  get more room. The rail of 24 to 26 is gone.
 - **Library filters** (item 33) in one row over the grid: chips for All
   clips, Favorites and Untagged; Games ▾ and People ▾ open a searchable list
   with counts, so long names never squeeze anything; then sort, card size,
@@ -95,8 +96,10 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
 - **Home** (item 32), the start page: tiles with rounded corners and a
   faint gradient. Latest clips across the full width (lit from two corners
   by the accent and second colour), then Sonar's quick mixer, Games as bars,
-  Storage and People. It fits a 1280 × 820 window without scrolling; with no
-  clips yet, the welcome takes the room and the other tiles stay compact.
+  Storage and People. It fits a 1280 × 820 window without scrolling. A bigger
+  window shows more clips (two to five rows of four to ten) rather than
+  stretching the tiles below (item 35); with no clips yet, the welcome takes
+  the room and the other tiles stay compact.
 - **Messages are toasts** in the bottom-right corner of the page
   (`widgets.Banner`). A click dismisses one. No strip is kept for them.
 - **Sonar** (item 34, as on Shelves' board): a one-line header with a status

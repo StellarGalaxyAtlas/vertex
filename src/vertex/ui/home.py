@@ -3,7 +3,7 @@ on one screen (TODO item 32). Vertex opens on it."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -31,15 +31,17 @@ from vertex import fmt
 from vertex.audio import channels
 from vertex.core import clips as clips_mod
 from vertex.ui import icons, theme
-from vertex.ui.library.delegate import ClipDelegate
+from vertex.ui.library.delegate import INFO_H, PAD, ClipDelegate
 from vertex.ui.library.filters import FilterChip
 from vertex.ui.library.model import ClipModel
 from vertex.ui.library.state import Facet, LibraryState
 from vertex.ui.library.view import ClipGrid
 from vertex.ui.widgets import ElidedLabel, IconButton, Meter, button, label
 
-ROWS = 2                  # rows of newest clips
-CARD_MIN = 220            # a newest-clip card is at least this wide: 4 to 6 to a row
+ROWS = (2, 3, 4, 5)       # rows of newest clips, as many as there is room for
+COLUMNS = (4, 10)         # and how many to a row, at the least and the most
+CARD_MIN = 200            # a newest-clip card is at least this wide
+CARD_MAX = 340            # and at most this
 SPACING = 12
 
 
@@ -112,29 +114,44 @@ class Tile(QFrame):
 
 
 class LatestGrid(ClipGrid):
-    """The newest clips: two rows, four to six to a row as the width allows,
-    and exactly as tall as those two rows."""
+    """The newest clips, in the rows and columns Home gives them (`set_shape`),
+    and exactly as tall as those rows."""
 
-    columns_changed = Signal()
+    resized = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.columns = 5
+        self.columns, self.rows = 5, ROWS[0]
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-    def resizeEvent(self, event):
-        width = self.layout_width()
-        columns = max(4, min(6, width // CARD_MIN))
-        if columns != self.columns:
-            self.columns = columns
-            self.columns_changed.emit()
-        self.card_width = max(1, width // self.columns)
-        super().resizeEvent(event)
+    def row_height(self, columns: int) -> int:
+        """How tall a row of cards is at `columns` to a row."""
+        cell = max(1, self.layout_width()) // columns
+        return (cell - 2 * PAD) * 9 // 16 + INFO_H + 2 * PAD
+
+    def set_shape(self, columns: int, rows: int) -> bool:
+        """Lay the cards out `columns` by `rows`; whether that changed anything."""
+        if (columns, rows) == (self.columns, self.rows):
+            return False
+        self.columns, self.rows = columns, rows
+        self._fit()
+        return True
+
+    def _fit(self) -> None:
+        self.card_width = max(1, self.layout_width() // self.columns)
         delegate = self.itemDelegate()
-        if isinstance(delegate, ClipDelegate) and \
-                self.height() != ROWS * delegate.cell.height():
-            self.setFixedHeight(ROWS * delegate.cell.height())
+        if isinstance(delegate, ClipDelegate):
+            self.fit_cells(delegate)
+            height = self.rows * delegate.cell.height()
+            if self.height() != height:
+                self.setFixedHeight(height)
+
+    def resizeEvent(self, event):
+        self.card_width = max(1, self.layout_width() // self.columns)
+        super().resizeEvent(event)
+        self._fit()
+        self.resized.emit()
 
 
 class MixerRow(QWidget):
@@ -404,7 +421,9 @@ class HomeView(QWidget):
         self.latest: list = []
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
+        self._fit_timer = QTimer(self, singleShot=True, interval=0)
+        self._fit_timer.timeout.connect(self._fit)
+        self.scroll = scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -423,8 +442,10 @@ class HomeView(QWidget):
         layout.addWidget(self.latest_tile)
         self.bottom = bottom = QHBoxLayout()
         bottom.setSpacing(SPACING)
-        bottom.addWidget(self._build_sonar(), 1)
-        bottom.addWidget(self._build_games(), 1)
+        self.sonar_tile = self._build_sonar()
+        bottom.addWidget(self.sonar_tile, 1)
+        self.games_tile = self._build_games()
+        bottom.addWidget(self.games_tile, 1)
         self.column = QVBoxLayout()
         self.column.setSpacing(SPACING)
         self.column.addWidget(self._build_storage())
@@ -462,7 +483,7 @@ class HomeView(QWidget):
         delegate.rename_requested.connect(self.grid.edit)
         self.grid.customContextMenuRequested.connect(
             lambda point: self.library_view.clip_menu(self.grid, point))
-        self.grid.columns_changed.connect(self._columns_changed)
+        self.grid.resized.connect(self._fit_timer.start)
         tile.body.addWidget(self.grid)
 
         # No clips yet: what to do about it, in place of the cards.
@@ -491,11 +512,55 @@ class HomeView(QWidget):
 
     def _find_latest(self) -> None:
         newest = clips_mod.sort_clips(self.state.all_clips, "date", True)
-        self.latest = newest[:self.grid.columns * ROWS]
+        self.latest = newest[:self.grid.columns * self.grid.rows]
 
-    def _columns_changed(self) -> None:
-        self._find_latest()
-        self.model.relist()
+    def _bottom_height(self) -> int:
+        """How tall the tiles under the newest clips need to be."""
+        column = self.storage_tile.sizeHint().height()
+        if not self.people_tile.isHidden():
+            column += SPACING + self.people_tile.sizeHint().height()
+        return max(self.sonar_tile.sizeHint().height(),
+                   self.games_tile.minimumSizeHint().height(), column)
+
+    def _fit(self) -> None:
+        """Give the newest clips the room the window has: two to five rows of
+        four to ten, whichever leaves the tiles below nearest their own height.
+        A big screen shows more clips rather than stretched tiles."""
+        width = self.grid.layout_width()
+        if width <= 0 or not self.grid.isVisibleTo(self):
+            return
+        tile = self.latest_tile.layout()
+        margins, page = tile.contentsMargins(), self.page_layout.contentsMargins()
+        chrome = (margins.top() + margins.bottom() + tile.spacing() +
+                  self.latest_tile.header.sizeHint().height())
+        room = (self.scroll.viewport().height() - page.top() - page.bottom() - SPACING -
+                self._bottom_height() - chrome)
+        fewest = max(COLUMNS[0], -(-width // CARD_MAX))
+        most = max(fewest, min(COLUMNS[1], width // CARD_MIN))
+        clips = len(self.state.all_clips)
+        best = None
+        for columns in range(fewest, most + 1):
+            height = self.grid.row_height(columns)
+            # Never a row more than there are clips to fill.
+            for rows in [r for r in ROWS if r <= -(-clips // columns)] or [1]:
+                left = room - rows * height
+                if left < 0:
+                    break
+                # Within a band of leftover room, bigger cards win.
+                key = (left // 48, columns)
+                if best is None or key < best[0]:
+                    best = (key, columns, rows)
+        if best is None:
+            columns = max(fewest, min(most, width // 240))
+            best = (None, columns, max(1, min(ROWS[0], -(-clips // columns))))
+        _key, columns, rows = best
+        if self.grid.set_shape(columns, rows):
+            self._find_latest()
+            self.model.relist()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_timer.start()
 
     # --- Sonar ------------------------------------------------------------------
 
@@ -601,6 +666,7 @@ class HomeView(QWidget):
         tile.add_link("All people", self._all_people)
         self.people = PeopleRow()
         self.people.picked.connect(lambda name: self.show_in_library(Facet("person", name)))
+        tile.body.addStretch(1)          # a taller tile keeps them in the middle
         tile.body.addWidget(self.people)
         tile.body.addStretch(1)
         self.people_tile = tile
@@ -636,6 +702,7 @@ class HomeView(QWidget):
         # No one tagged: no tile kept for them; the disk takes the column.
         self.people_tile.setVisible(bool(people))
         self.column.setStretchFactor(self.storage_tile, 0 if people else 1)
+        self._fit_timer.start()
 
     def _show_storage(self, stats) -> None:
         if stats is None:
