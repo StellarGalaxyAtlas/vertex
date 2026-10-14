@@ -59,8 +59,10 @@ def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: st
     the second colour rather than of the accent.
 
     A light `ground` makes a light scheme: the top bar goes paler than the
-    page instead of darker, fields sit a step into the page, and edges go
-    darker than what they outline rather than lighter."""
+    page instead of darker, fields sit half way between the page and the
+    panels, lines are a step stronger, and edges go darker than what they
+    outline rather than lighter. Its page is a clear step darker than its
+    near-white panels, so they stand off it (TODO item 44)."""
     fill = fill or accent
     dark_label = sum(int(on_accent[i:i + 2], 16) for i in (1, 3, 5)) < 300
     game, chat, media, mic, desktop = channels
@@ -72,8 +74,9 @@ def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: st
         "SIDEBAR_BG": _mix(ground, "#ffffff", 0.6) if light else _mix(ground, "#000000", 0.25),
         "CARD_BG": card, "CARD_HOVER": _mix(panel, text, 0.09),
         "CONTROL_BG": _mix(panel, text, 0.07),
-        "FIELD_BG": _mix(ground, text, 0.02) if light else _mix(ground, "#000000", 0.2),
-        "LINE": _mix(panel, text, 0.08), "SEAM": _mix(panel, text, 0.14), "EDGE": edge,
+        "FIELD_BG": _mix(ground, panel, 0.55) if light else _mix(ground, "#000000", 0.2),
+        "LINE": _mix(panel, text, 0.12 if light else 0.08), "SEAM": _mix(panel, text, 0.14),
+        "EDGE": edge,
         "TEXT": text, "TEXT_MUTED": muted, "TEXT_DIM": dim,
         "ACCENT": accent, "ACCENT_FILL": fill,
         "ACCENT_HOVER": (_mix(fill, "#ffffff", 0.18) if dark_label
@@ -123,13 +126,13 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     # The first light scheme: an aurora over snow, a violet accent into teal
     # on white and snow-grey grounds, the channels deep enough to read on them.
     "polar": ("Polar", "Aurora violet on snow", _scheme(
-        "#eceef7", "#fbfbfe", "#1a1730", "#47435f", "#5a5677", "#7c3aed", "#ffffff", "#7d7a97",
+        "#d5d9e8", "#fdfdff", "#1a1730", "#47435f", "#5a5677", "#7c3aed", "#ffffff", "#7d7a97",
         "#0d9488", "#6d28d9", "#d92d3f", ("#047857", "#2563eb", "#c0267a", "#b45309", "#0e7490"))),
     # The second light scheme: ice. Snow-white and ice-grey grounds, a deep
     # glacier blue (white text on it) into icy teal; the channels kept off the
     # blue, Chat in indigo.
     "glacier": ("Glacier", "Glacier blue on ice", _scheme(
-        "#e9f0f5", "#fafcfd", "#0f1e2b", "#3d5163", "#506577", "#0a6cb4", "#ffffff", "#76889a",
+        "#d1dce7", "#fdfeff", "#0f1e2b", "#3d5163", "#485c6e", "#0a6cb4", "#ffffff", "#76889a",
         "#14a3b8", "#0a5a96", "#d92d3f", ("#0f8a5f", "#4f46e5", "#c0267a", "#b45309", "#7c3aed"))),
     # Vertex's colours until round 3, as they were (the hint text one step
     # lighter, to pass on a hovered card).

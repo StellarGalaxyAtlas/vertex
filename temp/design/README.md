@@ -50,8 +50,8 @@ the rules below for every one of them.
 | Aurora | `#0f0b24` / `#1a1538` | `#52e0f0` → `#a68bff` | `#3cc78a` · `#5b97ff` · `#ee72c0` · `#eba23e` |
 | Midnight blue | `#0a1020` / `#1c2640` | `#f6b03e` → `#3dd6f0` | `#4fcb72` · `#4a8ff7` · `#e0709a` · `#a88bfa` |
 | Coral | `#0d1117` / `#1a2230` | `#ff8a66` → `#8c9eff` | `#2ec4a6` · `#4ea8f5` · `#c084fc` · `#e9b949` |
-| Polar (light) | `#eceef7` / `#fbfbfe` | `#7c3aed` → `#0d9488`, white text | `#047857` · `#2563eb` · `#c0267a` · `#b45309` |
-| Glacier (light) | `#e9f0f5` / `#fafcfd` | `#0a6cb4` → `#14a3b8`, white text | `#0f8a5f` · `#4f46e5` · `#c0267a` · `#b45309` |
+| Polar (light) | `#d5d9e8` / `#fdfdff` | `#7c3aed` → `#0d9488`, white text | `#047857` · `#2563eb` · `#c0267a` · `#b45309` |
+| Glacier (light) | `#d1dce7` / `#fdfeff` | `#0a6cb4` → `#14a3b8`, white text | `#0f8a5f` · `#4f46e5` · `#c0267a` · `#b45309` |
 | Navy (before) | `#0b0e14` / `#161b26` | `#4a62ec` → `#9aabff` | `#2fb39b` · `#3b82f6` · `#c25d7b` · `#d98d2b` |
 
 What the tokens are for:
@@ -79,7 +79,9 @@ What the tokens are for:
 **Light schemes** (item 41). A page colour that is light makes a light
 scheme, and `theme.LIGHT` says so. The steps worked out from the key colours
 turn round: the top bar goes paler than the page instead of darker, fields
-sit a step into the page, edges go darker than what they outline. The
+sit half way between page and panel, lines are a step stronger, edges go
+darker than what they outline. The page is a clear step darker than the
+near-white panels (1.4:1), or the panels melt into it (item 44). The
 channels, red, green and yellow are deep enough to read on white, so what
 sits on them is white; the logo takes its dark ink (`theme.logo_ink()`);
 slider handles get an outline (`theme.handle()`). What sits on video stays

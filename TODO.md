@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 44.
+and bugs get the next free number: 45.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -403,6 +403,14 @@ amber and violet. With nine schemes the picker would leave one alone on a
 row, so it now takes as many to a row as fit (two to four) but fewer when
 that fills every row: three by three.
 
+**44. Light schemes: the panels melted into the page.** Polar's and
+Glacier's panels were 1.12:1 against their page, their outline 1.05:1, so
+the bubbles hardly showed. The pages are a clear step darker now (Polar
+`#d5d9e8`, Glacier `#d1dce7`) under near-white panels, 1.4:1; lines are a
+step stronger on a light scheme, and fields sit half way between page and
+panel instead of taking the page's colour. Glacier's hint text went one
+step darker to keep 4.5:1 on the darker page.
+
 ---
 
 ## Notes
@@ -412,7 +420,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–42, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42 and 44, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
 Open: 43 (an editor bug), 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
