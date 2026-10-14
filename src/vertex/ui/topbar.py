@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QSizePolicy,
+    QSpacerItem,
     QVBoxLayout,
 )
 
@@ -20,12 +21,14 @@ from vertex.recorder.replay import RecorderError
 from vertex.ui import icons, theme
 from vertex.ui.widgets import IconButton, button, label
 
-HEIGHT = 60
+HEIGHT = 60               # the bar at its smallest; it grows with the logo and tabs
 SEARCH_MIN = 180
 SEARCH_MAX = 400          # the search at most, at 1280 px; it grows on bigger screens
 SEARCH_WIDEST = 760
 PAD = 12                  # room either side of a tab's name; more on bigger screens
-PAD_WIDEST = 22
+PAD_WIDEST = 56
+GAP = 32                  # the least room between the last tab and the search
+SCALE_MAX = 1.5           # how much bigger the logo and tabs get on a wide bar
 
 
 class PageTab(QAbstractButton):
@@ -39,6 +42,7 @@ class PageTab(QAbstractButton):
         self.icon_name = icon_name
         self.compact = False
         self.pad = PAD
+        self.scale = 1.0
         self.setText(text)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -46,20 +50,23 @@ class PageTab(QAbstractButton):
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
-    def _font(self) -> QFont:
+    def _font(self, scale: float | None = None, bold: bool | None = None) -> QFont:
         font = QFont(self.font())
-        font.setWeight(QFont.Weight.DemiBold if self.isChecked() else QFont.Weight.Normal)
+        font.setPointSizeF(font.pointSizeF() * (self.scale if scale is None else scale))
+        bold = self.isChecked() if bold is None else bold
+        font.setWeight(QFont.Weight.DemiBold if bold else QFont.Weight.Normal)
         return font
 
-    def width_for(self, compact: bool, pad: int = PAD) -> int:
-        bold = QFont(self.font())
-        bold.setWeight(QFont.Weight.DemiBold)
-        text = QFontMetrics(bold).horizontalAdvance(self.text())
-        return 2 * pad + (0 if compact else self.ICON + 7) + text
+    def icon_size(self, scale: float | None = None) -> int:
+        return round(self.ICON * (self.scale if scale is None else scale))
 
-    def set_pad(self, pad: int) -> None:
-        if pad != self.pad:
-            self.pad = pad
+    def width_for(self, compact: bool, pad: int = PAD, scale: float = 1.0) -> int:
+        text = QFontMetrics(self._font(scale, True)).horizontalAdvance(self.text())
+        return 2 * pad + (0 if compact else self.icon_size(scale) + round(7 * scale)) + text
+
+    def set_size(self, pad: int, scale: float) -> None:
+        if (pad, scale) != (self.pad, self.scale):
+            self.pad, self.scale = pad, scale
             self.updateGeometry()
             self.update()
 
@@ -70,7 +77,7 @@ class PageTab(QAbstractButton):
             self.update()
 
     def sizeHint(self):
-        return QSize(self.width_for(self.compact, self.pad), HEIGHT)
+        return QSize(self.width_for(self.compact, self.pad, self.scale), HEIGHT)
 
     def paintEvent(self, _event):
         p = QPainter(self)
@@ -80,10 +87,11 @@ class PageTab(QAbstractButton):
         colour = QColor(theme.TEXT if checked or hover else theme.TEXT_MUTED)
         x = float(self.pad)
         if not self.compact:
+            size = self.icon_size()
             icon = icons.pixmap(self.icon_name, "ACCENT_EDGE" if checked else
-                                ("TEXT" if hover else "TEXT_MUTED"), self.ICON)
-            p.drawPixmap(int(x), (self.height() - self.ICON) // 2, icon)
-            x += self.ICON + 7
+                                ("TEXT" if hover else "TEXT_MUTED"), size)
+            p.drawPixmap(int(x), (self.height() - size) // 2, icon)
+            x += size + round(7 * self.scale)
         p.setFont(self._font())
         p.setPen(colour)
         p.drawText(QRectF(x, 0, self.width() - x, self.height()),
@@ -192,6 +200,7 @@ class TopBar(QFrame):
     navigate = Signal(str)        # "home" | "library" | "sonar" | "settings"
 
     LOGO_HEIGHT = 30
+    NAME_SIZE = 14            # pt
     PAGES = (("home", "Home", "home"), ("library", "Library", "library"),
              ("sonar", "Sonar", "sonar"), ("settings", "Settings", "settings"))
 
@@ -200,6 +209,7 @@ class TopBar(QFrame):
         self.context = context
         self.state = state
         self.page = ""
+        self.scale = 1.0
         self.setObjectName("TopBar")
         self.setFixedHeight(HEIGHT)
         theme.style(self, lambda: f"#TopBar {{ background: {theme.SIDEBAR_BG}; }}")
@@ -211,11 +221,13 @@ class TopBar(QFrame):
         self.logo.setFixedSize(self.LOGO_HEIGHT, self.LOGO_HEIGHT)
         theme.themed(self.logo, self._show_logo, "icon")
         layout.addWidget(self.logo)
-        layout.addSpacing(8)
+        self.logo_gap = QSpacerItem(8, 0)
+        layout.addItem(self.logo_gap)
         self.name = QLabel("Vertex")
-        self.name.setStyleSheet("font-size: 14pt; font-weight: 700;")
+        self.name.setStyleSheet(f"font-size: {self.NAME_SIZE:.1f}pt; font-weight: 700;")
         layout.addWidget(self.name)
-        layout.addSpacing(22)
+        self.name_gap = QSpacerItem(22, 0)
+        layout.addItem(self.name_gap)
 
         self.tabs: dict[str, PageTab] = {}
         group = QButtonGroup(self)
@@ -226,15 +238,14 @@ class TopBar(QFrame):
             self.tabs[key] = tab
             layout.addWidget(tab)
 
-        layout.addSpacing(16)
-        layout.addStretch(1)
+        # Room up to the search: what the logo and tabs don't fill as they grow.
+        self.search_gap = QSpacerItem(GAP, 0)
+        layout.addItem(self.search_gap)
         self.search = QLineEdit()
         self.search.setObjectName("TopSearch")
         self.search.setPlaceholderText("Search clips, games, people")
         self.search.setClearButtonEnabled(True)
-        self.search.setMinimumWidth(SEARCH_MIN)
-        self.search.setMaximumWidth(SEARCH_MAX)
-        self.search.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.search.setFixedWidth(SEARCH_MAX)
         find = self.search.addAction(icons.icon("search", "TEXT_MUTED", 16),
                                      QLineEdit.ActionPosition.LeadingPosition)
         theme.themed(self.search, lambda: find.setIcon(icons.icon("search", "TEXT_MUTED", 16)),
@@ -248,7 +259,7 @@ class TopBar(QFrame):
         self.search.textChanged.connect(lambda _t: self._search_timer.start())
         # What is found shows in the library, so typing elsewhere goes there.
         self.search.textEdited.connect(self._searching)
-        layout.addWidget(self.search, 4)
+        layout.addWidget(self.search)
         layout.addStretch(1)
         layout.addSpacing(16)
 
@@ -261,7 +272,7 @@ class TopBar(QFrame):
         pixmap = QPixmap(str(paths.mark_path(theme.logo_ink())))
         if not pixmap.isNull():
             ratio = self.devicePixelRatioF() or 1.0
-            scaled = pixmap.scaledToHeight(int(self.LOGO_HEIGHT * ratio),
+            scaled = pixmap.scaledToHeight(int(self.logo.height() * ratio),
                                            Qt.TransformationMode.SmoothTransformation)
             scaled.setDevicePixelRatio(ratio)
             self.logo.setPixmap(scaled)
@@ -281,10 +292,20 @@ class TopBar(QFrame):
         """The width the bar needs with the search at its narrowest."""
         margins = self.layout().contentsMargins()
         pill = self.recorder.width_for(compact)
-        return (margins.left() + margins.right() + self.logo.width() + 8 +
-                self.name.sizeHint().width() + 22 +
+        return (margins.left() + margins.right() + self._brand_width(1.0) +
                 sum(tab.width_for(compact) for tab in self.tabs.values()) + 16 +
                 SEARCH_MIN + 16 + pill)
+
+    def _brand_width(self, scale: float) -> int:
+        """The logo, the name and the room around them, at `scale`."""
+        font = QFont(self.font())
+        font.setPointSizeF(self.NAME_SIZE * scale)
+        font.setWeight(QFont.Weight.Bold)
+        return (round(self.LOGO_HEIGHT * scale) + round(8 * scale) +
+                QFontMetrics(font).horizontalAdvance(self.name.text()) + round(22 * scale))
+
+    def _tabs_width(self, compact: bool, pad: int, scale: float) -> int:
+        return sum(tab.width_for(compact, pad, scale) for tab in self.tabs.values())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -297,20 +318,57 @@ class TopBar(QFrame):
     def _fit(self) -> None:
         """Too narrow for everything, the tabs drop their icons and the replay
         buffer its second line, before the search would get too short. On a
-        bigger screen the search grows with the window and the tabs get more
-        room, so the bar doesn't turn into gaps."""
+        bigger screen the search grows with the window, and the logo and tabs
+        grow and spread out to fill the bar up to it, so the bar doesn't turn
+        into gaps."""
         width = self.width()
-        self.search.setMaximumWidth(max(SEARCH_MAX, min(SEARCH_WIDEST, int(width * 0.34))))
-        pad = max(PAD, min(PAD_WIDEST, PAD + (width - 1500) // 50))
-        for tab in self.tabs.values():
-            tab.set_pad(pad)
         compact = width < self.natural_width(False)
-        if compact == self._compact:
-            return
-        self._compact = compact
+        if compact != self._compact:
+            self._compact = compact
+            for tab in self.tabs.values():
+                tab.set_compact(compact)
+            self.recorder.set_compact(compact)
+
+        # Where the search goes: centred in the room the logo and tabs leave at
+        # their smallest, and as wide as the window allows.
+        margins = self.layout().contentsMargins()
+        base_pad = max(PAD, min(22, PAD + (width - 1500) // 50))
+        smallest = self._brand_width(1.0) + self._tabs_width(compact, base_pad, 1.0)
+        room = (width - margins.left() - margins.right() - smallest - 16 - 16 -
+                self.recorder.width_for(compact))
+        widest = max(SEARCH_MAX, min(SEARCH_WIDEST, int(width * 0.34)))
+        search = max(SEARCH_MIN, min(widest, room * 4 // 6))
+        left = smallest + 16 + max(0, (room - search) // 2)
+
+        # The logo and tabs grow as far as that leaves room, then spread out.
+        scale = 1.0
+        while scale < SCALE_MAX:
+            bigger = round(scale + 0.05, 2)
+            if (self._brand_width(bigger) + self._tabs_width(compact, round(PAD * bigger), bigger)
+                    + GAP > left):
+                break
+            scale = bigger
+        pad = round(PAD * scale)
+        spare = left - GAP - self._brand_width(scale) - self._tabs_width(compact, pad, scale)
+        pad = min(PAD_WIDEST, pad + max(0, spare) // (2 * len(self.tabs)))
+        used = self._brand_width(scale) + self._tabs_width(compact, pad, scale)
+
+        self.scale = scale
+        self.setFixedHeight(round(HEIGHT + (scale - 1) * 25))
+        logo = round(self.LOGO_HEIGHT * scale)
+        if logo != self.logo.height():
+            self.logo.setFixedSize(logo, logo)
+            self._show_logo()
+        name = f"font-size: {self.NAME_SIZE * scale:.1f}pt; font-weight: 700;"
+        if name != self.name.styleSheet():
+            self.name.setStyleSheet(name)
+        self.logo_gap.changeSize(round(8 * scale), 0)
+        self.name_gap.changeSize(round(22 * scale), 0)
         for tab in self.tabs.values():
-            tab.set_compact(compact)
-        self.recorder.set_compact(compact)
+            tab.set_size(pad, scale)
+        self.search_gap.changeSize(max(16, left - used), 0)
+        self.search.setFixedWidth(search)
+        self.layout().invalidate()
 
     def paintEvent(self, event):
         super().paintEvent(event)

@@ -477,6 +477,12 @@ the first switch puts the microphones in Manual, as decided with 13 (a pick
 in Auto goes to the top of the list, so cycling would bounce between two).
 Superseded by 53.
 
+**58. The top bar fills its room.** On a wide window the logo, the name and
+the tabs grow (up to 1.5 times, icons and text alike) and spread out until
+they nearly reach the search, and the bar gets a little taller to fit them
+(60 to 72 px). The search keeps its width and place; at 980 and 1280 px
+the bar looks as before (`topbar.TopBar._fit`).
+
 **57. Editor: the mixer no longer stalls playback.** Every slider step
 swapped mpv's whole lavfi-complex, and mpv seeks each time it changes: the
 picture and sound stopped while a slider moved. The graph now only lines the
@@ -532,7 +538,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 57, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 58, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer
