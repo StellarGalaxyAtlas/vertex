@@ -164,6 +164,44 @@ def _library(p, c):
         p.drawRoundedRect(QRectF(x, y, 6.5, 6.5), 1.6, 1.6)
 
 
+@_register("home")
+def _home(p, c):
+    _pen(p, c)
+    roof = QPainterPath(QPointF(4, 11.5))
+    roof.lineTo(12, 4.5)
+    roof.lineTo(20, 11.5)
+    p.drawPath(roof)
+    body = QPainterPath(QPointF(6.5, 9.5))
+    for x, y in ((6.5, 19.5), (17.5, 19.5), (17.5, 9.5)):
+        body.lineTo(x, y)
+    p.drawPath(body)
+    p.drawLine(QPointF(10.5, 19.5), QPointF(10.5, 14.5))
+    p.drawLine(QPointF(10.5, 14.5), QPointF(13.5, 14.5))
+    p.drawLine(QPointF(13.5, 14.5), QPointF(13.5, 19.5))
+
+
+@_register("people")
+def _people(p, c):
+    _pen(p, c)
+    p.drawEllipse(QPointF(9, 8.5), 3.2, 3.2)
+    p.drawArc(QRectF(3.5, 14, 11, 10), 0, 180 * 16)
+    p.drawArc(QRectF(13.5, 5, 6, 7), -90 * 16, 180 * 16)
+    p.drawArc(QRectF(15, 14.5, 7, 9), 0, 90 * 16)
+
+
+@_register("storage")
+def _storage(p, c):
+    _pen(p, c)
+    p.drawRoundedRect(QRectF(3.5, 13, 17, 6.5), 2, 2)
+    top = QPainterPath(QPointF(5, 13))
+    top.lineTo(7.5, 5.5)
+    top.lineTo(16.5, 5.5)
+    top.lineTo(19, 13)
+    p.drawPath(top)
+    _fill(p, c)
+    p.drawEllipse(QPointF(16.5, 16.25), 1.1, 1.1)
+
+
 @_register("sonar")
 def _sonar(p, c):
     _pen(p, c, 2)

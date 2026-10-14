@@ -628,6 +628,60 @@ def test_filter_row_fits_long_names_and_narrow_windows(qapp, window, monkeypatch
     assert window.library_view.filters.disk_text.isHidden()
 
 
+def test_home_shows_the_newest_clips_and_leads_to_the_library(qapp, window):
+    from vertex.ui.library.model import ClipRole
+    from vertex.ui.library.state import Facet
+
+    state, home = window.state, window.home_view
+    window.topbar.tabs["home"].click()
+    assert window.stack.currentWidget() is home and window.topbar.tabs["home"].isChecked()
+    # The newest first, whatever the library is filtered by.
+    state.set_facet(Facet("favorites"))
+    newest = sorted(state.all_clips, key=lambda clip: clip.date, reverse=True)
+    assert [home.model.index(row).data(ClipRole)
+            for row in range(home.model.rowCount())] == newest
+    assert home.grid.isVisibleTo(home) and not home.empty.isVisibleTo(home)
+    assert home.all_link.text() == "All 2 clips"
+    state.set_facet(Facet("all"))
+
+    # Favorites shows up once there is one; every count follows the library.
+    assert not home.favorites.isVisibleTo(home)
+    state.toggle_favorite(newest[0])
+    assert home.favorites.isVisibleTo(home) and home.favorites.count == "1"
+    state.set_tags(state.find("Replay_2026-01-02_03-04-05.mp4"), "The Finals", ["Anna"])
+    assert [name for name, _count in home.games.entries] == ["Apex Legends", "The Finals"]
+    assert home.people_tile.isVisibleTo(home) and home.people.people == [("Anna", 1)]
+
+    # A game, a person or a chip opens the library filtered by it.
+    home.games.picked.emit("The Finals")
+    assert window.stack.currentWidget() is window.library_view
+    assert state.facet == Facet("game", "The Finals") and len(state.visible) == 1
+    window.navigate("home")
+    home.people.picked.emit("Anna")
+    assert state.facet == Facet("person", "Anna")
+    window.navigate("home")
+    home.favorites.click()
+    assert state.facet == Facet("favorites") and window.topbar.tabs["library"].isChecked()
+
+
+def test_home_mixer_sets_a_channel_and_follows_it(qapp, window):
+    from vertex.audio.sonar import ChannelStatus, SonarStatus
+
+    window.navigate("home")
+    row = window.home_view.channels["chat"]
+    row.slider.setValue(40)
+    assert window.context.config.sonar.channel("chat").volume == 0.4
+    assert row.value.text() == "40%"
+    row.mute.setChecked(True)            # the mixer is greyed out while Sonar is off
+    assert window.context.config.sonar.channel("chat").muted
+    # Changed elsewhere (the Sonar page, the system mixer): Home follows.
+    from vertex.audio import channels
+    status = SonarStatus(available=True, active=True, channels={
+        "chat": ChannelStatus(channels.BY_ID["chat"], present=True, volume=0.7, muted=False)})
+    window.context.sonar.status_changed.emit(status)
+    assert row.slider.value() == 70 and not row.mute.isChecked()
+
+
 def test_top_bar_switches_pages_and_searches_the_library(qapp, window):
     from PySide6.QtTest import QTest
 

@@ -92,6 +92,11 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
   clips, Favorites and Untagged; Games ▾ and People ▾ open a searchable list
   with counts, so long names never squeeze anything; then sort, card size,
   rescan and the disk. Narrow, the disk's text goes first.
+- **Home** (item 32), the start page: tiles with rounded corners and a
+  faint gradient. Latest clips across the full width (lit from two corners
+  by the accent and second colour), then Sonar's quick mixer, Games as bars,
+  Storage and People. It fits a 1280 × 820 window without scrolling; with no
+  clips yet, the welcome takes the room and the other tiles stay compact.
 - **Messages are toasts** in the bottom-right corner of the page
   (`widgets.Banner`). A click dismisses one. No strip is kept for them.
 - **Sonar.** "New apps go to [channel]" sits in the page header, next to

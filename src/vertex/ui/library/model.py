@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Callable
 
 from PySide6.QtCore import QAbstractListModel, QSize, Qt
 from PySide6.QtGui import QImage, QPixmap
 
+from vertex.core.clips import Clip
 from vertex.media.thumbnails import THUMB_WIDTH
 from vertex.ui.library.state import LibraryState, is_settling
 
@@ -21,10 +23,14 @@ THUMB_STEP = 160        # thumbnails load at the cards' width, rounded up to thi
 
 
 class ClipModel(QAbstractListModel):
-    def __init__(self, state: LibraryState, context, parent=None):
+    """The library's visible clips, or the ones `source` returns (Home's newest)."""
+
+    def __init__(self, state: LibraryState, context, parent=None,
+                 source: Callable[[], list[Clip]] | None = None):
         super().__init__(parent)
         self.state = state
         self.context = context
+        self._source = source
         self._thumbs: OrderedDict[tuple, QPixmap] = OrderedDict()
         self.thumb_size = QSize(480, 270)
         self._missing: set[tuple] = set()    # generation failed for this version of a file
@@ -49,15 +55,18 @@ class ClipModel(QAbstractListModel):
         self._missing.clear()
         self._asked.clear()
 
+    def clips(self) -> list[Clip]:
+        return self._source() if self._source is not None else self.state.visible
+
     # --- Qt model -------------------------------------------------------------
 
     def rowCount(self, parent=None):
-        return 0 if parent is not None and parent.isValid() else len(self.state.visible)
+        return 0 if parent is not None and parent.isValid() else len(self.clips())
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        if not index.isValid() or index.row() >= len(self.state.visible):
+        if not index.isValid() or index.row() >= len(self.clips()):
             return None
-        clip = self.state.visible[index.row()]
+        clip = self.clips()[index.row()]
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return self.state.title_of(clip)
         if role == ClipRole:
@@ -69,28 +78,32 @@ class ClipModel(QAbstractListModel):
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
         if role != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
-        self.state.set_title(self.state.visible[index.row()], str(value))
+        self.state.set_title(self.clips()[index.row()], str(value))
         return True
 
     def flags(self, index):
         return (Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
                 | Qt.ItemFlag.ItemIsEditable)
 
+    def relist(self) -> None:
+        """List the clips again: the source changed without the library's state."""
+        self._reset()
+
     def _reset(self) -> None:
         self.beginResetModel()
-        self._rows = {clip.name: row for row, clip in enumerate(self.state.visible)}
+        self._rows = {clip.name: row for row, clip in enumerate(self.clips())}
         self.preview_row = -1
         self.preview_frames = []
         self.endResetModel()
 
     def _clip_changed(self, name: str) -> None:
         row = self._rows.get(name)
-        if row is not None and row < len(self.state.visible):
+        if row is not None and row < len(self.clips()):
             index = self.index(row)
             self.dataChanged.emit(index, index)
 
     def row_of_path(self, clip_path: str) -> int | None:
-        for row, clip in enumerate(self.state.visible):
+        for row, clip in enumerate(self.clips()):
             if clip.path == clip_path:
                 return row
         return None
@@ -151,7 +164,7 @@ class ClipModel(QAbstractListModel):
         row = self.row_of_path(clip_path)
         if row is None:
             return
-        key = self._key(self.state.visible[row])
+        key = self._key(self.clips()[row])
         if not image_path:
             self._missing.add(key)
             return

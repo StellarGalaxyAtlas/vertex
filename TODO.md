@@ -67,14 +67,7 @@ goes back). Planned at the 980 px minimum: the tabs drop their icons, the
 replay pill drops "keeps the last 1:00", Home shows 4 clips a row. The
 maintainer approved it. Built so far: 30, then 31 with 33 (the maintainer
 agreed to build them together, so the rail's filters never vanish in
-between); 32 and 34 follow. This item closes with 34.
-
-**32.**
-**Home page**
-As on the Home dashboard board, without the replay buffer card: latest clips
-with Favorites and Untagged, a Sonar mixer, Games with counts, Storage and
-People. Opens on start. Its tab comes with it, first in the top bar (agreed
-with 31, so there is never an empty tab).
+between), then 32; 34 follows. This item closes with 34.
 
 **34.**
 **Sonar as on Shelves' board**
@@ -101,6 +94,8 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
+- 32: Home with their library (632 clips, 23 games) at their window size:
+  the newest clips fill two rows and everything fits without scrolling.
 - 31, 33: the top bar and the filter row in their font and display scale;
   the drop-downs open under their chip and take the keyboard.
 - 30: the schemes on their desktop: each one picked in Settings shows at
@@ -305,6 +300,20 @@ goes to the Library. Too narrow for all of it, the tabs drop their icons and
 the pill its second line. The rail and its settings (`rail_collapsed`) are
 gone; the editor and first-run setup still take the whole window.
 
+**32. Home page.** Vertex opens on it, and its tab comes first in the top
+bar. As on the Home dashboard board without the replay buffer card:
+- Latest clips across the full width: the newest, two rows of four to six
+  as the width allows, as the Library's own cards (open, favourite, tags,
+  rename, right-click), with Favorites and Untagged chips and "All N clips".
+  No clips yet: what to do about it (start the buffer, import) takes the
+  room instead.
+- Sonar's quick mixer: each channel with what plays on it, its volume and
+  mute; greyed out while Sonar is off, with "Turn on" and "Open".
+- Games with their counts as bars, as many as fit; Storage; People (hidden
+  while nobody is tagged, the disk then takes the column).
+Every name, chip and "All …" link opens the Library filtered by it. The
+editor goes back to the page it was opened from.
+
 **33. Library: the filter row** (built with 31). All clips, Favorites and
 Untagged as chips with counts, Games ▾ and People ▾ as drop-downs with a
 search (Enter picks, arrows move) and counts, naming the game or person they
@@ -322,10 +331,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–28, 30, 31 and 33, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–28 and 30–33, including the
 bugs 14, 16, 18 and 26.
-Open: 9 (on hold), 21 (documentation, at the end) and 29, 32, 34 (the new
-look: schemes, top bar and filter row built; next Home, then Sonar). Waiting on the maintainer: the checks listed above, and
+Open: 9 (on hold), 21 (documentation, at the end) and 29, 34 (the new look:
+schemes, top bar, filter row and Home built; next Sonar). Waiting on the maintainer: the checks listed above, and
 switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;

@@ -60,7 +60,7 @@ def run(background: bool = False) -> int:
         window.show_setup(config if missing else None, missing)
     else:
         window.start_services()
-        window.navigate("library")
+        window.navigate("home")
 
     if setup or missing or not background or window.tray is None:
         window.show()

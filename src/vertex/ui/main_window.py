@@ -24,6 +24,7 @@ from vertex.media.thumbnails import ThumbnailCache
 from vertex.ui import icons, workers
 from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView, SetupResult
+from vertex.ui.home import HomeView
 from vertex.ui.library.state import LibraryState
 from vertex.ui.library.view import LibraryView
 from vertex.ui.settings.view import SettingsView
@@ -76,9 +77,13 @@ class MainWindow(QMainWindow):
         self.settings_view.imported.connect(self.state.reload)
         self.settings_view.setup_requested.connect(self.run_setup_again)
         self.settings_view.reset_requested.connect(self.reset)
-        for page in (self.library_view, self.sonar_view, self.settings_view):
+        self.home_view = HomeView(context, self.state, self.library_view)
+        self.home_view.navigate.connect(self.navigate)
+        self.home_view.open_clip.connect(self.open_clip)
+        for page in (self.home_view, self.library_view, self.sonar_view, self.settings_view):
             self.stack.addWidget(page)
         self.editor: EditorView | None = None
+        self._editor_from = "library"
         self.first_run: FirstRunView | None = None
 
         context.message.connect(self.banner.show_message)
@@ -108,8 +113,8 @@ class MainWindow(QMainWindow):
             return
         self._close_editor()
         self.topbar.show()
-        target = {"library": self.library_view, "sonar": self.sonar_view,
-                  "settings": self.settings_view}[page]
+        target = {"home": self.home_view, "library": self.library_view,
+                  "sonar": self.sonar_view, "settings": self.settings_view}[page]
         if page == "settings":
             self.settings_view.load()
         self.stack.setCurrentWidget(target)
@@ -198,7 +203,7 @@ class MainWindow(QMainWindow):
             self.start_services(enable_sonar=result.enable_sonar,
                                 start_recorder=result.start_recorder,
                                 tags=(result.games, result.dates))
-        self.navigate("library")
+        self.navigate("home")
 
     def _write_setup_tags(self, games: dict[str, str], dates: dict[str, float]) -> bool:
         """Save the games confirmed in setup for the clips brought along."""
@@ -359,8 +364,11 @@ class MainWindow(QMainWindow):
             self.state.reload()
             return
         self._close_editor()
+        # Back, and out after a delete or trim, goes where the clip was opened from.
+        self._editor_from = "home" if self.stack.currentWidget() is self.home_view \
+            else "library"
         self.editor = EditorView(self.context, self.state, clip)
-        self.editor.back.connect(lambda: self.navigate("library"))
+        self.editor.back.connect(lambda: self.navigate(self._editor_from))
         self.editor.delete_requested.connect(self._delete_from_editor)
         self.editor.trimmed.connect(self._clip_trimmed)
         self.stack.addWidget(self.editor)
@@ -380,14 +388,14 @@ class MainWindow(QMainWindow):
         if not self.library_view.confirm_delete(clip):
             return
         # Leave first: mpv still has the file open.
-        self.navigate("library")
+        self.navigate(self._editor_from)
         self.state.delete(clip)
 
     def _clip_trimmed(self, clip, mode: str, path: str) -> None:
         if mode == "copy":
             self.state.reload()
             return
-        self.navigate("library")            # releases the file before it is replaced
+        self.navigate(self._editor_from)    # releases the file before it is replaced
         self.state.replace_with_trim(clip, path)
 
     # --- Folder and recorder events ---------------------------------------------

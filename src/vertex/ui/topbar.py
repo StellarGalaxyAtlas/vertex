@@ -146,6 +146,15 @@ class ReplayPill(QFrame):
     def set_compact(self, compact: bool) -> None:
         self.detail.setVisible(not compact)
 
+    def width_for(self, compact: bool) -> int:
+        """Its width with or without the second line, whichever is showing now."""
+        margins, spacing = self.layout().contentsMargins(), self.layout().spacing()
+        text = self.title.sizeHint().width()
+        if not compact:
+            text = max(text, self.detail.sizeHint().width())
+        return (margins.left() + margins.right() + self.dot.width() + text +
+                self.save.sizeHint().width() + self.toggle.width() + 3 * spacing)
+
     def update_state(self, state: str, error: str) -> None:
         seconds = self.context.config.recorder.replay_seconds
         running = state == "running"
@@ -169,11 +178,11 @@ class ReplayPill(QFrame):
 class TopBar(QFrame):
     """The logo, the pages, search and the replay buffer, in one row."""
 
-    navigate = Signal(str)        # "library" | "sonar" | "settings"
+    navigate = Signal(str)        # "home" | "library" | "sonar" | "settings"
 
     LOGO_HEIGHT = 30
-    PAGES = (("library", "Library", "library"), ("sonar", "Sonar", "sonar"),
-             ("settings", "Settings", "settings"))
+    PAGES = (("home", "Home", "home"), ("library", "Library", "library"),
+             ("sonar", "Sonar", "sonar"), ("settings", "Settings", "settings"))
 
     def __init__(self, context, state, parent=None):
         super().__init__(parent)
@@ -260,9 +269,7 @@ class TopBar(QFrame):
     def natural_width(self, compact: bool) -> int:
         """The width the bar needs with the search at its narrowest."""
         margins = self.layout().contentsMargins()
-        pill = self.recorder.sizeHint().width()
-        if compact and self.recorder.detail.isVisible():
-            pill -= self.recorder.detail.sizeHint().width()
+        pill = self.recorder.width_for(compact)
         return (margins.left() + margins.right() + self.logo.width() + 8 +
                 self.name.sizeHint().width() + 22 +
                 sum(tab.width_for(compact) for tab in self.tabs.values()) + 16 +

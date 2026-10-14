@@ -160,7 +160,7 @@ class LibraryView(QWidget):
         self.delegate.tags_requested.connect(self.edit_tags)
         self.delegate.favorite_toggled.connect(state.toggle_favorite)
         self.delegate.rename_requested.connect(self.grid.edit)
-        self.grid.customContextMenuRequested.connect(self._menu)
+        self.grid.customContextMenuRequested.connect(lambda p: self.clip_menu(self.grid, p))
         self.grid.hovered_row.connect(self._hover)
         self.grid.zoomed.connect(self.zoom)
         self.grid.set_card_width(self.card_size.value())
@@ -321,8 +321,9 @@ class LibraryView(QWidget):
         if self.confirm_delete(clip):
             self.state.delete(clip)
 
-    def _menu(self, point) -> None:
-        index: QModelIndex = self.grid.indexAt(point)
+    def clip_menu(self, grid: QListView, point) -> None:
+        """A clip's menu: right-click on a card here or on Home."""
+        index: QModelIndex = grid.indexAt(point)
         clip = index.data(ClipRole) if index.isValid() else None
         if clip is None:
             return
@@ -336,7 +337,7 @@ class LibraryView(QWidget):
             menu.addAction(action)
 
         add("Open", lambda: self.open_clip.emit(clip))
-        add("Rename", lambda: self.grid.edit(index))
+        add("Rename", lambda: grid.edit(index))
         add("Edit tags…", lambda: self.edit_tags(clip))
         add("Remove from favorites" if favorite else "Add to favorites",
             lambda: self.state.toggle_favorite(clip))
@@ -345,7 +346,7 @@ class LibraryView(QWidget):
         add("Copy path", lambda: QGuiApplication.clipboard().setText(clip.path))
         menu.addSeparator()
         add("Delete…", lambda: self.delete(clip))
-        menu.exec(self.grid.viewport().mapToGlobal(point))
+        menu.exec(grid.viewport().mapToGlobal(point))
 
     @staticmethod
     def _show_in_folder(clip) -> None:
