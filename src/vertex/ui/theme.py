@@ -1,12 +1,13 @@
 """The colour schemes, the channel colours and the application stylesheet.
 
-Vertex has eight colour schemes (TODO items 30, 38 to 40), picked in Settings › General.
-Plum, the default, is the "Shelves" design of round 2: a deep plum page, a hot
-magenta accent and a periwinkle second colour for gradients. Navy is the look
-Vertex had before. Each scheme gives every token below a value; the UI reads
-them as `theme.ACCENT` and so on when it paints, and anything set once when a
-widget is built (a stylesheet, an icon) goes through `themed`, so the whole
-app changes the moment a scheme is picked (`use`).
+Vertex has eight colour schemes (TODO items 30, 38 to 41), picked in Settings ›
+General. Plum, the default, is the "Shelves" design of round 2: a deep plum
+page, a hot magenta accent and a periwinkle second colour for gradients. Navy
+is the look Vertex had before; Polar is a light one. Each scheme gives every
+token below a value; the UI reads them as `theme.ACCENT` and so on when it
+paints, and anything set once when a widget is built (a stylesheet, an icon)
+goes through `themed`, so the whole app changes the moment a scheme is picked
+(`use`).
 
 Every scheme keeps the rules in temp/design/: every text colour reads at
 4.5:1 or better on every ground it sits on, a field's edge at 3:1; the accent
@@ -32,6 +33,18 @@ def _mix(a: str, b: str, amount: float) -> str:
                          for x, y in zip(one, two, strict=True))
 
 
+def _luminance(colour: str) -> float:
+    """How bright `colour` looks (WCAG's relative luminance, 0 to 1)."""
+    channels = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    channels = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def is_light(ground: str) -> bool:
+    """Whether a scheme with this page colour is a light one."""
+    return _luminance(ground) > 0.4
+
+
 def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: str,
             on_accent: str, edge: str, second: str, select: str, recording: str,
             channels: tuple[str, str, str, str, str], fill: str = "",
@@ -43,25 +56,33 @@ def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: st
     Media, Mic and the desktop's own track. `fill` is what text sits on where
     it isn't the accent itself (a deeper shade, so `on_accent` can be white),
     and `soft`, "second", makes the selected row, tab or menu item a tint of
-    the second colour rather than of the accent."""
+    the second colour rather than of the accent.
+
+    A light `ground` makes a light scheme: the top bar goes paler than the
+    page instead of darker, fields sit a step into the page, and edges go
+    darker than what they outline rather than lighter."""
     fill = fill or accent
     dark_label = sum(int(on_accent[i:i + 2], 16) for i in (1, 3, 5)) < 300
     game, chat, media, mic, desktop = channels
     card = _mix(panel, text, 0.04)
+    light = is_light(ground)
+    away = "#000000" if light else "#ffffff"      # an edge stands out from the ground
     return {
-        "MAIN_BG": ground, "SIDEBAR_BG": _mix(ground, "#000000", 0.25), "SECTION_BG": panel,
+        "MAIN_BG": ground, "SECTION_BG": panel,
+        "SIDEBAR_BG": _mix(ground, "#ffffff", 0.6) if light else _mix(ground, "#000000", 0.25),
         "CARD_BG": card, "CARD_HOVER": _mix(panel, text, 0.09),
-        "CONTROL_BG": _mix(panel, text, 0.07), "FIELD_BG": _mix(ground, "#000000", 0.2),
+        "CONTROL_BG": _mix(panel, text, 0.07),
+        "FIELD_BG": _mix(ground, text, 0.02) if light else _mix(ground, "#000000", 0.2),
         "LINE": _mix(panel, text, 0.08), "SEAM": _mix(panel, text, 0.14), "EDGE": edge,
         "TEXT": text, "TEXT_MUTED": muted, "TEXT_DIM": dim,
         "ACCENT": accent, "ACCENT_FILL": fill,
         "ACCENT_HOVER": (_mix(fill, "#ffffff", 0.18) if dark_label
                          else _mix(fill, "#000000", 0.1)),
-        "ACCENT_EDGE": _mix(accent, "#ffffff", 0.3),
-        "ACCENT_FILL_EDGE": _mix(fill, "#ffffff", 0.3),
+        "ACCENT_EDGE": _mix(accent, away, 0.2 if light else 0.3),
+        "ACCENT_FILL_EDGE": _mix(fill, away, 0.15 if light else 0.3),
         "ACCENT_SOFT": (_mix(card, second, 0.3) if soft == "second"
                         else _mix(ground, accent, 0.25)),
-        "ON_ACCENT": on_accent, "INK": _mix(ground, "#000000", 0.3),
+        "ON_ACCENT": on_accent, "INK": _mix(text if light else ground, "#000000", 0.3),
         "SELECT": select, "SECOND": second, "RECORDING": recording,
         "GAME": game, "CHAT": chat, "MEDIA": media, "MIC": mic, "DESKTOP": desktop,
     }
@@ -96,12 +117,14 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     "midnight": ("Midnight blue", "Amber and cyan", _scheme(
         "#0a1020", "#1c2640", "#ecf1f9", "#aab6cb", "#99a5bc", "#f6b03e", "#0a1020", "#6c7b9a",
         "#3dd6f0", "#3dd6f0", "#ff5d62", ("#4fcb72", "#4a8ff7", "#e0709a", "#a88bfa", "#b8d860"))),
-    "deep_sea": ("Deep sea", "Mint and sky on teal", _scheme(
-        "#061a1d", "#0f2c2f", "#e4f5f1", "#9cc3bc", "#86afa8", "#5eead4", "#042a26", "#5d8f8b",
-        "#60c5fa", "#7fd8ff", "#ff4d5e", ("#c08cff", "#5ea8ff", "#f2799f", "#f5a742", "#d6e36a"))),
     "coral": ("Coral", "Coral and periwinkle on ink", _scheme(
         "#0d1117", "#1a2230", "#eef2f7", "#aeb8c8", "#97a2b5", "#ff8a66", "#1a0f0b", "#6a7690",
         "#8c9eff", "#8c9eff", "#f04a5a", ("#2ec4a6", "#4ea8f5", "#c084fc", "#e9b949", "#f07fb0"))),
+    # The first light scheme: an aurora over snow, a violet accent into teal
+    # on white and snow-grey grounds, the channels deep enough to read on them.
+    "polar": ("Polar", "Aurora violet on snow", _scheme(
+        "#eceef7", "#fbfbfe", "#1a1730", "#47435f", "#5a5677", "#7c3aed", "#ffffff", "#7d7a97",
+        "#0d9488", "#6d28d9", "#d92d3f", ("#047857", "#2563eb", "#c0267a", "#b45309", "#0e7490"))),
     # Vertex's colours until round 3, as they were (the hint text one step
     # lighter, to pass on a hovered card).
     "navy": ("Navy", "Vertex's colours until now", {
@@ -128,7 +151,8 @@ ACCENT_FILL_EDGE = ""       # the rim of a primary button
 ACCENT_SOFT = ""            # the selected row, tab or menu item
 ON_ACCENT = ""              # text and icons on ACCENT_FILL, a switch's knob
 SECOND = ""                 # the accent's partner in a gradient
-INK = ""                    # text on a bright colour: an app's badge, a red button
+INK = ""                    # text on a bright colour: an app's badge, a person's
+ON_CHANNEL = ""             # the icon on a channel's badge: INK, white on a light scheme
 SELECT = ""                 # the keyboard focus, the trim handles, links
 SELECTION = ""              # selected text
 
@@ -154,17 +178,30 @@ TEXT = ""
 TEXT_MUTED = ""
 TEXT_DIM = ""
 
-# Meaning: the same in every scheme, except the recording light
-DANGER = "#ff6b70"
-DANGER_HOVER = "#e85a5f"
-OK = "#3fb950"
-WARN = "#e6b422"
+# Meaning: the same in every dark scheme, deeper in a light one so they read
+# on it; the recording light is each scheme's own
+MEANING = {
+    False: {"DANGER": "#ff6b70", "DANGER_HOVER": "#e85a5f", "OK": "#3fb950", "WARN": "#e6b422"},
+    True: {"DANGER": "#c42b2b", "DANGER_HOVER": "#a82323", "OK": "#1a7f37", "WARN": "#8f5d00"},
+}
+DANGER = ""
+DANGER_HOVER = ""
+ON_DANGER = ""              # text on DANGER: a red button, hovered
+OK = ""
+WARN = ""
 RECORDING = ""
+LIGHT = False               # whether the scheme in use is a light one
+
+# Over video, whatever the scheme: a clip's duration and star sit on its
+# picture, under a dark scrim
+VIDEO_BG = "#000000"
+ON_VIDEO = "#ffffff"
+STAR = "#e6b422"            # a favourite's star on its thumbnail
 
 # Editor
-VIDEO_BG = "#000000"
-PLAYHEAD = "#ffffff"
+PLAYHEAD = ""               # white on a dark scheme, the text colour on a light one
 VIDEO_LANE = "#1f6f66"
+HANDLE = "#ffffff"          # a slider's handle; outlined in EDGE on a light scheme
 WAVE_SHADE = 0.40
 TRIM_SHADE = ""
 LANE_BG = ""
@@ -194,8 +231,9 @@ CONTENT_MARGIN = 24
 
 TOKENS = frozenset(SCHEMES["navy"][2]) | {
     "SELECTION", "CARD_TOP", "CARD_BOTTOM", "CARD_HOVER_TOP", "CARD_HOVER_BOTTOM",
-    "BADGE_BG", "TRIM_SHADE", "LANE_BG", "WAVE_MUTED", "DANGER", "DANGER_HOVER", "OK",
-    "WARN", "VIDEO_BG", "PLAYHEAD", "VIDEO_LANE"}
+    "BADGE_BG", "TRIM_SHADE", "LANE_BG", "WAVE_MUTED", "DANGER", "DANGER_HOVER", "ON_DANGER",
+    "OK", "WARN", "VIDEO_BG", "ON_VIDEO", "STAR", "PLAYHEAD", "VIDEO_LANE", "HANDLE",
+    "ON_CHANNEL"}
 
 
 def colour(value: str) -> str:
@@ -214,11 +252,19 @@ def select(name: str) -> str:
     values = SCHEMES[name][2]
     tokens = dict(values)
     ground, card, text = values["MAIN_BG"], values["CARD_BG"], values["TEXT"]
+    light = is_light(ground)
+    tokens.update(MEANING[light])
     tokens.update(
+        # A light scheme's channels and red are deep, so what sits on them is white.
+        LIGHT=light, ON_DANGER="#ffffff" if light else values["INK"],
+        ON_CHANNEL="#ffffff" if light else values["INK"],
+        PLAYHEAD=text if light else "#ffffff",
         SELECTION=values["ACCENT_FILL"],
         CARD_TOP=_mix(card, text, 0.012), CARD_BOTTOM=_mix(card, ground, 0.35),
         CARD_HOVER_TOP=_mix(card, text, 0.06), CARD_HOVER_BOTTOM=card,
-        BADGE_BG=_mix(ground, "#000000", 0.5), TRIM_SHADE=_mix(ground, "#000000", 0.45),
+        BADGE_BG=_mix(ground, "#000000", 0.5),
+        # Outside the trim, the lanes fade into the page.
+        TRIM_SHADE=_mix(ground, "#ffffff", 0.3) if light else _mix(ground, "#000000", 0.45),
         LANE_BG=card, WAVE_MUTED=_mix(card, text, 0.13),
         CHANNEL_COLOURS={"game": values["GAME"], "desktop": values["DESKTOP"],
                          "chat": values["CHAT"], "media": values["MEDIA"], "mic": values["MIC"]},
@@ -228,6 +274,18 @@ def select(name: str) -> str:
     globals().update(tokens)
     globals()["STYLESHEET"] = _stylesheet()
     return name
+
+
+def logo_ink() -> str:
+    """Which ink of the logo shows on the app's own grounds: the light artwork
+    on a dark scheme, the dark one on a light scheme."""
+    return "dark" if LIGHT else "light"
+
+
+def handle() -> str:
+    """A slider handle's fill, and on a light scheme its outline, so it shows
+    on a pale track."""
+    return f"background: {HANDLE};" + (f" border: 1px solid {EDGE};" if LIGHT else "")
 
 
 def use(name: str) -> None:
@@ -353,7 +411,7 @@ QPushButton[kind="primary"]:disabled {{
     background: {CONTROL_BG}; border-color: {CONTROL_BG}; color: {TEXT_DIM};
 }}
 QPushButton[kind="danger"] {{ color: {DANGER}; }}
-QPushButton[kind="danger"]:hover {{ background: {DANGER}; color: {INK}; }}
+QPushButton[kind="danger"]:hover {{ background: {DANGER}; color: {ON_DANGER}; }}
 QPushButton[kind="danger"]:disabled {{ color: {TEXT_DIM}; background: {SECTION_BG}; }}
 QPushButton[kind="ghost"], QToolButton[kind="ghost"] {{ background: transparent; }}
 QPushButton[kind="ghost"]:hover, QToolButton[kind="ghost"]:hover {{ background: {CARD_HOVER}; }}
@@ -396,12 +454,12 @@ QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT_EDGE
 QSlider::groove:horizontal {{ height: 4px; background: {CONTROL_BG}; border-radius: 2px; }}
 QSlider::sub-page:horizontal {{ background: {ACCENT}; border-radius: 2px; }}
 QSlider::handle:horizontal {{
-    background: white; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px;
+    {handle()} width: 12px; height: 12px; margin: -4px 0; border-radius: 6px;
 }}
 QSlider::groove:vertical {{ width: 4px; background: {CONTROL_BG}; border-radius: 2px; }}
 QSlider::add-page:vertical {{ background: {ACCENT}; border-radius: 2px; }}
 QSlider::handle:vertical {{
-    background: white; width: 14px; height: 14px; margin: 0 -5px; border-radius: 7px;
+    {handle()} width: 14px; height: 14px; margin: 0 -5px; border-radius: 7px;
 }}
 
 /* --- Lists, scroll bars, menus -------------------------------------------- */

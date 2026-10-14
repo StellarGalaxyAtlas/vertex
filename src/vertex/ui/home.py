@@ -174,7 +174,7 @@ class MixerRow(QWidget):
         self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         size, radius = self.BADGE * 13 // 20, self.BADGE * 6 // 20
         theme.themed(self.badge, lambda: self.badge.setPixmap(
-            icons.pixmap(icons.channel_icon_name(channel.id), "INK", size)), "icon")
+            icons.pixmap(icons.channel_icon_name(channel.id), "ON_CHANNEL", size)), "icon")
         theme.style(self.badge, lambda: f"background: {self.colour}; "
                                         f"border-radius: {radius}px;")
         self.name = label(channel.label)
@@ -304,7 +304,7 @@ class MixerFader(MixerRow):
                 f"border-radius: {round_}px; }}"
                 f"QSlider::sub-page:vertical {{ background: {theme.SEAM}; "
                 f"border-radius: {round_}px; }}"
-                f"QSlider::handle:vertical {{ background: white; width: {groove + 12}px; "
+                f"QSlider::handle:vertical {{ {theme.handle()} width: {groove + 12}px; "
                 f"height: {cap}px; margin: 0 -6px; border-radius: {cap // 2}px; }}")
 
     def resizeEvent(self, event):

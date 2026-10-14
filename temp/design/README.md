@@ -49,8 +49,8 @@ the rules below for every one of them.
 | Abyss | `#02050c` / `#071226` | `#1fe5ff` → `#ff4fd8` | `#3dff8f` · `#4d8dff` · `#b98cff` · `#ffc94a` |
 | Aurora | `#0f0b24` / `#1a1538` | `#52e0f0` → `#a68bff` | `#3cc78a` · `#5b97ff` · `#ee72c0` · `#eba23e` |
 | Midnight blue | `#0a1020` / `#1c2640` | `#f6b03e` → `#3dd6f0` | `#4fcb72` · `#4a8ff7` · `#e0709a` · `#a88bfa` |
-| Deep sea | `#061a1d` / `#0f2c2f` | `#5eead4` → `#60c5fa` | `#c08cff` · `#5ea8ff` · `#f2799f` · `#f5a742` |
 | Coral | `#0d1117` / `#1a2230` | `#ff8a66` → `#8c9eff` | `#2ec4a6` · `#4ea8f5` · `#c084fc` · `#e9b949` |
+| Polar (light) | `#eceef7` / `#fbfbfe` | `#7c3aed` → `#0d9488`, white text | `#047857` · `#2563eb` · `#c0267a` · `#b45309` |
 | Navy (before) | `#0b0e14` / `#161b26` | `#4a62ec` → `#9aabff` | `#2fb39b` · `#3b82f6` · `#c25d7b` · `#d98d2b` |
 
 What the tokens are for:
@@ -67,10 +67,22 @@ What the tokens are for:
 | `SECOND` | the accent's partner in gradients: gauges, the page's glow |
 | `ACCENT_EDGE` / `SELECT` | the accent as a line or icon / focus, trim handles, links |
 | `ACCENT_SOFT` | the selected row, tab, segment, menu or drop-down item (Plum: a periwinkle tint, from its second colour) |
-| `INK` | text on a bright colour: an app's badge, a red button on hover |
+| `INK` | text on a bright colour: an app's or a person's badge |
+| `ON_CHANNEL`, `ON_DANGER` | the icon on a channel's badge, the text on a red button on hover: `INK`, white on a light scheme |
 | `RECORDING` | the replay buffer while it records |
-| `DANGER` / `WARN` / `OK` | meanings, the same in every scheme |
+| `DANGER` / `WARN` / `OK` | meanings, the same in every dark scheme, deeper in a light one |
+| `ON_VIDEO`, `STAR` | text and the favourite star over a thumbnail's dark scrim, in every scheme |
+| `HANDLE`, `PLAYHEAD` | a slider's handle (outlined on a light scheme), the editor's playhead (white, or the text colour on a light scheme) |
 | `GAME`, `CHAT`, `MEDIA`, `MIC`, `DESKTOP` | the channels (each scheme tunes them away from its accent) |
+
+**Light schemes** (item 41). A page colour that is light makes a light
+scheme, and `theme.LIGHT` says so. The steps worked out from the key colours
+turn round: the top bar goes paler than the page instead of darker, fields
+sit a step into the page, edges go darker than what they outline. The
+channels, red, green and yellow are deep enough to read on white, so what
+sits on them is white; the logo takes its dark ink (`theme.logo_ink()`);
+slider handles get an outline (`theme.handle()`). What sits on video stays
+light on its dark scrim.
 
 **Gradients.** Each scheme's accent and second colour glow faintly from the
 corners of the page (`widgets.GlowArea`), and gauges run from one to the

@@ -135,13 +135,7 @@ class FirstRunView(QWidget):
         outer.addStretch(1)
 
         self.mark = QLabel()
-        pixmap = QPixmap(str(paths.mark_path("light")))     # on Vertex's dark page
-        if not pixmap.isNull():
-            ratio = self.devicePixelRatioF() or 1.0
-            scaled = pixmap.scaledToHeight(int(56 * ratio),
-                                           Qt.TransformationMode.SmoothTransformation)
-            scaled.setDevicePixelRatio(ratio)
-            self.mark.setPixmap(scaled)
+        theme.themed(self.mark, self._show_mark, "icon")
         column.addWidget(self.mark, 0, Qt.AlignmentFlag.AlignHCenter)
         self.step_label = label("", "Dim")
         self.step_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -544,6 +538,15 @@ class FirstRunView(QWidget):
                       "WARN")
             self._stopped_note = ""
         self._refresh_buttons()
+
+    def _show_mark(self) -> None:
+        pixmap = QPixmap(str(paths.mark_path(theme.logo_ink())))
+        if not pixmap.isNull():
+            ratio = self.devicePixelRatioF() or 1.0
+            scaled = pixmap.scaledToHeight(int(56 * ratio),
+                                           Qt.TransformationMode.SmoothTransformation)
+            scaled.setDevicePixelRatio(ratio)
+            self.mark.setPixmap(scaled)
 
     @staticmethod
     def _say(widget: QLabel, text: str, colour: str = "") -> None:

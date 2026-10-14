@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 43.
+and bugs get the next free number: 44.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -12,18 +12,16 @@ the way, are in this file as it was at commit 606d1a2
 
 ## Open
 
-**41.** Next
-**Colour schemes › Polar, a light scheme, replaces Deep sea**
-The first light scheme, coloured as an aurora over snow: white and
-snow-grey grounds, a violet accent into teal (the maintainer's pick).
-Everything so far assumes a dark ground (the derived steps, `INK`, white
-slider handles, glows), so the light ground needs its own path; every
-contrast rule still holds.
-
-**42.**
+**42.** Next
 **Colour schemes › Glacier, a second light scheme**
 Snow-white and ice-grey grounds, a deep glacier-blue accent into icy teal.
 Asked for alongside 41, as a scheme of its own; built on 41's light path.
+
+**43.**
+**Editor › "Video" and "This clip has no audio." overlap**
+Under the timeline of a clip without audio, the Video lane's name and the
+note that there is no audio are drawn on top of each other (seen at
+1600 × 1000, in every scheme). Found while checking item 41.
 
 **9.** On hold
 **Sonar › Hotkeys**
@@ -281,7 +279,7 @@ drawn together on the canvas's Round 3 page, approved, and built as 30 to 34.
 
 **30. Colour schemes.** Settings › General › Appearance offers eight, each
 drawn as a small picture of the app in its colours: Plum (the default,
-Shelves' palette), Spooky, Abyss, Aurora, Midnight blue, Deep sea, Coral and
+Shelves' palette), Spooky, Abyss, Aurora, Midnight blue, Coral, Polar and
 Navy (the colours before; its hint text one step lighter to pass on a
 hovered card). A pick shows across the whole app at once; Save keeps it
 (`colour_scheme` in the config), Revert or leaving without saving goes
@@ -389,6 +387,19 @@ green, dusk blue, candy-corn yellow, bone and ghost lilac. The picker reads
 Plum, Spooky, Abyss, Aurora, Midnight blue, then the rest (the maintainer
 first wrote Aurora third, and meant Abyss). A config naming Ember gets Plum.
 
+**41. Colour schemes: Polar, the first light scheme, replaces Deep sea.**
+An aurora over snow: snow-grey page `#eceef7`, panels `#fbfbfe`, text
+`#1a1730`, a violet accent `#7c3aed` with white text into teal `#0d9488`,
+the channels emerald, blue, raspberry, amber and cyan, each deep enough
+for 3:1 on white. A light page colour turns round the steps worked out
+from the key colours (a paler top bar, fields a step into the page, darker
+edges) and what assumed a dark ground: red, green and yellow go deeper
+(`theme.MEANING`), white goes on the channel badges and a red button
+(`ON_CHANNEL`, `ON_DANGER`), the logo takes its dark ink, slider handles
+an outline, the playhead the text colour, and the duration and star over
+a thumbnail stay light on their scrim (`ON_VIDEO`, `STAR`). The dark
+schemes look as before. Deep sea is gone; a config naming it gets Plum.
+
 ---
 
 ## Notes
@@ -398,10 +409,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–40, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–41, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
-Open: 41 and 42 (the light schemes Polar and Glacier), 9 (on hold) and 21
-(documentation, at the end). Waiting on the
+Open: 42 (Glacier, a second light scheme), 43 (an editor bug), 9 (on hold)
+and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;

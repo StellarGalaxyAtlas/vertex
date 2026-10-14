@@ -47,7 +47,7 @@ def test_every_scheme_meets_the_contrast_rules(name, each_scheme):
     need("ON_ACCENT", "ACCENT_FILL", 4.5)             # a primary button
     need("ON_ACCENT", "ACCENT_HOVER", 4.5)
     need("ON_ACCENT", "ACCENT", 3)                    # a switch's knob on its track
-    need("INK", "DANGER", 4.5)                        # a red button, hovered
+    need("ON_DANGER", "DANGER", 4.5)                  # a red button, hovered
     for ground in ("SECTION_BG", "CARD_BG"):
         need("SELECT", ground, 4.5)                   # links
         for meaning in ("OK", "WARN", "DANGER"):
@@ -59,6 +59,8 @@ def test_every_scheme_meets_the_contrast_rules(name, each_scheme):
         need("ACCENT_EDGE", ground, 3)
         for channel in CHANNELS:
             need(channel, ground, 3)
+    for channel in CHANNELS:
+        need("ON_CHANNEL", channel, 3)                # the icon on a channel's badge
     need("EDGE", "FIELD_BG", 3)
     need("SELECT", "FIELD_BG", 3)                     # the focus ring
     for ground in ("SIDEBAR_BG", "CARD_BG"):
@@ -88,3 +90,19 @@ def test_tokens_resolve_by_name_and_colours_pass_through(each_scheme):
     assert theme.colour("TEXT_MUTED") == theme.TEXT_MUTED
     assert theme.colour("MIC") == theme.channel_colour("mic")
     assert theme.colour("#123456") == "#123456"
+
+
+def test_a_light_scheme_turns_what_assumed_a_dark_ground(each_scheme):
+    """On a light scheme the logo takes its dark ink, the playhead the text
+    colour, slider handles an outline, and red, green and yellow go deeper;
+    the dark schemes keep theirs."""
+    theme.select("polar")
+    assert theme.LIGHT and theme.logo_ink() == "dark"
+    assert theme.PLAYHEAD == theme.TEXT
+    assert theme.EDGE in theme.handle()
+    assert theme.MEANING[True]["DANGER"] == theme.DANGER
+    theme.select("plum")
+    assert not theme.LIGHT and theme.logo_ink() == "light"
+    assert theme.PLAYHEAD == "#ffffff"
+    assert theme.handle() == f"background: {theme.HANDLE};"
+    assert theme.MEANING[False]["DANGER"] == theme.DANGER

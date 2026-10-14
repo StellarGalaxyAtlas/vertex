@@ -180,7 +180,7 @@ class MonitorMap(QWidget):
 
         # Name, resolution and model, as many as fit, centred in the monitor.
         lines = [(monitor.name, theme.font(9.5, QFont.Weight.DemiBold),
-                  "#ffffff" if chosen else theme.TEXT)]
+                  theme.TEXT)]
         # The chosen monitor's fill is brighter, so its small print steps up too.
         if resolution(monitor):
             lines.append((resolution(monitor), theme.font(8.5),

@@ -704,7 +704,7 @@ class ChannelColumn(QFrame):
         badge.setFixedSize(40, 40)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         theme.themed(badge, lambda: badge.setPixmap(
-            icons.pixmap(icons.channel_icon_name(channel.id), "INK", 22)), "icon")
+            icons.pixmap(icons.channel_icon_name(channel.id), "ON_CHANNEL", 22)), "icon")
         theme.style(badge, lambda: f"background: {self.colour}; border-radius: 11px;")
         header.addWidget(badge)
         names = QVBoxLayout()
@@ -748,7 +748,7 @@ class ChannelColumn(QFrame):
             f"QSlider::groove:horizontal {{ height: 6px; background: {theme.SEAM}; "
             f"border-radius: 3px; }}"
             f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 3px; }}"
-            f"QSlider::handle:horizontal {{ background: white; width: 18px; height: 18px; "
+            f"QSlider::handle:horizontal {{ {theme.handle()} width: 18px; height: 18px; "
             f"margin: -6px 0; border-radius: 9px; }}"))
         self.slider.valueChanged.connect(self._on_slider)
         layout.addWidget(self.slider)

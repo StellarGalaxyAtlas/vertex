@@ -209,7 +209,7 @@ class TopBar(QFrame):
 
         self.logo = QLabel()
         self.logo.setFixedSize(self.LOGO_HEIGHT, self.LOGO_HEIGHT)
-        self._show_logo()
+        theme.themed(self.logo, self._show_logo, "icon")
         layout.addWidget(self.logo)
         layout.addSpacing(8)
         self.name = QLabel("Vertex")
@@ -257,8 +257,8 @@ class TopBar(QFrame):
         self._compact = None
 
     def _show_logo(self) -> None:
-        # The mark in its light ink: the bar is dark in every scheme.
-        pixmap = QPixmap(str(paths.mark_path("light")))
+        # The mark in the ink that shows on the bar: light, or dark on a light scheme.
+        pixmap = QPixmap(str(paths.mark_path(theme.logo_ink())))
         if not pixmap.isNull():
             ratio = self.devicePixelRatioF() or 1.0
             scaled = pixmap.scaledToHeight(int(self.LOGO_HEIGHT * ratio),

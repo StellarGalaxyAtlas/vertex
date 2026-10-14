@@ -120,7 +120,7 @@ class ClipDelegate(QStyledItemDelegate):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(6, 7, 10, 200))
             painter.drawRoundedRect(badge, 6, 6)
-            painter.setPen(QColor(theme.TEXT))
+            painter.setPen(QColor(theme.ON_VIDEO))
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, text)
 
         # Favourite star: always shown when set, on hover otherwise.
@@ -131,7 +131,7 @@ class ClipDelegate(QStyledItemDelegate):
             painter.setBrush(QColor(6, 7, 10, 150))
             painter.drawRoundedRect(star, 8, 8)
             glyph = icons.pixmap("star" if favorite else "star-outline",
-                                 theme.WARN if favorite else theme.TEXT, 18)
+                                 theme.STAR if favorite else theme.ON_VIDEO, 18)
             painter.drawPixmap(QPointF(star.center().x() - 9, star.center().y() - 9), glyph)
 
         # Title.
