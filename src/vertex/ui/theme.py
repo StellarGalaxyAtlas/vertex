@@ -63,9 +63,16 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     "plum": ("Plum", "Magenta and periwinkle", _scheme(
         "#150a1f", "#1d0d2b", "#f8f0ff", "#d2bfe6", "#b39dcc", "#ff3ea5", "#1c0517", "#8d6fae",
         "#7d8bff", "#a9b4ff", "#ff4d6a", ("#2fd39b", "#4cb0ff", "#b4e04a", "#ffad33", "#c08cff"))),
+    # Charcoal, near black and barely warm, so the orange and gold glow.
     "ember": ("Ember", "Orange and gold on charcoal", _scheme(
-        "#16110e", "#221a15", "#f7eee6", "#cbbcad", "#a99785", "#ff9a3e", "#1f1206", "#86705f",
-        "#ffcf5c", "#ffcf5c", "#ff4d61", ("#33c4a3", "#4f97ff", "#ec7598", "#ad8cff", "#9ccc65"))),
+        "#0f0f0f", "#1a1918", "#f6f1ea", "#c9c1b6", "#aca398", "#ff8c1a", "#1a0d02", "#7d756b",
+        "#ffc83d", "#ffc83d", "#ff4d5a", ("#3cc8a8", "#5c9dff", "#b5d65a", "#b79bff", "#d9c4a3"))),
+    # The deep sea, blue going on black, lit as its animals light themselves:
+    # a cyan glow into fluorescent magenta, the channels in neon green,
+    # electric blue, violet, a lure's gold and a fluorescent orange.
+    "abyss": ("Abyss", "Deep-sea glow on black-blue", _scheme(
+        "#02050c", "#071226", "#e4f3ff", "#a5bfdb", "#8ba6c4", "#1fe5ff", "#00161c", "#4f6c90",
+        "#ff4fd8", "#7cefff", "#ff4766", ("#3dff8f", "#4d8dff", "#b98cff", "#ffc94a", "#ff9a57"))),
     "midnight": ("Midnight blue", "Amber and cyan", _scheme(
         "#0a1020", "#1c2640", "#ecf1f9", "#aab6cb", "#99a5bc", "#f6b03e", "#0a1020", "#6c7b9a",
         "#3dd6f0", "#3dd6f0", "#ff5d62", ("#4fcb72", "#4a8ff7", "#e0709a", "#a88bfa", "#b8d860"))),
@@ -78,9 +85,6 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     "aurora": ("Aurora", "Cyan and violet", _scheme(
         "#0f0b24", "#1a1538", "#f3f0ff", "#c2bae6", "#a39bcf", "#52e0f0", "#0f0b24", "#6e64a6",
         "#a68bff", "#b9a6ff", "#ff5470", ("#3cc78a", "#5b97ff", "#ee72c0", "#eba23e", "#d4e157"))),
-    "forest": ("Forest", "Honey and moss", _scheme(
-        "#0b1410", "#1a2c22", "#f3ecd8", "#c9c4a8", "#9aac94", "#e9b440", "#1a1406", "#6e8a78",
-        "#9fd36a", "#f2cf7a", "#ff6b5e", ("#3fc7c1", "#6b9cf7", "#e5729f", "#b393f5", "#8fd18a"))),
     # Vertex's colours until round 3, as they were (the hint text one step
     # lighter, to pass on a hovered card).
     "navy": ("Navy", "Vertex's colours until now", {

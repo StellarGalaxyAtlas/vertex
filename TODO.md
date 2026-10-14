@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 38.
+and bugs get the next free number: 39.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -268,7 +268,7 @@ drawn together on the canvas's Round 3 page, approved, and built as 30 to 34.
 
 **30. Colour schemes.** Settings › General › Appearance offers eight, each
 drawn as a small picture of the app in its colours: Plum (the default,
-Shelves' palette), Ember, Midnight blue, Deep sea, Coral, Aurora, Forest and
+Shelves' palette), Ember, Abyss, Midnight blue, Deep sea, Coral, Aurora and
 Navy (the colours before; its hint text one step lighter to pass on a
 hovered card). A pick shows across the whole app at once; Save keeps it
 (`colour_scheme` in the config), Revert or leaving without saving goes
@@ -344,6 +344,16 @@ from the top, as the Sonar page's channels), with a soft glow along the
 fill; muted or with Sonar off, the light dims. The fader widens with its
 card, 8 to 22 px (a tenth of the card), its handle a pill 12 px wider.
 
+**38. Colour schemes: Ember reworked, Forest out, Abyss in.** Ember's
+ground was brown and muddied its orange and gold; it is charcoal now, near
+black and barely warm (`#0f0f0f`, panels `#1a1918`), orange into gold, the
+channels teal, blue, lime, lilac and sand. Forest is gone (not to the
+maintainer's taste; a config naming it gets Plum). Abyss is new, third in
+the picker: blue going on black (`#02050c`, panels `#071226`), lit as the
+deep sea's animals light themselves, a cyan glow into fluorescent magenta,
+the channels neon green, electric blue, violet, a lure's gold and a
+fluorescent orange. Both keep every contrast rule.
+
 ---
 
 ## Notes
@@ -353,7 +363,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–37, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–38, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
