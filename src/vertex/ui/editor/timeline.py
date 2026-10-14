@@ -25,6 +25,8 @@ MIN_SELECTION = 0.1
 
 class Timeline(QWidget):
     seek_requested = Signal(float)
+    scrub_started = Signal()         # the playhead is grabbed …
+    scrub_finished = Signal()        # … and let go
     trim_changed = Signal(float, float)
     trim_committed = Signal()
 
@@ -196,6 +198,7 @@ class Timeline(QWidget):
             self._drag = "out"
         else:
             self._drag = "seek"
+            self.scrub_started.emit()
             self.seek_requested.emit(self.time_for(x))
 
     def mouseMoveEvent(self, event):
@@ -218,6 +221,8 @@ class Timeline(QWidget):
             self.seek_requested.emit(moment)
 
     def mouseReleaseEvent(self, _event):
-        if self._drag in ("in", "out"):
+        drag, self._drag = self._drag, None
+        if drag in ("in", "out"):
             self.trim_committed.emit()
-        self._drag = None
+        elif drag == "seek":
+            self.scrub_finished.emit()

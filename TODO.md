@@ -477,6 +477,20 @@ the first switch puts the microphones in Manual, as decided with 13 (a pick
 in Auto goes to the top of the list, so cycling would bounce between two).
 Superseded by 53.
 
+**57. Editor: the mixer no longer stalls playback.** Every slider step
+swapped mpv's whole lavfi-complex, and mpv seeks each time it changes: the
+picture and sound stopped while a slider moved. The graph now only lines the
+tracks up as stereo pairs (set once); the gains are `volume` filters in the
+`af` chain, changed while playing with `af-command` (`mixing.mpv_mix_filter`).
+
+**56. Editor: dragging the playhead holds playback.** Grabbing the playhead
+of a playing clip pauses it until it is let go, then it plays on from there;
+a paused clip stays paused where it was dropped.
+
+**55. Editor: the window vanished opening the first clip.** The first
+OpenGL widget (the video) in a shown window makes Qt rebuild the window. The
+main window now carries a hidden OpenGL widget from the start.
+
 **54. Reset and delete, regrouped.** Reset settings and Clear cache share
 one card, each laid out like an Import and setup card (title, line, full-width
 button). Reset library has its own card under them, with an
@@ -518,7 +532,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53, 54, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 57, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

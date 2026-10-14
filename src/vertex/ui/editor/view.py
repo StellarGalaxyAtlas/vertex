@@ -56,6 +56,7 @@ class EditorView(QWidget):
         self.trim_start, self.trim_end = 0.0, self.duration
         self.position = 0.0
         self._suppress_until = 0.0
+        self._resume_after_scrub = False
         self._closing = False
         self._waves_cancel = workers.Cancel()
         self._waves_started = False
@@ -207,6 +208,8 @@ class EditorView(QWidget):
         self.timeline.set_duration(self.duration)
         self.timeline.set_trim(self.trim_start, self.trim_end)
         self.timeline.seek_requested.connect(self.seek)
+        self.timeline.scrub_started.connect(self._scrub_started)
+        self.timeline.scrub_finished.connect(self._scrub_finished)
         self.timeline.trim_changed.connect(self._trim_dragged)
         self.timeline.trim_committed.connect(self._trim_committed)
         mixer.setFixedHeight(self.timeline.height())
@@ -250,6 +253,7 @@ class EditorView(QWidget):
         self._update_time()
 
     def _apply_mix(self) -> None:
+        """Set up the mix before playback starts. Only gains change after."""
         if self.player_widget is None or self.player_widget.player is None:
             return
         graph = mixing.mpv_graph(self.tracks)
@@ -257,8 +261,26 @@ class EditorView(QWidget):
             return
         try:
             self.player_widget.player["lavfi-complex"] = graph
+            self.player_widget.player["af"] = mixing.mpv_mix_filter(self.tracks)
         except Exception:            # playback goes on without the mix
             pass
+
+    def _apply_gains(self) -> None:
+        """Hand the mixer's gains to the playing mix, without interrupting it."""
+        player = self.player_widget.player if self.player_widget else None
+        if player is None or not self.tracks:
+            return
+        try:
+            for position, track in enumerate(self.tracks):
+                player.command("af-command", mixing.MPV_MIX_LABEL, "volume",
+                               str(track.gain), mixing.mpv_volume_target(position))
+        except Exception:
+            # An mpv too old to aim a command inside the filter: swapping the
+            # filter whole costs a blip of sound, still no seek.
+            try:
+                player["af"] = mixing.mpv_mix_filter(self.tracks)
+            except Exception:
+                pass
 
     def _poll(self) -> None:
         if self._closing or self.player_widget is None or self.player_widget.player is None:
@@ -268,7 +290,7 @@ class EditorView(QWidget):
             position, duration, paused = player.time_pos, player.duration, player.pause
         except Exception:
             return
-        if paused is not None:
+        if paused is not None and not self._resume_after_scrub:
             self.play_button.set_icon("play" if paused else "pause", "ON_ACCENT")
         if duration and not self.duration:
             # ffprobe could not say how long the clip is; mpv can.
@@ -310,6 +332,21 @@ class EditorView(QWidget):
         except Exception:
             pass
 
+    def _scrub_started(self) -> None:
+        """Hold a playing clip while the playhead is dragged; it plays on from
+        wherever the playhead is let go."""
+        player = self.player_widget.player if self.player_widget else None
+        if player is None or player.pause:
+            return
+        self._resume_after_scrub = True
+        player.pause = True
+
+    def _scrub_finished(self) -> None:
+        resume, self._resume_after_scrub = self._resume_after_scrub, False
+        player = self.player_widget.player if self.player_widget else None
+        if resume and player is not None and not self._closing:
+            player.pause = False
+
     def _frame_step(self, forward: bool) -> None:
         player = self.player_widget.player if self.player_widget else None
         if player is not None:
@@ -328,7 +365,7 @@ class EditorView(QWidget):
     # --- Mixer and trim ---------------------------------------------------------
 
     def _mix_changed(self) -> None:
-        self._apply_mix()
+        self._apply_gains()
         self.timeline.set_lanes(self._lanes())
         self._mark_dirty()
 

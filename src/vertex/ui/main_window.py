@@ -8,6 +8,7 @@ import sqlite3
 
 from PySide6.QtCore import QFileSystemWatcher, QTimer
 from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -86,6 +87,11 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(page)
         self.editor: EditorView | None = None
         self._editor_from = "library"
+        # The editor's video is an OpenGL widget, and the first one a shown
+        # window gets makes Qt rebuild the window for OpenGL: it vanishes and
+        # comes back. A hidden one from the start means it is built that way.
+        self._gl_ready = QOpenGLWidget(central)
+        self._gl_ready.hide()
         self.first_run: FirstRunView | None = None
 
         context.message.connect(self.banner.show_message)

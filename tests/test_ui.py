@@ -17,6 +17,7 @@ pytest.importorskip("PySide6")
 if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QEvent, QObject
 from PySide6.QtWidgets import QApplication
 
 from vertex.config import Config
@@ -1453,3 +1454,67 @@ def test_editor_plays_mixes_and_trims(qapp, window):
     assert any("(trimmed)" in name for name in os.listdir(os.path.dirname(clip.path)))
     window.navigate("library")
     assert window.editor is None
+
+
+@pytest.mark.skipif(not ctypes.util.find_library("mpv"), reason="libmpv not installed")
+def test_editor_opens_without_the_window_vanishing(qapp, window):
+    if not _has_gl_display():
+        pytest.skip("the editor needs an OpenGL display (run under xvfb-run)")
+    window.show()
+    qapp.processEvents()
+    hidden = []
+
+    class Watch(QObject):
+        def eventFilter(self, obj, event):
+            if obj is window and event.type() == QEvent.Type.Hide:
+                hidden.append(True)
+            return False
+
+    watch = Watch()
+    window.installEventFilter(watch)
+    window.open_clip(next(c for c in window.state.visible if c.name.startswith("Apex")))
+    assert wait_until(qapp, lambda: window.editor.position > 0.2, timeout=15)
+    window.removeEventFilter(watch)
+    assert not hidden
+    window.navigate("library")
+
+
+@pytest.mark.skipif(not ctypes.util.find_library("mpv"), reason="libmpv not installed")
+def test_editor_holds_playback_while_scrubbing_and_mixes_live(qapp, window):
+    if not _has_gl_display():
+        pytest.skip("the editor needs an OpenGL display (run under xvfb-run)")
+    window.open_clip(next(c for c in window.state.visible if c.name.startswith("Apex")))
+    editor = window.editor
+    player = editor.player_widget.player
+    player["ao"] = "null"                   # there may be no sound card here
+    player.command("ao-reload")
+    assert wait_until(qapp, lambda: player.audio_params is not None, timeout=15)
+    assert player.audio_params["channel-count"] == 6     # three tracks, side by side
+    assert wait_until(qapp, lambda: editor.position > 0.2, timeout=15)
+
+    seeks = []
+    player.observe_property("seeking", lambda _n, value: value and seeks.append(value))
+    for value in range(100, 20, -5):        # a slider being dragged
+        editor.rows[0].slider.setValue(value)
+        qapp.processEvents()
+    wait_until(qapp, lambda: False, timeout=0.5)
+    assert not seeks and not player.pause
+    assert editor.tracks[0].volume == 0.25
+    # The live path, not the fallback: the command reaches the track's volume.
+    player.command("af-command", "mix", "volume", "0.25", "volume@v0")
+
+    editor.timeline.scrub_started.emit()
+    editor.timeline.seek_requested.emit(1.0)
+    assert wait_until(qapp, lambda: player.pause, timeout=2)
+    wait_until(qapp, lambda: False, timeout=0.6)
+    assert abs(editor.position - 1.0) < 0.05          # the playhead stays put
+    editor.timeline.scrub_finished.emit()
+    assert wait_until(qapp, lambda: editor.position > 1.2, timeout=5)
+
+    player.pause = True                                # paused stays paused
+    editor.timeline.scrub_started.emit()
+    editor.timeline.seek_requested.emit(0.5)
+    editor.timeline.scrub_finished.emit()
+    wait_until(qapp, lambda: False, timeout=0.6)
+    assert player.pause and abs(editor.position - 0.5) < 0.05
+    window.navigate("library")
