@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 26.
+and bugs get the next free number: 28.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -50,6 +50,20 @@ behind:
   (item 22); the import tools are no longer where setup points.
 - The screenshots in `docs/` (first-run.png shows the old step 1). Since
   item 24 every one of them shows the old colours and layout.
+
+**27.** In progress
+**Design round 2: more layouts and colours**
+The maintainer liked single ideas from round 1 (A, B, C) and asked for a lot
+more inspiration, above all where the navigation sits and the colours.
+Eight directions, each a Library and a Sonar board, made by a designer agent
+and checked by a reviewer agent (format, contrast, content, layout): Dock
+(bottom dock, deep sea), Split view (master-detail, ink and coral), Shelves
+(console-style shelves, nightclub), Studio (pro-app table, inspector and
+mixing console, midnight console), Home dashboard (bento home, aurora),
+Daylight (a light theme), Side mixer (a quick mixer always on the right,
+forest) and Command bar (a command bar instead of navigation, ember). They
+go on a Round 2 page of the private design canvas; the maintainer picks
+ideas from them.
 
 ## Waiting on the maintainer
 
@@ -230,6 +244,14 @@ palette again) and what is still open (the monitor map's oversized frame,
 first run's empty space, drop-down arrows); `theme.py` is the source of
 truth for the values.
 
+**26. Rail width.** At 216 px the rail cut names and counts (632 showed as
+63) and its scroll bar covered the counts: each filter row was a fixed 200 px
+in a narrower list. Rows now ask for the width of their name and count and
+elide instead of overflowing, and the rail sizes itself to the widest one,
+with room for the scroll bar, from 216 to 320 px. With a wider rail at the
+980 px minimum, Sonar's device panels stack like its channels do
+(`ColumnGrid`).
+
 ---
 
 ## Notes
@@ -239,9 +261,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–25, including the bugs 14,
-16 and 18.
-Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–26, including the bugs 14,
+16, 18 and 26.
+Open: 9 (on hold), 21 (documentation, at the end) and 27 (design round 2,
+waiting on the maintainer's picks). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;

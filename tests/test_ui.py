@@ -567,6 +567,27 @@ def test_app_left_half_behind_after_a_drop_heals(qapp, window, fake_audio):
     assert wait_until(qapp, lambda: keys("chat") == ["discord"] and keys("game") == [])
 
 
+def test_rail_grows_to_fit_its_longest_filter(qapp, window, monkeypatch):
+    from vertex.ui import theme
+    from vertex.ui.library.state import LibraryState
+
+    rail = window.rail
+    monkeypatch.setattr(LibraryState, "games",
+                        lambda self: [("Euro Truck Simulator 2", 632), ("R.E.P.O", 5)])
+    rail.rebuild_facets()
+    window.show()
+    assert theme.RAIL_WIDTH < rail.width() <= theme.RAIL_MAX_WIDTH
+    # Every name and count shows in full.
+    assert wait_until(qapp, lambda: all(row.width() >= row.needed_width()
+                                        for row in rail.facet_group.buttons()
+                                        if row.isVisible()))
+
+    # A name too long for any rail is cut short instead.
+    monkeypatch.setattr(LibraryState, "games", lambda self: [("Long " * 30, 1)])
+    rail.rebuild_facets()
+    assert rail.width() == theme.RAIL_MAX_WIDTH
+
+
 def test_new_apps_channel_is_chosen_in_the_header(qapp, window, fake_audio):
     window.navigate("sonar")
     view = window.sonar_view

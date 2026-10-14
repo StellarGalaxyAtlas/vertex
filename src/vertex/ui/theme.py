@@ -82,7 +82,8 @@ AUDIO_LANES = ("#2fb39b", "#3b82f6", "#d98d2b", "#9b6bd6", "#c25d7b", "#8a93a6")
 RADIUS_CARD = 14
 RADIUS_CONTROL = 10
 RADIUS_SMALL = 8
-RAIL_WIDTH = 216
+RAIL_WIDTH = 216            # the rail grows from here to fit its filters
+RAIL_MAX_WIDTH = 320
 CONTENT_MARGIN = 24
 
 

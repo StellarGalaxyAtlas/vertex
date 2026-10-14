@@ -70,16 +70,17 @@ are unchanged.
 
 ## The layout
 
-- **Rail** 216 px wide (was 252). The filters sit on the rail itself, with no
-  box behind them. The replay buffer card shows its state on top and a
+- **Rail** as wide as its longest filter (name and count) needs, from 216 to
+  320 px (item 26); past that, names are cut short. The filters sit on the
+  rail itself, with no box behind them. The replay buffer card shows its state on top and a
   "Save clip" button with start/stop below it.
 - **Messages are toasts** in the bottom-right corner of the page
   (`widgets.Banner`). A click dismisses one. No strip is kept for them.
 - **Sonar.** "New apps go to [channel]" sits in the page header, next to
   Enabled (the "Unrouted apps" card is gone). Channel cards are as tall as
   their apps. When four don't fit side by side they go two by two
-  (`ChannelGrid`). At the minimum width, 980 px, four fit, and nothing scrolls
-  sideways. The device manager follows straight after.
+  (`ColumnGrid`), and the device manager's two panels stack the same way.
+  At the minimum width, 980 px, nothing scrolls sideways.
 - **Library cards** have two lines under the thumbnail: the title, then
   game · people · age · size. An untagged clip says "Untagged", which turns
   into "Add tags" on hover. A click on that line edits the tags, and a click

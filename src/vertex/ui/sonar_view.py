@@ -748,19 +748,19 @@ class DeviceField(QWidget):
         self.badge.setStyleSheet(f"background: {theme.shade(colour, 0.25)}; border-radius: 8px;")
 
 
-class ChannelGrid(QWidget):
-    """The channel columns side by side, or two by two when the page is too
-    narrow for all of them in a row. Each column is as tall as what it holds."""
+class ColumnGrid(QWidget):
+    """Columns side by side, or half as many per row when the page is too
+    narrow for all of them in one: the channels go two by two, the device
+    manager's panels one under the other. Each is as tall as what it holds."""
 
-    SPACING = 12
-
-    def __init__(self, columns: list[QWidget], parent=None):
+    def __init__(self, columns: list[QWidget], spacing: int = 12, parent=None):
         super().__init__(parent)
         self.columns = columns
+        self.spacing = spacing
         self._per_row = 0
         self.grid = QGridLayout(self)
         self.grid.setContentsMargins(0, 0, 0, 0)
-        self.grid.setSpacing(self.SPACING)
+        self.grid.setSpacing(spacing)
         # Its width comes from the page, never the other way round: a row of
         # columns too wide for the window would otherwise scroll sideways.
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -781,7 +781,7 @@ class ChannelGrid(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         need = sum(column.minimumSizeHint().width() for column in self.columns) + \
-            self.SPACING * (len(self.columns) - 1)
+            self.spacing * (len(self.columns) - 1)
         self._arrange(len(self.columns) if self.width() >= need else
                       (len(self.columns) + 1) // 2)
 
@@ -838,7 +838,7 @@ class SonarView(QWidget):
         self.strips: dict[str, ChannelColumn] = {}
         for channel in channels.ALL:
             self.strips[channel.id] = ChannelColumn(self, self.controller, channel)
-        self.strips_host = ChannelGrid(list(self.strips.values()))
+        self.strips_host = ColumnGrid(list(self.strips.values()))
         layout.addWidget(self.strips_host)
 
         # Apps that picked an output themselves, past every channel. Only
@@ -861,15 +861,12 @@ class SonarView(QWidget):
         self.manager.add_row("Show disconnected devices", self.show_disconnected,
                              "Ones Vertex has seen before, so they can be placed in the "
                              "list before they are plugged in.")
-        panels = QHBoxLayout()
-        panels.setSpacing(16)
         self.output_panel = DevicePanel(self, "output", "Output devices", "headphones",
                                         theme.ACCENT_EDGE)
         self.mic_panel = DevicePanel(self, "mic", "Microphones",
                                      icons.channel_icon_name("mic"), theme.channel_colour("mic"))
-        panels.addWidget(self.output_panel, 1)
-        panels.addWidget(self.mic_panel, 1)
-        self.manager.body.addLayout(panels)
+        self.panels_host = ColumnGrid([self.output_panel, self.mic_panel], spacing=16)
+        self.manager.body.addWidget(self.panels_host)
         layout.addWidget(self.manager)
         # What each panel's lists held when last filled: the full lists and
         # the names shown, so a drag can be laid back onto the full lists.

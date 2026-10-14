@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -49,9 +50,20 @@ class FacetRow(QAbstractButton):
         self.dot = dot
         self.setFixedHeight(self.HEIGHT)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        # Narrower than its text, a row elides its name; it never pushes the
+        # rail's list wider than the rail (which would cut the counts off).
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
 
     def sizeHint(self):
-        return QSize(200, self.HEIGHT)
+        return QSize(self.needed_width(), self.HEIGHT)
+
+    def needed_width(self) -> int:
+        """The width that shows the whole name and the count."""
+        self.ensurePolished()
+        metrics = QFontMetrics(self.font())
+        count_w = metrics.horizontalAdvance(self.count) + 10 if self.count else 0
+        return 10 + (16 if self.dot else 0) + metrics.horizontalAdvance(self.text()) + \
+            12 + count_w + 10
 
     def paintEvent(self, _event):
         p = QPainter(self)
@@ -101,10 +113,17 @@ class GroupHeader(QAbstractButton):
         self.expanded = True
         self.setFixedHeight(self.HEIGHT)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self._noun = text.lower()
 
     def sizeHint(self):
-        return QSize(200, self.HEIGHT)
+        return QSize(self.needed_width(), self.HEIGHT)
+
+    def needed_width(self) -> int:
+        self.ensurePolished()
+        metrics = QFontMetrics(self.font())
+        return 10 + metrics.horizontalAdvance(self.text()) + 8 + \
+            metrics.horizontalAdvance(self.count) + 12 + 14 + 8
 
     def set_expanded(self, expanded: bool) -> None:
         self.expanded = expanded
@@ -267,7 +286,7 @@ class Rail(QFrame):
         self.facets = QVBoxLayout(self.facets_host)
         self.facets.setContentsMargins(0, 0, 0, 0)
         self.facets.setSpacing(2)
-        scroll = QScrollArea()
+        self.scroll = scroll = QScrollArea()
         scroll.setWidget(self.facets_host)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -350,6 +369,18 @@ class Rail(QFrame):
                 self._add_facet(person, Facet("person", person), count, group="people")
         self.facets.addStretch(1)
         self._sync_facet()
+        self._fit_width()
+
+    def _fit_width(self) -> None:
+        """As wide as the widest filter needs, name and count, with room for
+        the list's scroll bar: from RAIL_WIDTH up to RAIL_MAX_WIDTH, past
+        which names are cut short."""
+        rows = [*self.facet_group.buttons(), *self.group_headers.values()]
+        needed = max((row.needed_width() for row in rows), default=0)
+        margins = self.layout().contentsMargins()
+        scroll_bar = self.scroll.verticalScrollBar().sizeHint().width()
+        width = needed + margins.left() + margins.right() + scroll_bar
+        self.setFixedWidth(max(theme.RAIL_WIDTH, min(theme.RAIL_MAX_WIDTH, width)))
 
     def toggle_group(self, key: str) -> None:
         folded = self.context.config.rail_collapsed
