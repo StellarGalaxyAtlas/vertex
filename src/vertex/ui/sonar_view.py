@@ -374,30 +374,14 @@ class DevicePanel(QFrame):
         self.mode_hint = label("", "Dim", wrap=True)
         layout.addWidget(self.mode_hint)
 
-        now = QHBoxLayout()
-        now.setSpacing(8)
+        # The device in use, without a volume of its own: the channels'
+        # sliders above set what is heard.
         self.now = ElidedLabel("")
         self.now.setStyleSheet("font-weight: 600;")
-        now.addWidget(self.now, 1)
-        self.volume = QSlider(Qt.Orientation.Horizontal)
-        self.volume.setRange(0, 100)
-        self.volume.setFixedWidth(96)
-        self.volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        # A device's volume, not a channel's: neutral, never the accent.
-        self.volume.setStyleSheet(NEUTRAL_SLIDER)
-        self.volume.setToolTip("The device's own volume")
-        self.volume.valueChanged.connect(self._on_volume)
-        now.addWidget(self.volume)
-        self.readout = label("", "Muted")
-        self.readout.setFixedWidth(38)
-        self.readout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        now.addWidget(self.readout)
-        layout.addLayout(now)
+        layout.addWidget(self.now)
         self.format = label("", "Dim")
         layout.addWidget(self.format)
         self._quiet = False
-        self._volume_timer = QTimer(self, singleShot=True, interval=120)
-        self._volume_timer.timeout.connect(self._send_volume)
 
         # Outputs: a device every channel also plays through, unless the
         # channel's own "Also on" switch is off.
@@ -457,12 +441,6 @@ class DevicePanel(QFrame):
         self.excluded.fill(excluded)
         self.current = current.name if current is not None else ""
         self.now.setText(current_text)
-        self._quiet = True
-        if current is not None and not self.volume.isSliderDown():
-            self.volume.setValue(round(from_server(current.volume) * 100))
-        self._quiet = False
-        self.volume.setEnabled(current is not None)
-        self.readout.setText(f"{self.volume.value()}%" if current is not None else "")
         self.format.setText(devices.describe_format(current.sample_spec)
                             if current is not None else "")
 
@@ -506,14 +484,6 @@ class DevicePanel(QFrame):
             f"Uses the highest connected {device} in the list." if auto else
             f"Uses the {device} you pick; while it is unplugged, the highest connected one.")
 
-    def _on_volume(self, value: int) -> None:
-        self.readout.setText(f"{value}%")
-        if not self._quiet and self.current:
-            self._volume_timer.start()
-
-    def _send_volume(self) -> None:
-        self.view.controller.set_device_volume("sink" if self.kind == "output" else "source",
-                                               self.current, self.volume.value() / 100)
 
 
 class ChannelColumn(QFrame):

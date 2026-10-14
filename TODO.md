@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 28.
+and bugs get the next free number: 29.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -252,6 +252,11 @@ with room for the scroll bar, from 216 to 320 px. With a wider rail at the
 980 px minimum, Sonar's device panels stack like its channels do
 (`ColumnGrid`).
 
+**28. Device manager: no volume for the device in use.** The channels'
+sliders already set what is heard, so the Output devices and Microphones
+panels show the device in use by name and format only. The second output
+("Also play through") keeps its own volume.
+
 ---
 
 ## Notes
@@ -261,8 +266,8 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–26, including the bugs 14,
-16, 18 and 26.
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–26 and 28, including the bugs
+14, 16, 18 and 26.
 Open: 9 (on hold), 21 (documentation, at the end) and 27 (design round 2,
 waiting on the maintainer's picks). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
