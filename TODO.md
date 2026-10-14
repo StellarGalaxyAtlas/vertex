@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 29.
+and bugs get the next free number: 35.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -51,22 +51,52 @@ behind:
 - The screenshots in `docs/` (first-run.png shows the old step 1). Since
   item 24 every one of them shows the old colours and layout.
 
-**27.** Waiting on the maintainer's picks
-**Design round 2: more layouts and colours**
-The maintainer liked single ideas from round 1 (A, B, C) and asked for a lot
-more inspiration, above all where the navigation sits and the colours.
-Eight directions, each a Library and a Sonar board, one designer agent per
-direction (the maintainer reviews them; the automated review was dropped):
-Dock (bottom dock, deep sea), Split view (master-detail, ink and coral),
-Shelves (console-style shelves, nightclub), Studio (pro-app table, inspector
-and mixing console, midnight console), Home dashboard (bento home, aurora),
-Daylight (a light theme), Side mixer (a quick mixer always on the right,
-forest) and Command bar (a command bar instead of navigation, ember). All
-are on the Round 2 page of the private design canvas, with a board of the
-eight palettes beside today's and a note of each direction's pick-able
-ideas. Some mockups still give the device in use a volume slider; the
-maintainer is fine with that (28 removed it from the app). Next: the
-maintainer picks ideas, and building them becomes new items.
+**29.** Waiting on the maintainer's approval
+**Design round 3: the picks put together**
+The maintainer's picks from round 2: Shelves' plum colours and gradients and
+its top bar; the top bar's tabs are Home, Library, Sonar, Settings, then the
+search bar and the replay pill; Home as on the Home dashboard board without
+its replay buffer card; Library keeps its grid under Shelves' filter row (no
+hero, Home shows the newest clips); Sonar as on Shelves' board; a choice of
+colour schemes. One "Round 3" page on the design canvas shows them together
+in Plum: Home (latest clips across the full width, then Sonar, Games,
+Storage and People), Library (with the games drop-down open, searchable, with
+counts), Sonar, and Settings › General › Appearance with the eight schemes
+previewed in their own colours (a pick shows at once; Save keeps it, Revert
+goes back). Planned at the 980 px minimum: the tabs drop their icons, the
+replay pill drops "keeps the last 1:00", Home shows 4 clips a row. Building
+starts once the maintainer approves it: 30 to 34, in that order.
+
+**30.**
+**Colour schemes**
+Settings › General gets a colour scheme choice that changes the whole app at
+once: Plum (the default, Shelves' palette), Ember, Midnight blue, Deep sea,
+Coral, Aurora and Forest from round 2, and today's Navy. Daylight (light) was
+not taken. Each scheme brings its own gradients and its own channel colours,
+so the accent never matches a channel. Every scheme meets the design rules
+(text at 4.5:1, edges and fills at 3:1, red only for recording).
+
+**31.**
+**Top bar instead of the rail**
+Logo, tabs Home · Library · Sonar · Settings, the search bar, the replay pill
+(on/off, "keeps the last 1:00", Save clip, stop). The rail goes; its filters
+move to the Library's filter row (33).
+
+**32.**
+**Home page**
+As on the Home dashboard board, without the replay buffer card: latest clips
+with Favorites and Untagged, a Sonar mixer, Games with counts, Storage and
+People. Opens on start.
+
+**33.**
+**Library: Shelves' filter row over the grid**
+All clips · Favorites · Untagged, All games ▾, People ▾, Date/Game, card
+size, rescan and storage in one row over today's clip grid.
+
+**34.**
+**Sonar as on Shelves' board**
+Channel cards with an icon badge, a big coloured volume and a coloured top
+edge; devices in four columns (Manual/Auto, in use, priority, excluded).
 
 ## Waiting on the maintainer
 
@@ -255,6 +285,12 @@ with room for the scroll bar, from 216 to 320 px. With a wider rail at the
 980 px minimum, Sonar's device panels stack like its channels do
 (`ColumnGrid`).
 
+**27. Design round 2.** Eight directions on the design canvas's Round 2
+page (Dock, Split view, Shelves, Studio, Home dashboard, Daylight, Side
+mixer, Command bar), each a Library and a Sonar board with its pick-able
+ideas, and a board of their palettes; one designer agent per direction, no
+automated review (the maintainer reviewed them). The picks became 29 to 34.
+
 **28. Device manager: no volume for the device in use.** The channels'
 sliders already set what is heard, so the Output devices and Microphones
 panels show the device in use by name and format only. The second output
@@ -269,11 +305,12 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–26 and 28, including the bugs
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–28, including the bugs
 14, 16, 18 and 26.
-Open: 9 (on hold), 21 (documentation, at the end) and 27 (design round 2,
-waiting on the maintainer's picks). Waiting on the
-maintainer: the checks listed above, and switching to one installation.
+Open: 9 (on hold), 21 (documentation, at the end) and 29 to 34 (the new
+look: round 3's mockup waits on approval, then schemes, top bar, Home, Library,
+Sonar). Waiting on the maintainer: the checks listed above, and switching to
+one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
 a channel's gear with its shortcut fields; a channel's device list; the
