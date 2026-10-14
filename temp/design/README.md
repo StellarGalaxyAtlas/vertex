@@ -99,11 +99,14 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
   clips yet, the welcome takes the room and the other tiles stay compact.
 - **Messages are toasts** in the bottom-right corner of the page
   (`widgets.Banner`). A click dismisses one. No strip is kept for them.
-- **Sonar.** "New apps go to [channel]" sits in the page header, next to
-  Enabled (the "Unrouted apps" card is gone). Channel cards are as tall as
-  their apps. When four don't fit side by side they go two by two
-  (`ColumnGrid`), and the device manager's two panels stack the same way.
-  At the minimum width, 980 px, nothing scrolls sideways.
+- **Sonar** (item 34, as on Shelves' board): a one-line header with a status
+  light. Each channel is a card lit by its colour, with a coloured top edge,
+  a badge, the mute by its name, the volume as a big number in its colour
+  (large text, so 3:1 is enough) over a slider in it, the device, and its
+  apps as pills. Four in a row, two by two when they don't fit. The devices
+  sit in one panel, a row of four per kind (Manual/Auto and the second
+  device, in use, priority, excluded), two by two below 1000 px. At the
+  minimum width, 980 px, nothing scrolls sideways.
 - **Library cards** have two lines under the thumbnail: the title, then
   game · people · age · size. An untagged clip says "Untagged", which turns
   into "Add tags" on hover. A click on that line edits the tags, and a click

@@ -51,29 +51,6 @@ behind:
 - The screenshots in `docs/` (first-run.png shows the old step 1). Since
   item 24 every one of them shows the old colours and layout.
 
-**29.** Approved 2026-10-14
-**Design round 3: the picks put together**
-The maintainer's picks from round 2: Shelves' plum colours and gradients and
-its top bar; the top bar's tabs are Home, Library, Sonar, Settings, then the
-search bar and the replay pill; Home as on the Home dashboard board without
-its replay buffer card; Library keeps its grid under Shelves' filter row (no
-hero, Home shows the newest clips); Sonar as on Shelves' board; a choice of
-colour schemes. One "Round 3" page on the design canvas shows them together
-in Plum: Home (latest clips across the full width, then Sonar, Games,
-Storage and People), Library (with the games drop-down open, searchable, with
-counts), Sonar, and Settings › General › Appearance with the eight schemes
-previewed in their own colours (a pick shows at once; Save keeps it, Revert
-goes back). Planned at the 980 px minimum: the tabs drop their icons, the
-replay pill drops "keeps the last 1:00", Home shows 4 clips a row. The
-maintainer approved it. Built so far: 30, then 31 with 33 (the maintainer
-agreed to build them together, so the rail's filters never vanish in
-between), then 32; 34 follows. This item closes with 34.
-
-**34.**
-**Sonar as on Shelves' board**
-Channel cards with an icon badge, a big coloured volume and a coloured top
-edge; devices in four columns (Manual/Auto, in use, priority, excluded).
-
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
@@ -94,6 +71,8 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
+- 34: the Sonar page with their devices and apps: the big numbers and the
+  device lists in their font; nothing cut short at their window size.
 - 32: Home with their library (632 clips, 23 games) at their window size:
   the newest clips fill two rows and everything fits without scrolling.
 - 31, 33: the top bar and the filter row in their font and display scale;
@@ -279,6 +258,12 @@ sliders already set what is heard, so the Output devices and Microphones
 panels show the device in use by name and format only. The second output
 ("Also play through") keeps its own volume.
 
+**29. Design round 3: the picks put together.** The maintainer's picks from
+round 2 (Shelves' plum colours, gradients and top bar; Home as on the Home
+dashboard board without its replay buffer card; the Library's grid under
+Shelves' filter row; Sonar as on Shelves' board; a choice of colour schemes)
+drawn together on the canvas's Round 3 page, approved, and built as 30 to 34.
+
 **30. Colour schemes.** Settings › General › Appearance offers eight, each
 drawn as a small picture of the app in its colours: Plum (the default,
 Shelves' palette), Ember, Midnight blue, Deep sea, Coral, Aurora, Forest and
@@ -322,6 +307,18 @@ rescan and the disk. While searching, "N of M clips match". The page heading
 went. Too narrow for the row, the disk's text goes first, then the
 card-size icons, then the disk's bar.
 
+**34. Sonar as on Shelves' board.** The header is one line: "Sonar", a
+status light (the scheme's second colour while running) and what Sonar is
+doing, then "New apps go to" and Enabled. Each channel is a card lit by its
+colour: a coloured top edge, a badge, the mute beside the name, the volume
+as a big number in the channel's colour over a slider in it, the device
+with its link, and the apps as pills. Devices sit under one heading
+(with "Show disconnected devices") in one panel: per kind, Manual or Auto
+(and for outputs the second device, with its volume once one is set), the
+device in use, the priority list (numbered, "In use" or "Connected" on each
+row) and the excluded list (a dashed drop zone while empty); two by two
+below 1000 px. Manual's explanation shows only in Manual.
+
 ---
 
 ## Notes
@@ -331,11 +328,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–28 and 30–33, including the
-bugs 14, 16, 18 and 26.
-Open: 9 (on hold), 21 (documentation, at the end) and 29, 34 (the new look:
-schemes, top bar, filter row and Home built; next Sonar). Waiting on the maintainer: the checks listed above, and
-switching to one installation.
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–34, including the bugs 14,
+16, 18 and 26: the new look of round 3 is built.
+Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
+maintainer: the checks listed above, and switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
 a channel's gear with its shortcut fields; a channel's device list; the

@@ -2,8 +2,20 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QMimeData, QPoint, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QDrag, QFont, QFontMetrics, QIcon, QPainter
+from PySide6.QtCore import QMimeData, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QDrag,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractItemView,
@@ -20,6 +32,8 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSlider,
+    QStyle,
+    QStyledItemDelegate,
     QVBoxLayout,
     QWidget,
 )
@@ -45,7 +59,8 @@ APP_MIME = "application/x-vertex-app"
 
 
 def app_icon(icon_name: str, key: str, name: str, size: int = 22) -> QLabel:
-    """The app's own icon from the desktop's icon theme, or its initial."""
+    """The app's own icon from the desktop's icon theme, or its initial in a
+    round badge."""
     badge = QLabel()
     badge.setFixedSize(size, size)
     badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -55,14 +70,33 @@ def app_icon(icon_name: str, key: str, name: str, size: int = 22) -> QLabel:
             badge.setPixmap(icon.pixmap(size, size))
             return badge
     badge.setText((name[:1] or "?").upper())
-    theme.style(badge, lambda: f"background: {theme.game_colour(key)}; border-radius: 6px; "
-                               f"color: {theme.INK}; font-weight: 700; font-size: 8pt;")
+    theme.style(badge, lambda: f"background: {theme.game_colour(key)}; "
+                               f"border-radius: {size // 2}px; color: {theme.INK}; "
+                               f"font-weight: 700; font-size: 8pt;")
     return badge
 
 
+class PillLabel(ElidedLabel):
+    """A label in a pill: as wide as its text up to `most`, then cut short."""
+
+    def __init__(self, text: str = "", most: int = 170, parent=None):
+        super().__init__(text, parent)
+        self.most = most
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+    def sizeHint(self):
+        metrics = self.fontMetrics()
+        return QSize(min(self.most, metrics.horizontalAdvance(self.full_text()) + 2),
+                     metrics.height())
+
+    def minimumSizeHint(self):
+        return QSize(min(40, self.sizeHint().width()), self.fontMetrics().height())
+
+
 class AppChip(QFrame):
-    """One application. Drag it onto a channel to send it there for good;
-    right-click for the same without dragging."""
+    """One application, as a pill: its icon or initial and its name (and a note
+    under it when there is something to say). Drag it onto a channel to send
+    it there for good; right-click for the same without dragging."""
 
     def __init__(self, view, key: str, name: str, icon: str = "", note: str = "",
                  rule: str | None = None, draggable: bool = True, dim: bool = False,
@@ -75,25 +109,28 @@ class AppChip(QFrame):
         self.draggable = draggable
         self._press = None
         self.setObjectName("AppChip")
-        theme.style(self, lambda: f"#AppChip {{ background: {theme.CARD_BG}; border-radius: 8px; }}"
+        radius = 9 if note else 13
+        theme.style(self, lambda: f"#AppChip {{ background: {theme.CARD_BG}; "
+                                  f"border: 1px solid {theme.LINE}; border-radius: {radius}px; }}"
                                   f"#AppChip:hover {{ background: {theme.CARD_HOVER}; }}")
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 5, 8, 5)
-        layout.setSpacing(8)
-        layout.addWidget(app_icon(icon, key, name))
+        layout.setContentsMargins(3, 3, 10, 3)
+        layout.setSpacing(7)
+        layout.addWidget(app_icon(icon, key, name, 20), 0, Qt.AlignmentFlag.AlignVCenter)
         text = QVBoxLayout()
         text.setSpacing(0)
-        title = ElidedLabel(name)
+        title = PillLabel(name)
         if dim:
             theme.style(title, lambda: f"color: {theme.TEXT_DIM};")
         text.addWidget(title)
         if note:
-            detail = ElidedLabel(note)
+            detail = PillLabel(note)
             detail.setObjectName("Dim")
-            if warn:
-                theme.style(detail, lambda: f"color: {theme.WARN};")
+            theme.style(detail, lambda: f"color: {theme.WARN if warn else theme.TEXT_DIM}; "
+                                        f"font-size: 8.5pt;")
             text.addWidget(detail)
-        layout.addLayout(text, 1)
+        layout.addLayout(text)
         if draggable:
             self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setToolTip(tooltip or (f"{name} ({key}) — drag onto another channel"
@@ -150,10 +187,10 @@ class DeviceButton(QAbstractButton):
         self.setMinimumWidth(60)
 
     def sizeHint(self):
-        return QSize(160, 30)
+        return QSize(160, 34)
 
     def minimumSizeHint(self):
-        return QSize(60, 30)
+        return QSize(60, 34)
 
     def enterEvent(self, event):
         self.update()
@@ -167,9 +204,10 @@ class DeviceButton(QAbstractButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         hover = self.underMouse() and self.isEnabled()
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(theme.CARD_HOVER if hover else theme.FIELD_BG))
-        p.drawRoundedRect(QRectF(self.rect()), theme.RADIUS_SMALL, theme.RADIUS_SMALL)
+        p.setPen(QPen(QColor(theme.SELECT if hover else theme.EDGE), 1))
+        p.setBrush(QColor(theme.FIELD_BG))
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5),
+                          theme.RADIUS_SMALL, theme.RADIUS_SMALL)
         chevron = 16
         text_rect = self.rect().adjusted(10, 0, -(chevron + 12), 0)
         p.setPen(QColor(theme.TEXT if self.isEnabled() else theme.TEXT_DIM))
@@ -248,31 +286,96 @@ class DeviceList(QFrame):
         self.show()
 
 
+class _DeviceRows(QStyledItemDelegate):
+    """A device in a priority or excluded list, as a row of its own: a grip,
+    its place in the list, its name, and whether it is in use or connected."""
+
+    ROW = 38
+
+    def __init__(self, numbered: bool, parent=None):
+        super().__init__(parent)
+        self.numbered = numbered
+
+    def sizeHint(self, _option, _index):
+        return QSize(0, self.ROW)
+
+    def paint(self, painter, option, index):
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(option.rect).adjusted(0, 2, 0, -2)
+        connected = index.data(Qt.ItemDataRole.UserRole + 1)
+        current = index.data(Qt.ItemDataRole.UserRole + 2)
+        if option.state & QStyle.StateFlag.State_Selected:
+            ground = theme.ACCENT_SOFT
+        elif option.state & QStyle.StateFlag.State_MouseOver:
+            ground = theme.CARD_HOVER
+        else:
+            ground = theme.CARD_BG
+        painter.setPen(QPen(QColor(theme.LINE), 1))
+        painter.setBrush(QColor(ground))
+        painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+        x = rect.left() + 10
+        painter.drawPixmap(int(x), int(rect.center().y()) - 7, icons.pixmap("grip", "TEXT_DIM", 14))
+        x += 22
+        font = QFont(option.font)
+        metrics = QFontMetrics(font)
+        if self.numbered:
+            painter.setFont(font)
+            painter.setPen(QColor(theme.TEXT_DIM))
+            painter.drawText(QRectF(x, rect.top(), 18, rect.height()),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                             str(index.row() + 1))
+            x += 20
+        status = "In use" if current else ("Connected" if connected else "Not connected")
+        small = QFont(option.font)
+        small.setPointSizeF(max(7.0, small.pointSizeF() - 1))
+        if current:
+            small.setWeight(QFont.Weight.DemiBold)
+        status_w = QFontMetrics(small).horizontalAdvance(status) + (14 if current else 0)
+        painter.setFont(small)
+        painter.setPen(QColor(theme.TEXT if current else theme.TEXT_DIM))
+        painter.drawText(QRectF(rect.left(), rect.top(), rect.width() - 12, rect.height()),
+                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, status)
+        if current:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(theme.SECOND))
+            painter.drawEllipse(QRectF(rect.right() - 12 - status_w, rect.center().y() - 3, 6, 6))
+        if current:
+            font.setWeight(QFont.Weight.DemiBold)
+            metrics = QFontMetrics(font)
+        painter.setFont(font)
+        painter.setPen(QColor(theme.TEXT if connected else theme.TEXT_MUTED))
+        room = int(rect.right() - 12 - status_w - 10 - x)
+        painter.drawText(QRectF(x, rect.top(), max(0, room), rect.height()),
+                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                         metrics.elidedText(index.data(Qt.ItemDataRole.DisplayRole),
+                                            Qt.TextElideMode.ElideRight, max(0, room)))
+        painter.restore()
+
+
 class DeviceOrder(QListWidget):
     """Devices in the order Sonar picks them, reordered by dragging. Devices
-    drag between a panel's priority and excluded lists too."""
+    drag between a panel's priority and excluded lists too. The excluded list
+    is a dashed drop zone while it is empty."""
 
     changed = Signal()
-    ROW = 34
+    ROW = _DeviceRows.ROW
 
-    def __init__(self, placeholder: str, parent=None):
+    def __init__(self, placeholder: str, numbered: bool = True, dashed: bool = False,
+                 parent=None):
         super().__init__(parent)
         self.placeholder = placeholder
+        self.dashed = dashed
+        self.setItemDelegate(_DeviceRows(numbered, self))
+        self.setMouseTracking(True)
+        self.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover)
         self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.setIconSize(QSize(16, 16))
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # Long device names are cut short with "…" rather than scrolled to.
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
-        theme.style(self, lambda: (
-            f"QListWidget {{ background: {theme.FIELD_BG}; border-radius: 8px; padding: 4px; }}"
-            f"QListWidget::item {{ padding: 6px 6px; border-radius: 6px; }}"
-            f"QListWidget::item:hover {{ background: {theme.CARD_HOVER}; }}"
-            f"QListWidget::item:selected {{ background: {theme.ACCENT_SOFT}; "
-            f"color: {theme.TEXT}; }}"))
+        theme.style(self, lambda: "QListWidget { background: transparent; border: none; }")
         self._quiet = False
         self._dragging = False
         self._pending: list | None = None
@@ -302,21 +405,15 @@ class DeviceOrder(QListWidget):
         self._quiet = True
         self.clear()
         for name, text, connected, current in rows:
-            item = QListWidgetItem(
-                icons.icon("check" if current else "grip",
-                           theme.ACCENT_EDGE if current else theme.TEXT_DIM, 16),
-                text if connected else f"{text} · not connected")
+            item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, name)
-            if current:
-                font = QFont(item.font())
-                font.setWeight(QFont.Weight.DemiBold)
-                item.setFont(font)
-            if not connected:
-                item.setForeground(QColor(theme.TEXT_DIM))
-            item.setToolTip(f"{text}\n{name}")
+            item.setData(Qt.ItemDataRole.UserRole + 1, connected)
+            item.setData(Qt.ItemDataRole.UserRole + 2, current)
+            item.setToolTip(f"{text}\n{name}" if connected else f"{text} · not connected\n{name}")
             self.addItem(item)
         self._quiet = False
-        self.setFixedHeight(max(2, len(rows)) * self.ROW + 10)
+        self.setFixedHeight(max(1, len(rows)) * self.ROW + 4 if rows or not self.dashed
+                            else 2 * self.ROW)
 
     def names(self) -> list[str]:
         return [self.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.count())]
@@ -333,11 +430,19 @@ class DeviceOrder(QListWidget):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        if not self.count():
-            p = QPainter(self.viewport())
-            p.setPen(QColor(theme.TEXT_DIM))
-            p.drawText(self.viewport().rect().adjusted(10, 0, -10, 0),
-                       Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self.placeholder)
+        if self.count():
+            return
+        p = QPainter(self.viewport())
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        area = QRectF(self.viewport().rect()).adjusted(1, 1, -1, -1)
+        if self.dashed:
+            pen = QPen(QColor(theme.EDGE), 1, Qt.PenStyle.DashLine)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(area, 10, 10)
+        p.setPen(QColor(theme.TEXT_DIM))
+        p.drawText(area.adjusted(12, 0, -12, 0),
+                   Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self.placeholder)
 
 
 def neutral_slider() -> str:
@@ -345,99 +450,179 @@ def neutral_slider() -> str:
     return f"QSlider::sub-page:horizontal {{ background: {theme.TEXT_MUTED}; border-radius: 2px; }}"
 
 
-class DevicePanel(QFrame):
-    """One kind of device in the device manager: the outputs, or the mics."""
+class WrapLabel(QLabel):
+    """A label that wraps, and answers `full_text` like an ElidedLabel."""
 
-    def __init__(self, view, kind: str, title: str, icon_name: str, colour: str,
-                 parent=None):
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self.setWordWrap(True)
+
+    def full_text(self) -> str:
+        return self.text()
+
+
+class DevicePanel(QWidget):
+    """One kind of device in the device manager, the outputs or the mics, as
+    a row of four: Manual or Auto (and, for outputs, the second device), the
+    one in use, the priority list, the excluded list. Two by two when the
+    page is narrow."""
+
+    WIDE = 1000
+
+    def __init__(self, view, kind: str, title: str, icon_name: str, parent=None):
         super().__init__(parent)
         self.view = view
         self.kind = kind                 # "output" or "mic", as in SonarConfig
         self.current = ""
-        self.setObjectName("DevicePanel")
-        theme.style(self, lambda: f"#DevicePanel {{ background: {theme.CARD_BG}; "
-                                  f"border-radius: 12px; }}")
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 16)
-        layout.setSpacing(8)
+        self._quiet = False
+        self._wide = None
+        device = "device" if kind == "output" else "microphone"
 
-        header = QHBoxLayout()
-        header.setSpacing(10)
-        badge = QLabel()
-        badge.setFixedSize(30, 30)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        theme.themed(badge, lambda: badge.setPixmap(icons.pixmap(icon_name, colour, 18)), "icon")
-        theme.style(badge, lambda: f"background: {theme.shade(theme.colour(colour), 0.25)}; "
-                                   f"border-radius: 9px;")
-        header.addWidget(badge)
+        # Manual or Auto, and the second device.
+        controls = QWidget()
+        column = QVBoxLayout(controls)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(8)
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        icon = QLabel()
+        icon.setFixedSize(18, 18)
+        theme.themed(icon, lambda: icon.setPixmap(icons.pixmap(icon_name, "TEXT", 18)), "icon")
+        head.addWidget(icon)
         name = label(title)
-        name.setStyleSheet("font-weight: 600;")
-        header.addWidget(name, 1)
+        name.setStyleSheet("font-size: 12pt; font-weight: 600;")
+        head.addWidget(name)
+        head.addStretch(1)
+        column.addLayout(head)
         self.mode = Segmented([("manual", "Manual"), ("auto", "Auto")], "auto")
         self.mode.changed.connect(self._on_mode)
-        header.addWidget(self.mode)
-        layout.addLayout(header)
+        column.addWidget(self.mode, 0, Qt.AlignmentFlag.AlignLeft)
         self.mode_hint = label("", "Dim", wrap=True)
-        layout.addWidget(self.mode_hint)
-
-        # The device in use, without a volume of its own: the channels'
-        # sliders above set what is heard.
-        self.now = ElidedLabel("")
-        self.now.setStyleSheet("font-weight: 600;")
-        layout.addWidget(self.now)
-        self.format = label("", "Dim")
-        layout.addWidget(self.format)
-        self._quiet = False
+        column.addWidget(self.mode_hint)
 
         # Outputs: a device every channel also plays through, unless the
         # channel's own "Also on" switch is off.
         self.second = None
         self.second_device = ""
         if kind == "output":
-            layout.addSpacing(4)
-            layout.addWidget(label("ALSO PLAY THROUGH", "Group"))
-            row = QHBoxLayout()
-            row.setSpacing(8)
+            column.addSpacing(4)
+            column.addWidget(label("ALSO PLAY THROUGH", "Group"))
             self.second = QComboBox()
             self.second.setSizeAdjustPolicy(
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.second.setMinimumContentsLength(10)
+            self.second.setToolTip("Every channel plays here too, unless its “Also on” "
+                                   "switch is off.")
             self.second.activated.connect(lambda _i: view.controller.set_second_output(
                 self.second.currentData() or ""))
-            row.addWidget(self.second, 1)
+            column.addWidget(self.second)
+            row = QHBoxLayout()
+            row.setSpacing(8)
             self.second_volume = QSlider(Qt.Orientation.Horizontal)
             self.second_volume.setRange(0, 100)
-            self.second_volume.setFixedWidth(96)
             self.second_volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             theme.style(self.second_volume, neutral_slider)
             self.second_volume.setToolTip("The second device's own volume")
             self.second_volume.valueChanged.connect(self._on_second_volume)
-            row.addWidget(self.second_volume)
+            row.addWidget(self.second_volume, 1)
             self.second_readout = label("", "Muted")
             self.second_readout.setFixedWidth(38)
             self.second_readout.setAlignment(
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             row.addWidget(self.second_readout)
-            layout.addLayout(row)
-            layout.addWidget(label("Every channel plays here too, unless its “Also on” "
-                                   "switch is off.", "Dim", wrap=True))
-            layout.addSpacing(6)
+            column.addLayout(row)
             self._second_timer = QTimer(self, singleShot=True, interval=120)
             self._second_timer.timeout.connect(lambda: view.controller.set_device_volume(
                 "sink", self.second_device, self.second_volume.value() / 100))
+        column.addStretch(1)
 
-        layout.addSpacing(4)
-        layout.addWidget(label("PRIORITY", "Group"))
+        # The device in use, without a volume of its own: the channels'
+        # sliders above set what is heard.
+        in_use = QWidget()
+        column = QVBoxLayout(in_use)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(8)
+        column.addWidget(label("IN USE", "Group"))
+        card = QFrame()
+        card.setObjectName("InUse")
+        theme.style(card, lambda: f"#InUse {{ background: {theme.CARD_BG}; border: 1px solid "
+                                  f"{theme.LINE}; border-radius: 12px; }}")
+        inside = QHBoxLayout(card)
+        inside.setContentsMargins(14, 12, 14, 12)
+        inside.setSpacing(12)
+        badge = QLabel()
+        badge.setFixedSize(36, 36)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        theme.themed(badge, lambda: badge.setPixmap(icons.pixmap(icon_name, "TEXT_MUTED", 18)),
+                     "icon")
+        theme.style(badge, lambda: f"background: {theme.CONTROL_BG}; border-radius: 10px;")
+        inside.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        self.now = WrapLabel("")
+        self.now.setStyleSheet("font-weight: 600; background: transparent;")
+        text.addWidget(self.now)
+        self.format = label("", "Dim")
+        text.addWidget(self.format)
+        inside.addLayout(text, 1)
+        column.addWidget(card)
+        column.addStretch(1)
+
+        priority = QWidget()
+        column = QVBoxLayout(priority)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(8)
+        head = QHBoxLayout()
+        head.setSpacing(6)
+        head.addWidget(label("PRIORITY", "Group"))
+        head.addWidget(label("· drag to reorder", "Dim"))
+        head.addStretch(1)
+        column.addLayout(head)
         self.priority = DeviceOrder("No devices found.")
-        layout.addWidget(self.priority)
-        layout.addWidget(label("EXCLUDED", "Group"))
-        self.excluded = DeviceOrder("Drag a device here to keep Vertex from picking it "
-                                    "by itself.")
-        layout.addWidget(self.excluded)
-        layout.addStretch(1)
+        column.addWidget(self.priority)
+        column.addStretch(1)
+
+        excluded = QWidget()
+        column = QVBoxLayout(excluded)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(8)
+        column.addWidget(label("EXCLUDED", "Group"))
+        self.excluded = DeviceOrder(f"Drop a {device} here and Vertex never picks it by "
+                                    f"itself", numbered=False, dashed=True)
+        column.addWidget(self.excluded)
+        column.addStretch(1)
+
+        self.parts = [controls, in_use, priority, excluded]
+        self.grid = QGridLayout(self)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setHorizontalSpacing(24)
+        self.grid.setVerticalSpacing(16)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._arrange(True)
         for order in (self.priority, self.excluded):
             order.changed.connect(lambda: view.device_order_changed(
                 kind, self.priority.names(), self.excluded.names()))
+
+    def _arrange(self, wide: bool) -> None:
+        if wide == self._wide:
+            return
+        self._wide = wide
+        for part in self.parts:
+            self.grid.removeWidget(part)
+        if wide:
+            for index, part in enumerate(self.parts):
+                self.grid.addWidget(part, 0, index)
+            stretches = (4, 5, 6, 5)
+        else:
+            for index, part in enumerate(self.parts):
+                self.grid.addWidget(part, index // 2, index % 2)
+            stretches = (1, 1, 0, 0)
+        for index, stretch in enumerate(stretches):
+            self.grid.setColumnStretch(index, stretch)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._arrange(self.width() >= self.WIDE)
 
     def show_devices(self, priority: list, excluded: list, auto: bool, current,
                      current_text: str) -> None:
@@ -449,6 +634,7 @@ class DevicePanel(QFrame):
         self.now.setText(current_text)
         self.format.setText(devices.describe_format(current.sample_spec)
                             if current is not None else "")
+        self.format.setVisible(bool(self.format.text()))
 
     def show_second(self, choices: list[tuple[str, str]], current: str, device,
                     current_text: str, connected: bool = True) -> None:
@@ -471,7 +657,9 @@ class DevicePanel(QFrame):
         if device is not None and not self.second_volume.isSliderDown():
             self.second_volume.setValue(round(from_server(device.volume) * 100))
         self._quiet = False
-        self.second_volume.setEnabled(device is not None)
+        # Its volume only while there is a second device to set it for.
+        self.second_volume.setVisible(device is not None)
+        self.second_readout.setVisible(device is not None)
         self.second_readout.setText(f"{self.second_volume.value()}%" if device is not None
                                     else "")
 
@@ -485,58 +673,100 @@ class DevicePanel(QFrame):
         self.view.controller.set_auto(self.kind, key == "auto")
 
     def _show_hint(self, auto: bool) -> None:
+        """Auto is explained once, above both lists; Manual here."""
         device = "device" if self.kind == "output" else "mic"
         self.mode_hint.setText(
             f"Uses the highest connected {device} in the list." if auto else
             f"Uses the {device} you pick; while it is unplugged, the highest connected one.")
-
+        self.mode_hint.setVisible(not auto)
 
 
 class ChannelColumn(QFrame):
-    """One channel: its volume and the apps on it. Output channels accept
-    dropped apps."""
+    """One channel as a card lit by its colour: badge, name and mute, its
+    volume as a big number over a slider, the device it plays through, and
+    the apps on it. Output channels accept dropped apps."""
 
     def __init__(self, view, controller, channel: channels.Channel, parent=None):
         super().__init__(parent)
         self.view = view
         self.controller = controller
         self.channel = channel
+        self._highlight = False
         self.setObjectName("Strip")
-        self._paint_frame(False)
-        self.setMinimumWidth(150)
+        self.setMinimumWidth(190)
         self.setAcceptDrops(channel.is_output)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setContentsMargins(18, 18, 18, 16)
         layout.setSpacing(10)
 
         header = QHBoxLayout()
-        header.setSpacing(10)
+        header.setSpacing(12)
         badge = QLabel()
-        badge.setFixedSize(34, 34)
+        badge.setFixedSize(40, 40)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         theme.themed(badge, lambda: badge.setPixmap(
-            icons.pixmap(icons.channel_icon_name(channel.id), self.colour, 20)), "icon")
-        theme.style(badge, lambda: f"background: {theme.shade(self.colour, 0.25)}; "
-                                   f"border-radius: 10px;")
+            icons.pixmap(icons.channel_icon_name(channel.id), "INK", 22)), "icon")
+        theme.style(badge, lambda: f"background: {self.colour}; border-radius: 11px;")
         header.addWidget(badge)
         names = QVBoxLayout()
         names.setSpacing(0)
         name = label(channel.label)
-        name.setStyleSheet("font-weight: 600;")
+        name.setStyleSheet("font-size: 12.5pt; font-weight: 700; background: transparent;")
         names.addWidget(name)
         device = label(channel.description, "Dim")
         device.setToolTip(f"{channel.blurb}\nDevice: {channel.node}")
         names.addWidget(device)
         header.addLayout(names, 1)
+        self.mute = IconButton("volume", "Mute", 18, "TEXT_MUTED", kind="")
+        self.mute.setCheckable(True)
+        self.mute.setFixedSize(36, 36)
+        theme.style(self.mute, lambda: f"QToolButton {{ background: {theme.CONTROL_BG}; "
+                                       f"border: 1px solid {theme.LINE}; border-radius: 10px; "
+                                       f"padding: 0; }}"
+                                       f"QToolButton:hover {{ background: {theme.CARD_HOVER}; }}")
+        self.mute.toggled.connect(self._on_mute)
+        header.addWidget(self.mute, 0, Qt.AlignmentFlag.AlignTop)
         layout.addLayout(header)
+
+        # The volume, big, in the channel's colour.
+        number = QHBoxLayout()
+        number.setSpacing(2)
+        self.readout = QLabel("100")
+        theme.style(self.readout, lambda: f"color: {self.colour}; font-size: 34pt; "
+                                          f"font-weight: 700; background: transparent;")
+        number.addWidget(self.readout, 0, Qt.AlignmentFlag.AlignBottom)
+        self.percent = QLabel("%")
+        theme.style(self.percent, lambda: f"color: {self.colour}; font-size: 15pt; "
+                                          f"font-weight: 700; background: transparent;")
+        number.addWidget(self.percent, 0, Qt.AlignmentFlag.AlignBottom)
+        number.addStretch(1)
+        layout.addLayout(number)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, 100)
+        self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.slider.setAccessibleName(f"{channel.label} volume")
+        theme.style(self.slider, lambda: (
+            f"QSlider::groove:horizontal {{ height: 6px; background: {theme.SEAM}; "
+            f"border-radius: 3px; }}"
+            f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 3px; }}"
+            f"QSlider::handle:horizontal {{ background: white; width: 18px; height: 18px; "
+            f"margin: -6px 0; border-radius: 9px; }}"))
+        self.slider.valueChanged.connect(self._on_slider)
+        layout.addWidget(self.slider)
 
         # The real device it plays through (the Mic: the mic behind it). Output
         # channels share one while linked.
         row = QHBoxLayout()
-        row.setSpacing(4)
+        row.setSpacing(8)
         self.link = None
         if channel.is_output:
-            self.link = IconButton("link", "", 16, "ACCENT_EDGE")
+            self.link = IconButton("link", "", 16, "ACCENT_EDGE", kind="")
+            self.link.setFixedSize(34, 34)
+            theme.style(self.link, lambda: f"QToolButton {{ background: {theme.CONTROL_BG}; "
+                                           f"border: 1px solid {theme.LINE}; "
+                                           f"border-radius: 10px; padding: 0; }}"
+                                           f"QToolButton:hover {{ background: "
+                                           f"{theme.CARD_HOVER}; }}")
             self.link.clicked.connect(lambda: view.toggle_link(channel.id))
             row.addWidget(self.link)
         self.device = DeviceButton()
@@ -560,31 +790,19 @@ class ChannelColumn(QFrame):
         layout.addWidget(self.also_row)
         self.also_row.hide()
 
-        volume = QHBoxLayout()
-        volume.setSpacing(6)
-        self.mute = IconButton("volume", "Mute", 16, "TEXT_MUTED")
-        self.mute.setCheckable(True)
-        self.mute.toggled.connect(self._on_mute)
-        volume.addWidget(self.mute)
-        self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(0, 100)
-        self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        theme.style(self.slider, lambda: f"QSlider::sub-page:horizontal {{ background: "
-                                         f"{self.colour}; border-radius: 2px; }}")
-        self.slider.valueChanged.connect(self._on_slider)
-        volume.addWidget(self.slider, 1)
-        self.readout = label("100%", "Muted")
-        self.readout.setFixedWidth(38)
-        self.readout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        volume.addWidget(self.readout)
-        layout.addLayout(volume)
-
-        layout.addWidget(hline())
+        layout.addSpacing(4)
         layout.addWidget(label("RECORDING FROM IT" if not channel.is_output else "APPS",
                                "Group"))
-        self.apps = QVBoxLayout()
-        self.apps.setSpacing(6)
-        layout.addLayout(self.apps)
+        self.apps_host = QWidget()
+        self.apps = FlowLayout(self.apps_host, spacing=6)
+        layout.addWidget(self.apps_host)
+        empty = ("Drop an app here" if channel.is_output else "No app is using the mic")
+        self.empty = label(empty, "Dim")
+        self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty.setMinimumHeight(32)
+        theme.style(self.empty, lambda: f"color: {theme.TEXT_DIM}; border: 1px dashed "
+                                        f"{theme.EDGE}; border-radius: 13px;")
+        layout.addWidget(self.empty)
         layout.addStretch(1)
 
         settings = controller.context.config.sonar.channel(channel.id)
@@ -592,12 +810,47 @@ class ChannelColumn(QFrame):
         self.slider.setValue(round(settings.volume * 100))
         self.mute.setChecked(settings.muted)
         self._quiet = False
+        self._show_value(self.slider.value())
         self._paint_mute()
         self.set_apps([])
 
     @property
     def colour(self) -> str:
         return theme.channel_colour(self.channel.id)
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        shape = QPainterPath()
+        shape.addRoundedRect(rect, 16, 16)
+        ground = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        ground.setColorAt(0, QColor(theme.CARD_BG))
+        ground.setColorAt(0.6, QColor(theme.SECTION_BG))
+        p.fillPath(shape, QBrush(ground))
+        # Lit by its colour from the top, brighter while it is on.
+        lit = 0.16 if self.isEnabled() else 0.07
+        glow = QRadialGradient(QPointF(rect.left() + rect.width() * 0.3, rect.top()),
+                               rect.width() * 0.75)
+        glow.setColorAt(0, _alpha(self.colour, lit))
+        glow.setColorAt(1, _alpha(self.colour, 0))
+        p.fillPath(shape, QBrush(glow))
+        p.save()
+        p.setClipPath(shape)
+        edge = QRectF(rect.left() + 22, rect.top() - 1, rect.width() - 44, 4)
+        for grow, alpha in ((6, 0.12), (3, 0.25)):
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(_alpha(self.colour, alpha if self.isEnabled() else alpha / 2))
+            p.drawRoundedRect(edge.adjusted(-grow, 0, grow, grow), 3 + grow, 3 + grow)
+        p.setBrush(_alpha(self.colour, 1.0 if self.isEnabled() else 0.5))
+        p.drawRoundedRect(edge, 2, 2)
+        p.restore()
+        if self._highlight:
+            p.setPen(QPen(QColor(self.colour), 2))
+        else:
+            p.setPen(QPen(QColor(theme.LINE), 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(shape)
 
     def show_also(self, device_text: str, on: bool, shown: bool) -> None:
         self.also_row.setVisible(shown and self.channel.is_output)
@@ -639,8 +892,11 @@ class ChannelColumn(QFrame):
         self._quiet = False
         self._paint_mute()
 
+    def _show_value(self, value: int) -> None:
+        self.readout.setText(str(value))
+
     def _on_slider(self, value: int) -> None:
-        self.readout.setText(f"{value}%")
+        self._show_value(value)
         if not self._quiet:
             self.controller.set_volume(self.channel.id, value / 100)
 
@@ -652,9 +908,9 @@ class ChannelColumn(QFrame):
 
     def _paint_mute(self) -> None:
         muted = self.mute.isChecked()
-        self.mute.set_icon("mute" if muted else "volume",
-                           "DANGER" if muted else "TEXT_MUTED")
-        self.mute.setToolTip("Unmute" if muted else "Mute")
+        self.mute.set_icon("mute" if muted else "volume", "DANGER" if muted else "TEXT_MUTED")
+        self.mute.setToolTip(f"Unmute {self.channel.label}" if muted else
+                             f"Mute {self.channel.label}")
 
     # --- Apps ------------------------------------------------------------------
 
@@ -665,20 +921,13 @@ class ChannelColumn(QFrame):
                 item.widget().deleteLater()
         for chip in chips:
             self.apps.addWidget(chip)
-        if not chips:
-            empty = ("Drop an app here" if self.channel.is_output
-                     else "No app is using the mic")
-            hint = label(empty, "Dim", wrap=True)
-            hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            hint.setMinimumHeight(36)
-            theme.style(hint, lambda: f"color: {theme.TEXT_DIM}; border: 1px dashed "
-                                      f"{theme.SEAM}; border-radius: 8px;")
-            self.apps.addWidget(hint)
+        self.apps_host.setVisible(bool(chips))
+        self.empty.setVisible(not chips)
+        self.apps.invalidate()
 
     def _paint_frame(self, highlight: bool) -> None:
-        theme.style(self, lambda: f"#Strip {{ background: {theme.SECTION_BG}; border-radius: "
-                                  f"14px; border: 2px solid "
-                                  f"{self.colour if highlight else 'transparent'}; }}")
+        self._highlight = highlight
+        self.update()
 
     def dragEnterEvent(self, event):
         if self.channel.is_output and event.mimeData().hasFormat(APP_MIME):
@@ -730,6 +979,27 @@ class DeviceField(QWidget):
             icons.pixmap(icon_name, colour, 16)), "icon")
         theme.style(self.badge, lambda: f"background: {theme.shade(theme.colour(colour), 0.25)}; "
                                         f"border-radius: 8px;")
+
+
+def _alpha(colour: str, alpha: float) -> QColor:
+    result = QColor(colour)
+    result.setAlphaF(alpha)
+    return result
+
+
+class Panel(QFrame):
+    """A rounded panel with a faint gradient, as Home's tiles and the channels."""
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        ground = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        ground.setColorAt(0, QColor(theme.CARD_BG))
+        ground.setColorAt(0.5, QColor(theme.SECTION_BG))
+        p.setPen(QPen(QColor(theme.LINE), 1))
+        p.setBrush(QBrush(ground))
+        p.drawRoundedRect(rect, 16, 16)
 
 
 class ColumnGrid(QWidget):
@@ -792,12 +1062,15 @@ class SonarView(QWidget):
         layout.setSpacing(16)
 
         header = QHBoxLayout()
-        title = QVBoxLayout()
-        title.setSpacing(2)
-        title.addWidget(label("Sonar", "Heading"))
+        header.setSpacing(10)
+        header.addWidget(label("Sonar", "Heading"))
+        header.addSpacing(4)
+        self.light = QLabel()
+        self.light.setFixedSize(8, 8)
+        header.addWidget(self.light)
         self.subtitle = label("", "Muted", wrap=True)
-        title.addWidget(self.subtitle)
-        header.addLayout(title, 1)
+        header.addWidget(self.subtitle, 1)
+        header.addSpacing(10)
         # The channel apps play on until they are dragged to another one.
         header.addWidget(label("New apps go to", "Muted"))
         self.default_channel = QComboBox()
@@ -811,7 +1084,12 @@ class SonarView(QWidget):
         self.default_channel.setMinimumWidth(120)
         self.default_channel.activated.connect(self._on_default_channel)
         header.addWidget(self.default_channel)
-        header.addSpacing(10)
+        divider = QFrame()
+        divider.setFixedSize(1, 22)
+        theme.style(divider, lambda: f"background: {theme.SEAM};")
+        header.addSpacing(6)
+        header.addWidget(divider)
+        header.addSpacing(6)
         header.addWidget(label("Enabled", "Muted"))
         self.toggle = Toggle(context.config.sonar.enabled)
         self.toggle.toggled.connect(self.controller.set_enabled)
@@ -835,21 +1113,39 @@ class SonarView(QWidget):
         self.unrouted.hide()
         layout.addWidget(self.unrouted)
 
-        self.manager = Section("Device manager", "Which devices Vertex plays through and "
-                                                 "records from. Drag them to reorder, or "
-                                                 "into Excluded to keep Vertex from picking "
-                                                 "them by itself.")
+        self.manager = QWidget()
+        manager = QVBoxLayout(self.manager)
+        manager.setContentsMargins(0, 6, 0, 0)
+        manager.setSpacing(12)
+        head = QHBoxLayout()
+        head.setSpacing(12)
+        heading = label("Devices")
+        heading.setStyleSheet("font-size: 14pt; font-weight: 700;")
+        head.addWidget(heading)
+        about = label("Auto uses the first connected device on each priority list. Drag "
+                      "devices to reorder them, or into Excluded.", "Dim", wrap=True)
+        head.addWidget(about, 1)
+        head.addSpacing(12)
+        disconnected = label("Show disconnected devices", "Muted")
+        hint = ("Ones Vertex has seen before, so they can be placed in the list before "
+                "they are plugged in.")
+        disconnected.setToolTip(hint)
+        head.addWidget(disconnected)
         self.show_disconnected = Toggle(context.config.sonar.show_disconnected)
+        self.show_disconnected.setToolTip(hint)
         self.show_disconnected.toggled.connect(self._on_show_disconnected)
-        self.manager.add_row("Show disconnected devices", self.show_disconnected,
-                             "Ones Vertex has seen before, so they can be placed in the "
-                             "list before they are plugged in.")
-        self.output_panel = DevicePanel(self, "output", "Output devices", "headphones",
-                                        "ACCENT_EDGE")
-        self.mic_panel = DevicePanel(self, "mic", "Microphones",
-                                     icons.channel_icon_name("mic"), "MIC")
-        self.panels_host = ColumnGrid([self.output_panel, self.mic_panel], spacing=16)
-        self.manager.body.addWidget(self.panels_host)
+        head.addWidget(self.show_disconnected)
+        manager.addLayout(head)
+        self.output_panel = DevicePanel(self, "output", "Output devices", "headphones")
+        self.mic_panel = DevicePanel(self, "mic", "Microphones", icons.channel_icon_name("mic"))
+        self.panels_host = Panel()
+        panels = QVBoxLayout(self.panels_host)
+        panels.setContentsMargins(20, 18, 20, 18)
+        panels.setSpacing(18)
+        panels.addWidget(self.output_panel)
+        panels.addWidget(hline())
+        panels.addWidget(self.mic_panel)
+        manager.addWidget(self.panels_host)
         layout.addWidget(self.manager)
         # What each panel's lists held when last filled: the full lists and
         # the names shown, so a drag can be laid back onto the full lists.
@@ -877,10 +1173,14 @@ class SonarView(QWidget):
             self.toggle.blockSignals(True)
             self.toggle.setChecked(enabled)
             self.toggle.blockSignals(False)
+        light = ("DANGER" if not status.available and status.error else
+                 "SECOND" if enabled and status.active else "WARN" if enabled else "TEXT_DIM")
+        theme.style(self.light, lambda: f"background: {theme.colour(light)}; "
+                                        f"border-radius: 4px;")
         if not status.available and status.error:
             self.subtitle.setText(f"No audio server: {status.error}")
         elif enabled and status.active and not self.context.config.sonar.linked:
-            self.subtitle.setText("Running — each channel plays through its own device.")
+            self.subtitle.setText("Running · each channel plays through its own device")
         elif enabled and status.active:
             output = self._names.get(status.output, status.output)
             where = f" through {output}" if output else ""
@@ -890,7 +1190,7 @@ class SonarView(QWidget):
             if second and also:
                 where += (f", and also {self._label(second)}" if len(also) == len(outputs)
                           else f", and {fmt.oxford(also)} also through {self._label(second)}")
-            self.subtitle.setText(f"Running — every channel plays{where}.")
+            self.subtitle.setText(f"Running · every channel plays{where}")
         elif enabled:
             self.subtitle.setText("Starting…")
         else:
@@ -1079,9 +1379,6 @@ class SonarView(QWidget):
             if item.widget() is not None:
                 item.widget().deleteLater()
         for chip in unrouted.values():
-            # A flow layout sizes children by their hint, and an eliding
-            # label hints next to nothing — give the chips a real width.
-            chip.setFixedWidth(240)
             self.unrouted_flow.addWidget(chip)
         self.unrouted.setVisible(bool(unrouted) and self.context.config.sonar.enabled)
 
