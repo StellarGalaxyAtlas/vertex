@@ -11,16 +11,7 @@ import math
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import (
-    QColor,
-    QGuiApplication,
-    QIcon,
-    QImage,
-    QPainter,
-    QPainterPath,
-    QPen,
-    QPixmap,
-)
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 from vertex import paths
 from vertex.ui import theme
@@ -468,19 +459,6 @@ def pixmap(name: str, colour: str = "TEXT", size: int = 18, ratio: float = 2.0) 
     painter.end()
     image.setDevicePixelRatio(ratio)
     return image
-
-
-def save_png(name: str, colour: str, side: int, path: str) -> bool:
-    """Icon `name` drawn into a PNG file, for another program to show. Painted
-    on a QImage, so it may run on a worker thread."""
-    image = QImage(side, side, QImage.Format.Format_ARGB32_Premultiplied)
-    image.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(image)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.scale(side / 24, side / 24)
-    _DRAW[name](painter, QColor(theme.colour(colour)))
-    painter.end()
-    return image.save(path, "PNG")
 
 
 def icon(name: str, colour: str = "TEXT", size: int = 18, disabled: str = "TEXT_DIM") -> QIcon:

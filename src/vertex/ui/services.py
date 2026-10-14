@@ -91,11 +91,6 @@ class ThumbnailService(QObject):
         self._pool.shutdown(wait=False, cancel_futures=True)
 
 
-# How long after Vertex changes a channel's volume or mute the server's
-# reports of it are taken as that change, not someone else's.
-OWN_CHANGE_SECONDS = 1.0
-
-
 class SonarController(QObject):
     """Sonar on a single worker thread, so pactl calls happen in order."""
 
@@ -116,9 +111,6 @@ class SonarController(QObject):
         self._busy = 0
         self._closed = False
         self._pending_volume: dict[str, float] = {}
-        # Until when a channel's volume or mute changing is Vertex's own doing
-        # (a fader, a command), by monotonic time: anyone else's is announced.
-        self._own_until: dict[str, float] = {}
         # The real devices connected, as last seen.
         self.outputs: list = []
         self.inputs: list = []
@@ -249,29 +241,7 @@ class SonarController(QObject):
                     ("mic_changed", "Vertex Mic records", before.mic, status.mic)):
                 if old and new and old != new:
                     self.context.notify(kind, title, names.get(new, new))
-            self._announce_volumes(before, status)
         self.status_changed.emit(status)
-
-    def _announce_volumes(self, before: SonarStatus, status: SonarStatus) -> None:
-        """Volumes and mutes changed outside Vertex: the desktop's volume keys
-        or another mixer. Vertex's own changes say so where they are made."""
-        now = time.monotonic()
-        for channel_id, entry in status.channels.items():
-            old = before.channels.get(channel_id)
-            if old is None or not (old.present and entry.present) or \
-                    self._own_until.get(channel_id, 0.0) > now:
-                continue
-            volume, was = round(entry.volume * 100), round(old.volume * 100)
-            if volume != was or entry.muted != old.muted:
-                self.announce_volume(channel_id, volume, entry.muted,
-                                     entry.muted != old.muted)
-
-    def announce_volume(self, channel_id: str, volume: int, muted: bool,
-                        mute_changed: bool = False) -> None:
-        channel = channels.get(channel_id)
-        notice = notifications.volume_notice(channel.label if channel else channel_id,
-                                             volume, muted, mute_changed)
-        self.context.notify(notice.kind, notice.title, notice.body, notice.icon)
 
     def refresh_streams(self) -> None:
         """Who is playing where, and who is recording — one job, two signals."""
@@ -339,7 +309,6 @@ class SonarController(QObject):
         """Coalesced: a dragged slider queues one pactl call, not hundreds."""
         first = channel_id not in self._pending_volume
         self._pending_volume[channel_id] = volume
-        self._own_until[channel_id] = time.monotonic() + OWN_CHANGE_SECONDS
         self.context.config.sonar.channel(channel_id).volume = volume
         if first:
             def work():
@@ -349,7 +318,6 @@ class SonarController(QObject):
         self.context.save_config_later()
 
     def set_muted(self, channel_id: str, muted: bool) -> None:
-        self._own_until[channel_id] = time.monotonic() + OWN_CHANGE_SECONDS
         self._job(lambda: self.sonar.set_muted(channel_id, muted), quiet=True)
         self.context.save_config_later()
 
@@ -731,11 +699,11 @@ class Context(QObject):
             return
         self.config_changed.emit()
 
-    def notify(self, kind: str, title: str, body: str = "", icon: str = "") -> None:
+    def notify(self, kind: str, title: str, body: str = "") -> None:
         """Tell the user something; `kind` is one of notifications.KINDS."""
         if kind not in notifications.BY_ID:
             raise KeyError(f"Unknown notification kind: {kind}")
-        self.notified.emit(notifications.Notice(kind, title, body, icon))
+        self.notified.emit(notifications.Notice(kind, title, body))
 
     def save_config_later(self) -> None:
         self._save_timer.start()
