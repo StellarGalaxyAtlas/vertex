@@ -257,17 +257,22 @@ class MixerRow(QWidget):
 
 
 class MixerFader(MixerRow):
-    """The same channel as a fader, for a tile with the height for it: badge
-    and name, what plays on it, the volume in the channel's colour, a tall
-    fader, and mute at its foot."""
+    """The same channel as a fader, for a tile with the height for it: a card
+    lit by the channel's colour, as on the Sonar page, with its badge and
+    name, what plays on it, the volume in the colour, a tall fader that glows
+    and widens with the card, and mute at its foot. Muted or off, the light
+    dims."""
 
     ORIENTATION = Qt.Orientation.Vertical
     BADGE = 28
     MUTE = (34, 18)
+    GROOVE = (8, 22)      # the fader's width, at the least and the most
+    CAP = 16              # the handle's height
+    _groove = 8
 
     def _arrange(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(12, 16, 12, 10)
         layout.setSpacing(6)
         top = QHBoxLayout()
         top.setSpacing(8)
@@ -280,6 +285,7 @@ class MixerFader(MixerRow):
         theme.style(self.value, lambda: f"color: {self.colour}; font-size: 18pt; "
                                         f"font-weight: 700;")
         layout.addWidget(self.value)
+        self.slider.setFixedWidth(self._groove + 12)
         layout.addWidget(self.slider, 1, Qt.AlignmentFlag.AlignHCenter)
         self.mute.setProperty("kind", "")
         theme.style(self.mute, lambda: f"QToolButton {{ background: {theme.CONTROL_BG}; "
@@ -287,14 +293,70 @@ class MixerFader(MixerRow):
                                        f"padding: 0; }}"
                                        f"QToolButton:hover {{ background: {theme.CARD_HOVER}; }}")
         layout.addWidget(self.mute, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.slider.valueChanged.connect(self.update)
 
     def _slider_style(self) -> str:
-        return (f"QSlider::groove:vertical {{ width: 8px; background: {theme.SEAM}; "
-                f"border-radius: 4px; }}"
-                f"QSlider::add-page:vertical {{ background: {self.colour}; border-radius: 4px; }}"
-                f"QSlider::sub-page:vertical {{ background: {theme.SEAM}; border-radius: 4px; }}"
-                f"QSlider::handle:vertical {{ background: white; width: 20px; height: 20px; "
-                f"margin: 0 -6px; border-radius: 10px; }}")
+        groove, cap = self._groove, self.CAP
+        round_ = groove // 2
+        return (f"QSlider::groove:vertical {{ width: {groove}px; background: {theme.SEAM}; "
+                f"border-radius: {round_}px; }}"
+                f"QSlider::add-page:vertical {{ background: {self.colour}; "
+                f"border-radius: {round_}px; }}"
+                f"QSlider::sub-page:vertical {{ background: {theme.SEAM}; "
+                f"border-radius: {round_}px; }}"
+                f"QSlider::handle:vertical {{ background: white; width: {groove + 12}px; "
+                f"height: {cap}px; margin: 0 -6px; border-radius: {cap // 2}px; }}")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        least, most = self.GROOVE
+        groove = max(least, min(most, round(self.width() * 0.1)))
+        if groove != self._groove:
+            self._groove = groove
+            self.slider.setFixedWidth(groove + 12)
+            theme.style(self.slider, self._slider_style)
+
+    def _paint_mute(self) -> None:
+        super()._paint_mute()
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        shape = QPainterPath()
+        shape.addRoundedRect(rect, 14, 14)
+        p.fillPath(shape, _alpha(theme.CARD_BG, 0.55))
+        lit = 1.0 if self.isEnabled() and not self.mute.isChecked() else 0.45
+        # Lit by its colour from the top, as the Sonar page's channels.
+        glow = QRadialGradient(QPointF(rect.center().x(), rect.top()), rect.height() * 0.6)
+        glow.setColorAt(0, _alpha(self.colour, 0.16 * lit))
+        glow.setColorAt(1, _alpha(self.colour, 0))
+        p.fillPath(shape, QBrush(glow))
+        p.save()
+        p.setClipPath(shape)
+        p.setPen(Qt.PenStyle.NoPen)
+        edge = QRectF(rect.left() + 16, rect.top() - 1, rect.width() - 32, 4)
+        for grow, alpha in ((6, 0.12), (3, 0.25)):
+            p.setBrush(_alpha(self.colour, alpha * lit))
+            p.drawRoundedRect(edge.adjusted(-grow, 0, grow, grow), 3 + grow, 3 + grow)
+        p.setBrush(_alpha(self.colour, lit))
+        p.drawRoundedRect(edge, 2, 2)
+        # A glow along the fader's fill, from the handle down.
+        if self.slider.isVisible():
+            box = QRectF(self.slider.geometry())
+            span = box.height() - self.CAP
+            top = box.top() + self.CAP / 2 + span * (1 - self.slider.value() / 100)
+            fill = QRectF(box.center().x() - self._groove / 2, top,
+                          self._groove, box.bottom() - top)
+            for grow, alpha in ((12, 0.05), (7, 0.08), (3, 0.14)):
+                p.setBrush(_alpha(self.colour, alpha * lit))
+                radius = self._groove / 2 + grow
+                p.drawRoundedRect(fill.adjusted(-grow, -grow, grow, grow), radius, radius)
+        p.restore()
+        p.setPen(QPen(QColor(theme.LINE), 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(shape)
 
 
 class MixerArea(QWidget):
@@ -791,7 +853,7 @@ class HomeView(QWidget):
         rows.setSpacing(4)
         faders = QHBoxLayout(faders_host)
         faders.setContentsMargins(0, 4, 0, 0)
-        faders.setSpacing(16)
+        faders.setSpacing(10)
         self.channels: dict[str, MixerRow] = {}
         self.faders: dict[str, MixerFader] = {}
         for index, channel in enumerate(channels.ALL):

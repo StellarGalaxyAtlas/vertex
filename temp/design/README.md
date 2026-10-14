@@ -99,7 +99,9 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
   Storage and People. It fits a 1280 × 820 window without scrolling. The
   clips stay two rows; on a bigger window the tiles below fill their height
   instead of leaving gaps: faders for the mixer, roomier game rows, the
-  disk's breakdown, bigger people tiles (item 35). With no clips yet, the
+  disk's breakdown, bigger people tiles (item 35). Each fader is a card lit
+  by its channel's colour as on the Sonar page, glowing along its fill and
+  widening with the card (item 37). With no clips yet, the
   welcome takes the room and the other tiles stay compact.
 - **Messages are toasts** in the bottom-right corner of the page
   (`widgets.Banner`). A click dismisses one. No strip is kept for them.

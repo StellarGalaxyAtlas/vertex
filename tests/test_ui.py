@@ -676,6 +676,7 @@ def test_home_keeps_two_rows_and_its_tiles_use_the_height(qapp, window):
     home._fit()
     assert home.grid.rows == 1
     window.state.all_clips = window.state.all_clips * 40
+    grooves = []
     for size, faders in (((1280, 820), False), ((1920, 1080), True), ((2560, 1440), True)):
         window.resize(*size)
         qapp.processEvents()
@@ -684,6 +685,12 @@ def test_home_keeps_two_rows_and_its_tiles_use_the_height(qapp, window):
                           home.mixer.faders.isVisible() == f)
         assert home.mixer.rows.isVisible() != faders
         assert 4 <= home.grid.columns <= 6
+        if faders:
+            fader = home.faders["game"]
+            grooves.append(fader._groove)
+            assert fader.slider.width() == fader._groove + 12
+    # The faders widen with the room they get.
+    assert 8 <= grooves[0] < grooves[1] <= 22
     # A fader set here keeps the row in step, for when the window shrinks.
     home.faders["media"].slider.setValue(30)
     assert home.channels["media"].slider.value() == 30

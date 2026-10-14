@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 37.
+and bugs get the next free number: 38.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -338,6 +338,12 @@ either side.
 panel with a line between them and ran together; now each kind has a
 panel of its own under the Devices heading.
 
+**37. Home › Sonar's faders lit as on the Sonar page.** Each fader is a
+small card lit by its channel's colour (a coloured top edge and a wash
+from the top, as the Sonar page's channels), with a soft glow along the
+fill; muted or with Sonar off, the light dims. The fader widens with its
+card, 8 to 22 px (a tenth of the card), its handle a pill 12 px wider.
+
 ---
 
 ## Notes
@@ -347,7 +353,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–36, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–37, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
