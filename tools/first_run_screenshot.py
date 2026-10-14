@@ -56,6 +56,9 @@ def main(prefix: str, widths: list[int]) -> int:
     found = [False]
     # The stand-in recorder answers only once "installed".
     gsr.detect = lambda command: fake_detect(command) if found[0] else real_detect(command)
+    # Its notifier too.
+    from vertex.recorder import notifier
+    notifier.find = lambda: "/usr/bin/gsr-notify" if found[0] else None
 
     from PySide6.QtCore import QTimer
 

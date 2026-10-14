@@ -1054,7 +1054,7 @@ def test_first_run_copies_existing_clips(qapp, tmp_path, fake_audio):
     _close(win)
 
 
-def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio):
+def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio, monkeypatch):
     from vertex.ui.main_window import MainWindow
     from vertex.ui.services import Context
 
@@ -1065,18 +1065,25 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio):
     script.chmod(0o755)
     config = Config()
     config.recorder.command = str(tmp_path / "no-such-recorder")
+    monkeypatch.setattr("vertex.recorder.notifier.find", lambda: None)
     win = MainWindow(Context(Config()))
     win.show_setup(config)
     view = win.first_run
     assert wait_until(qapp, lambda: view.gsr_info is not None)
     assert not view.install.isHidden() and not view.rec_autostart.isEnabled()
     assert view.install_title.text() == "Install GPU Screen Recorder"
+    # Its notifier is looked for on the same step.
+    assert not view.notifier_row.isHidden() and not view.notifier_check.isHidden()
+    assert "notifier isn't installed" in view.notifier_status.text()
 
-    view.config.recorder.command = str(script)         # installed it; Check again
+    view.config.recorder.command = str(script)         # installed both; Check again
+    monkeypatch.setattr("vertex.recorder.notifier.find", lambda: "/usr/bin/gsr-notify")
     view.gsr_info = None
     view.recheck_button.click()
     assert wait_until(qapp, lambda: view.gsr_info is not None)
     assert view.install.isHidden()
+    assert view.notifier_path == "/usr/bin/gsr-notify" and view.notifier_check.isHidden()
+    assert view.notifier_status.text().startswith("Notifications show over games")
     assert [m.name for m in view.choices.monitor_map.monitors] == ["DP-1"]
     assert view.choices.resolution.itemText(0) == "720p · 1280 × 720"
     assert view.rec_autostart.isEnabled() and view.rec_autostart.isChecked()
@@ -1369,6 +1376,26 @@ def test_control_api_drives_sonar(qapp, window, fake_audio):
     call("device", {"action": "next"})
     assert wait_until(qapp, lambda: context.sonar.status.output == "hw_headset")
     assert call("device", {"action": "next", "channel": "mic"})["error"] == "no_device"
+
+    # Microphones: down the device manager's list, top to bottom and round again,
+    # leaving the list's order as it is (Auto goes to Manual).
+    fake_audio.add_source("hw_webcam", props={"device.description": "Webcam"})
+    fake_audio.add_source("hw_usb_mic", props={"device.description": "USB mic"})
+    context.sonar.refresh_devices()
+    assert wait_until(qapp, lambda: len(context.sonar.inputs) == 3)
+    sonar_config = context.config.sonar
+    sonar_config.mic_priority = ["hw_usb_mic", "hw_mic", "hw_webcam"]
+    assert sonar_config.mic_auto
+    context.sonar._got_status(context.sonar.sonar.status())
+    assert context.sonar.status.mic == "hw_mic"
+    seen_mics = []
+    for _ in range(3):
+        assert call("device", {"action": "next", "channel": "mic"})["ok"]
+        assert wait_until(qapp, lambda: context.sonar.status.mic == sonar_config.mic_device)
+        seen_mics.append(context.sonar.status.mic)
+    assert seen_mics == ["hw_webcam", "hw_usb_mic", "hw_mic"]
+    assert not sonar_config.mic_auto
+    assert sonar_config.mic_priority == ["hw_usb_mic", "hw_mic", "hw_webcam"]
 
     # Subscribers heard the changes, and the notifications.
     context.notify("clip_saved", "Clip saved", "a.mp4")

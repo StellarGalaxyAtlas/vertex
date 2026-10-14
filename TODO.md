@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 49.
+and bugs get the next free number: 52.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -17,6 +17,17 @@ the way, are in this file as it was at commit 606d1a2
 Under the timeline of a clip without audio, the Video lane's name and the
 note that there is no audio are drawn on top of each other (seen at
 1600 × 1000, in every scheme). Found while checking item 41.
+
+**49.**
+**Other programs' notifications over games**
+Asked for with 46 (Discord and the like), after 47. Vertex can't replace
+GNOME's or KDE's notification server, but it can listen on the session bus
+(`busctl --user monitor`, as `pactl subscribe` is watched) for
+`org.freedesktop.Notifications.Notify`, and on GNOME also
+`org.gtk.Notifications` and the portal (Flatpak apps), and show each through
+GSR's notifier. Needs: a switch, the apps seen so far to pick from, an "app
+name only" choice (toasts are recorded in clips when the whole screen is),
+and Vertex's own desktop notifications left out so they don't loop.
 
 **48.** Bug
 **A test: the start-menu marker races the desktop file**
@@ -447,17 +458,22 @@ found. Open: it is looked up on the PATH only, so a Flatpak-only GSR has
 none (the Flatpak ships its own copy). Saving a clip tried by the
 maintainer: works.
 
-**47. Volume changes over games.** A new kind, "Volume changed" (Sonar,
-off by default): a channel turned up, down, muted or unmuted by a `vertex`
-command (a shortcut) or by anyone else, the desktop's volume keys among
-them ("Game volume: 55%", "Chat muted"). A fader in Vertex's own window
-isn't announced: changes Vertex makes count as its own for a second
-(`OWN_CHANGE_SECONDS`), and a command announces itself. It only pops up
-(`Kind.in_window`), with Vertex's volume or mute icon drawn into the cache
-for the notifier. A key held down shows a toast at most every 0.4 s, the
-latest (`TOAST_GAP`). Next, asked for with it: other programs'
-notifications over games (Discord and the like), by listening on the
-session bus; an "app name only" choice, since toasts are recorded in clips.
+**47. Volume changes over games.** Built (a "Volume changed" toast for
+shortcuts and the desktop's volume keys), then taken out again with its
+setting: the maintainer found it annoying. Not to be brought back.
+
+**50. First run › Vertex Moments: GSR's notifier.** The step looks for
+`gsr-notify` along with GPU Screen Recorder: in green when found
+(notifications show over games), else a muted line naming the
+gpu-screen-recorder-notification package, with Check again.
+
+**51. A shortcut for the next microphone.** `vertex device next mic`
+already went down the device manager's list of microphones, top to bottom
+and round again, skipping excluded ones; Settings › Shortcuts now lists it
+on its own row. Checked: in Manual it follows the list as it is; in Auto
+the first switch puts the microphones in Manual, as decided with 13 (a pick
+in Auto goes to the top of the list, so cycling would bounce between two).
+Asked the maintainer whether Auto should stay on instead.
 
 ---
 
@@ -468,7 +484,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

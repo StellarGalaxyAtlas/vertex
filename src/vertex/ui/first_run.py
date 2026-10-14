@@ -26,7 +26,7 @@ from vertex import APP_NAME, fmt, paths
 from vertex.config import Config, default_config
 from vertex.core import importing
 from vertex.library.database import DB_NAME, Library
-from vertex.recorder import gsr
+from vertex.recorder import gsr, notifier
 from vertex.ui import icons, theme, workers
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.sonar_view import DeviceField
@@ -116,6 +116,7 @@ class FirstRunView(QWidget):
                 if not getattr(self.config, key):
                     setattr(self.config, key, getattr(defaults, key))
         self.gsr_info: gsr.GsrInfo | None = None
+        self.notifier_path: str | None = None     # GSR's notifier, once looked for
         self.copy_plan: importing.CopyPlan | None = None
         self.tag_plan: importing.ImportPlan | None = None
         self._scan_token = 0
@@ -320,6 +321,17 @@ class FirstRunView(QWidget):
         section = Section("Recording")
         self.gsr_status = label("Looking for GPU Screen Recorder…", "Dim", wrap=True)
         section.add(self.gsr_status)
+        # Its notifier, which shows Vertex's notifications over games.
+        self.notifier_row = QWidget()
+        notifier_line = QHBoxLayout(self.notifier_row)
+        notifier_line.setContentsMargins(0, 0, 0, 0)
+        notifier_line.setSpacing(10)
+        self.notifier_status = label("", wrap=True)
+        notifier_line.addWidget(self.notifier_status, 1)
+        self.notifier_check = button("Check again", on_click=self._find_recorder)
+        notifier_line.addWidget(self.notifier_check, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.notifier_row.hide()
+        section.add(self.notifier_row)
         # The same choices as Settings › Recording, built by the same code.
         self.choices = ClipChoices(self)
         self.choices.capture = self.config.recorder.capture
@@ -356,16 +368,20 @@ class FirstRunView(QWidget):
     def _find_recorder(self) -> None:
         command = self.config.recorder.command
         self.recheck_button.setEnabled(False)
+        self.notifier_check.setEnabled(False)
 
         def probe():
             info = gsr.detect(command)
             usable = info.available and not info.too_old
-            return info, gsr.list_capture_options(command) if usable else []
+            return (info, gsr.list_capture_options(command) if usable else [],
+                    notifier.find())
 
         workers.run(probe, self._got_recorder)
 
     def _got_recorder(self, result) -> None:
-        info, options = result
+        info, options, notifier_path = result
+        self.notifier_path = notifier_path
+        self._show_notifier(bool(notifier_path))
         self.gsr_info = info
         self.recheck_button.setEnabled(True)
         usable = info.available and not info.too_old
@@ -398,6 +414,21 @@ class FirstRunView(QWidget):
             self.install_text.setText(f"Moments records with GPU Screen Recorder, a free screen "
                                       f"recorder for Linux, which isn't installed yet. {later}")
             self.install_button.setText("How to install it")
+
+    def _show_notifier(self, found: bool) -> None:
+        self.notifier_check.setEnabled(True)
+        self.notifier_check.setVisible(not found)
+        if found:
+            self.notifier_status.setText("Notifications show over games, with GPU Screen "
+                                         "Recorder's notifier.")
+            theme.style(self.notifier_status, lambda: f"color: {theme.OK};")
+        else:
+            self.notifier_status.setText(
+                "GPU Screen Recorder's notifier isn't installed, so notifications pop up on "
+                "the desktop and not over games. It comes in the "
+                "gpu-screen-recorder-notification package.")
+            theme.style(self.notifier_status, lambda: f"color: {theme.TEXT_MUTED};")
+        self.notifier_row.show()
 
     def _check_recording(self) -> bool:
         self.choices.apply(self.config.recorder)
