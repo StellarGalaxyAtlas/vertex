@@ -20,12 +20,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import fmt, paths
+from vertex import paths
 from vertex.config import CARD_WIDTH_DEFAULT, CARD_WIDTH_RANGE
 from vertex.core import storage
 from vertex.ui import icons, theme
 from vertex.ui.dialogs.tags import TagDialog
 from vertex.ui.library.delegate import INFO_H, PAD, ClipDelegate
+from vertex.ui.library.filters import FilterRow
 from vertex.ui.library.model import ClipModel, ClipRole
 from vertex.ui.library.state import LibraryState
 from vertex.ui.widgets import ChoiceDialog, IconButton, Segmented, button, label
@@ -131,25 +132,18 @@ class LibraryView(QWidget):
         self.state = state
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(theme.CONTENT_MARGIN, 18, theme.CONTENT_MARGIN - 8, 10)
+        layout.setContentsMargins(theme.CONTENT_MARGIN, 16, theme.CONTENT_MARGIN - 8, 10)
         layout.setSpacing(12)
 
-        header = QHBoxLayout()
-        self.title = label("All clips", "Heading")
-        self.count = label("", "Muted")
-        header.addWidget(self.title)
-        header.addWidget(self.count, 0, Qt.AlignmentFlag.AlignBottom)
-        header.addStretch(1)
-        header.addWidget(self._build_card_size())
-        header.addSpacing(12)
+        # The filters the rail had, in a row with the grid's own controls.
         self.sort = Segmented([("date", "Date"), ("game", "Game")], "date", directional=True)
         self.sort.changed.connect(state.set_sort)
-        header.addWidget(self.sort)
+        card_size = self._build_card_size()
         refresh = IconButton("refresh", "Rescan the clips folder (F5)")
         refresh.clicked.connect(self.reload)
-        header.addWidget(refresh)
-        header.setContentsMargins(0, 0, 8, 0)
-        layout.addLayout(header)
+        self.filters = FilterRow(state, [self.sort, card_size, refresh], self.size_icons)
+        self.filters.setContentsMargins(0, 0, 8, 0)
+        layout.addWidget(self.filters)
 
         self.stack = QStackedWidget()
         self.grid = ClipGrid()
@@ -213,6 +207,7 @@ class LibraryView(QWidget):
         self.card_size.valueChanged.connect(self._card_size_changed)
         for widget in (small, self.card_size, large):
             row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.size_icons = [small, large]
         return box
 
     def zoom(self, notches: int) -> None:
@@ -257,11 +252,6 @@ class LibraryView(QWidget):
     def _after_reset(self) -> None:
         total = len(self.state.all_clips)
         shown = len(self.state.visible)
-        self.title.setText(self.state.facet.title())
-        if self.state.query or self.state.facet.kind != "all":
-            self.count.setText(f"{shown} of {fmt.plural(total, 'clip')}")
-        else:
-            self.count.setText(fmt.plural(total, "clip"))
         if shown:
             self.stack.setCurrentWidget(self.grid)
         else:

@@ -146,6 +146,6 @@ def mark_path(variant: str = DEFAULT_LOGO_VARIANT, svg: bool = False) -> Path:
 
 
 def wordmark_path(variant: str = DEFAULT_LOGO_VARIANT) -> Path:
-    """The horizontal lockup the rail heads with."""
+    """The horizontal lockup: the mark with the name beside it."""
     variant = logo_variant(variant)
     return asset("logo", variant, f"vertex-horizontal-{variant}.png")

@@ -110,7 +110,7 @@ SELECTION = ""              # selected text
 
 # Grounds, darkest first
 MAIN_BG = ""                # the page behind everything
-SIDEBAR_BG = ""             # the rail
+SIDEBAR_BG = ""             # the top bar
 SECTION_BG = ""             # panels: above the page, under the cards
 CARD_BG = ""                # cards, and the controls that sit on one
 CARD_HOVER = ""
@@ -166,8 +166,6 @@ scheme = DEFAULT_SCHEME     # the one in use
 RADIUS_CARD = 14
 RADIUS_CONTROL = 10
 RADIUS_SMALL = 8
-RAIL_WIDTH = 216            # the rail grows from here to fit its filters
-RAIL_MAX_WIDTH = 320
 CONTENT_MARGIN = 24
 
 TOKENS = frozenset(SCHEMES["navy"][2]) | {
@@ -259,7 +257,7 @@ def shade(colour: str, factor: float) -> str:
 
 
 def game_colour(name: str) -> str:
-    """A stable colour per game, so each one keeps its dot in the rail."""
+    """A stable colour per game, so each one keeps its dot wherever it is listed."""
     palette = ("#5878ff", "#2fb39b", "#d98d2b", "#c25d7b", "#9b6bd6", "#3b82f6",
                "#e6b422", "#4fb3d9", "#e5734d", "#8ac24a")
     total = 0
@@ -404,7 +402,6 @@ QProgressBar::chunk {{
 QDialog {{ background: {SECTION_BG}; }}
 
 /* --- Named surfaces -------------------------------------------------------- */
-#Rail {{ background: {SIDEBAR_BG}; border-right: 1px solid {SEAM}; }}
 #Card, #Section {{ background: {SECTION_BG}; border-radius: {RADIUS_CARD}px; }}
 #Muted {{ color: {TEXT_MUTED}; }}
 #Dim {{ color: {TEXT_DIM}; }}

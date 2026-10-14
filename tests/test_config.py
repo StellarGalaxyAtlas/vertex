@@ -32,7 +32,7 @@ def test_round_trip_with_new_sections(tmp_path):
     cfg.sonar.app_rules["spotify"] = "media"
     cfg.recorder.chat_audio = ""
     cfg.recorder.mic_audio = "device:alsa_input.usb-mic"
-    cfg.rail_collapsed = ["people"]
+    cfg.colour_scheme = "ember"
     path = tmp_path / "config.json"
     cfg.save(path)
     again = config.Config.load(path)
@@ -43,7 +43,7 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps({
         "clip_path": 5,
-        "rail_collapsed": ["games", 3],
+        "colour_scheme": 5,
         "card_width": 5000,
         "recorder": {"fps": "sixty", "cursor": "yes", "replay_seconds": 30},
         "sonar": {
@@ -54,7 +54,7 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     }))
     loaded = config.Config.load(path)
     assert loaded.clip_path == ""
-    assert loaded.rail_collapsed == ["games"]
+    assert loaded.colour_scheme == "plum"
     assert loaded.card_width == config.CARD_WIDTH_RANGE[1]
     assert loaded.recorder.fps == 60 and loaded.recorder.cursor is True
     assert loaded.recorder.replay_seconds == 30

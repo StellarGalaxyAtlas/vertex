@@ -1,7 +1,7 @@
 """What the library view shows: every clip, its tags, and the current filter.
 
 One object owns the scan of the clips folder and the library's view of each
-clip, so the rail, the grid and the editor never disagree about a title or a
+clip, so the filters, the grid and the editor never disagree about a title or a
 tag. Edits go through here; it writes them to the library and tells every view.
 """
 

@@ -65,25 +65,16 @@ counts), Sonar, and Settings › General › Appearance with the eight schemes
 previewed in their own colours (a pick shows at once; Save keeps it, Revert
 goes back). Planned at the 980 px minimum: the tabs drop their icons, the
 replay pill drops "keeps the last 1:00", Home shows 4 clips a row. The
-maintainer approved it; 30 is built, 31 to 34 follow in that order. This
-item closes with 34.
-
-**31.**
-**Top bar instead of the rail**
-Logo, tabs Home · Library · Sonar · Settings, the search bar, the replay pill
-(on/off, "keeps the last 1:00", Save clip, stop). The rail goes; its filters
-move to the Library's filter row (33).
+maintainer approved it. Built so far: 30, then 31 with 33 (the maintainer
+agreed to build them together, so the rail's filters never vanish in
+between); 32 and 34 follow. This item closes with 34.
 
 **32.**
 **Home page**
 As on the Home dashboard board, without the replay buffer card: latest clips
 with Favorites and Untagged, a Sonar mixer, Games with counts, Storage and
-People. Opens on start.
-
-**33.**
-**Library: Shelves' filter row over the grid**
-All clips · Favorites · Untagged, All games ▾, People ▾, Date/Game, card
-size, rescan and storage in one row over today's clip grid.
+People. Opens on start. Its tab comes with it, first in the top bar (agreed
+with 31, so there is never an empty tab).
 
 **34.**
 **Sonar as on Shelves' board**
@@ -110,6 +101,8 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
+- 31, 33: the top bar and the filter row in their font and display scale;
+  the drop-downs open under their chip and take the keyboard.
 - 30: the schemes on their desktop: each one picked in Settings shows at
   once everywhere (rail, Library, Sonar, Settings, the editor), and the saved
   one is there after a restart.
@@ -304,6 +297,22 @@ colours; whatever a widget takes from the scheme when it is built goes
 through `theme.style`/`theme.themed`, icons by token name.
 `tests/test_theme.py` measures the contrast rules for every scheme.
 
+**31. Top bar instead of the rail** (built with 33). The mark and "Vertex",
+tabs Library · Sonar · Settings (Home joins with 32), a search in the middle
+and the replay pill: its light (red only while recording), "Replay on ·
+keeps the last 1:00", Save clip, start/stop. Typing a search on another page
+goes to the Library. Too narrow for all of it, the tabs drop their icons and
+the pill its second line. The rail and its settings (`rail_collapsed`) are
+gone; the editor and first-run setup still take the whole window.
+
+**33. Library: the filter row** (built with 31). All clips, Favorites and
+Untagged as chips with counts, Games ▾ and People ▾ as drop-downs with a
+search (Enter picks, arrows move) and counts, naming the game or person they
+filter by; one filter at a time, as before. Then Date/Game, card size,
+rescan and the disk. While searching, "N of M clips match". The page heading
+went. Too narrow for the row, the disk's text goes first, then the
+card-size icons, then the disk's bar.
+
 ---
 
 ## Notes
@@ -313,11 +322,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–28 and 30, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–28, 30, 31 and 33, including the
 bugs 14, 16, 18 and 26.
-Open: 9 (on hold), 21 (documentation, at the end) and 29, 31 to 34 (the new
-look: round 3 approved and the schemes built; next the top bar, then Home,
-Library and Sonar). Waiting on the maintainer: the checks listed above, and
+Open: 9 (on hold), 21 (documentation, at the end) and 29, 32, 34 (the new
+look: schemes, top bar and filter row built; next Home, then Sonar). Waiting on the maintainer: the checks listed above, and
 switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;

@@ -146,37 +146,46 @@ def test_tag_dialog_suggests_and_saves_on_enter(qapp, window):
     assert state.tags_of(clip) == ("The Finals", ["Ben"])
 
 
-def test_rail_groups_fold_and_keep_the_filter_in_view(qapp, window):
+def test_library_filters_pick_a_game_or_person_from_their_lists(qapp, window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
     from vertex.ui.library.state import Facet
 
-    state, rail = window.state, window.rail
+    state, filters = window.state, window.library_view.filters
     state.set_tags(state.find("Replay_2026-01-02_03-04-05.mp4"), "The Finals", ["Anna"])
+    assert filters.all.is_applied() and filters.all.count == "2"
+    assert not filters.untagged.isVisibleTo(filters)      # every clip has a game now
+    assert filters.games.text() == "All games" and filters.games.count == "2"
 
-    def shown(group):
-        return {row.text(): row.isVisibleTo(rail) for row in rail.facet_group.buttons()
-                if row.group == group}
+    # Games: a list with a search; Enter picks what the search leaves.
+    filters.games.click()
+    menu = filters.menu
+    assert [menu.list.item(i).text() for i in range(menu.list.count())] == \
+        ["All games", "Apex Legends", "The Finals"]
+    QTest.keyClicks(menu.find, "fin")
+    shown = [menu.list.item(i).text() for i in range(menu.list.count())
+             if not menu.list.item(i).isHidden()]
+    assert shown == ["The Finals"]
+    QTest.keyClick(menu.find, Qt.Key.Key_Return)
+    assert state.facet == Facet("game", "The Finals")
+    assert len(state.visible) == 1
+    # The chip names the game it filters by, and All clips no longer applies.
+    assert filters.games.text() == "The Finals" and filters.games.is_applied()
+    assert not filters.all.is_applied()
 
-    games = rail.group_headers["games"]
-    assert games.count == "2" and games.expanded
-    assert shown("games") == {"Apex Legends": True, "The Finals": True}
-    games.click()
-    assert not games.expanded
-    assert shown("games") == {"Apex Legends": False, "The Finals": False}
-    assert shown("people") == {"Anna": True}
-    # The game the library is filtered by stays in view while its group is folded.
-    state.set_facet(Facet("game", "The Finals"))
-    assert shown("games") == {"Apex Legends": False, "The Finals": True}
-    state.set_facet(Facet("all"))
-    assert shown("games") == {"Apex Legends": False, "The Finals": False}
-    # Remembered: saved with the settings, and kept when the rail is rebuilt.
-    window.context.save_config()
-    assert Config.load().rail_collapsed == ["games"]
-    rail.rebuild_facets()
-    assert not rail.group_headers["games"].expanded
-    assert shown("games") == {"Apex Legends": False, "The Finals": False}
-    rail.group_headers["games"].click()
-    assert shown("games") == {"Apex Legends": True, "The Finals": True}
-    assert window.context.config.rail_collapsed == []
+    # People the same way; one filter at a time.
+    filters.people.click()
+    menu = filters.menu
+    anna = next(menu.list.item(i) for i in range(menu.list.count())
+                if menu.list.item(i).text() == "Anna")
+    menu.list.itemClicked.emit(anna)
+    assert state.facet == Facet("person", "Anna")
+    assert filters.people.text() == "Anna" and not filters.games.is_applied()
+    assert filters.games.text() == "All games"
+
+    filters.all.click()
+    assert state.facet == Facet("all") and len(state.visible) == 2
 
 
 def test_library_cards_fill_their_row_at_any_size(qapp, window):
@@ -266,21 +275,21 @@ def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
     settings = window.settings_view
     settings.show_page("general")
     assert settings.schemes.value() == "plum" == theme.scheme
-    rail_card = window.rail.recorder_card
-    assert plum["CARD_BG"] in rail_card.styleSheet()
+    pill = window.topbar.recorder
+    assert plum["SECTION_BG"] in pill.styleSheet()
     try:
         # Picking one restyles everything already built, before any Save.
         settings.schemes.cards["ember"].click()
         assert theme.scheme == "ember"
         assert ember["ACCENT"] in qapp.styleSheet()
-        assert ember["CARD_BG"] in rail_card.styleSheet()
+        assert ember["SECTION_BG"] in pill.styleSheet()
         strip = window.sonar_view.strips["media"]
         assert ember["MEDIA"] in strip.slider.styleSheet()
         assert settings.is_dirty()
         # Leaving without saving puts the saved one back.
         settings.load()
         assert theme.scheme == "plum" and settings.schemes.value() == "plum"
-        assert plum["CARD_BG"] in rail_card.styleSheet()
+        assert plum["SECTION_BG"] in pill.styleSheet()
         # Saved, it is the scheme the next start opens with.
         settings.schemes.cards["ember"].click()
         assert settings.save()
@@ -493,13 +502,13 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     states, notices = [], []
     recorder.state_changed.connect(lambda state, _error: states.append(state))
     context.notified.connect(notices.append)
-    card = window.rail.recorder_card
+    pill = window.topbar.recorder
     recorder.restart_if_running()
-    assert card.detail.text() == "Restarting…"
+    assert pill.title.text() == "Restarting…"
     assert wait_until(qapp, lambda: recorder.phase == "running" and notices)
     # No "Off" or "Starting…" flashing past in between.
     assert states == ["restarting", "running"]
-    assert card.detail.text().startswith("On")
+    assert pill.title.text() == "Replay on"
     assert [(n.kind, n.title) for n in notices] == [("replay_restarted",
                                                      "Replay buffer restarted")]
 
@@ -524,7 +533,7 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     qapp.processEvents()
     time.sleep(0.5)
     qapp.processEvents()
-    assert recorder.phase == "stopped" and card.detail.text() == "Off"
+    assert recorder.phase == "stopped" and pill.title.text() == "Replay off"
 
 
 def test_sonar_page_drives_the_fake_server(qapp, window, fake_audio):
@@ -599,25 +608,52 @@ def test_app_left_half_behind_after_a_drop_heals(qapp, window, fake_audio):
     assert wait_until(qapp, lambda: keys("chat") == ["discord"] and keys("game") == [])
 
 
-def test_rail_grows_to_fit_its_longest_filter(qapp, window, monkeypatch):
-    from vertex.ui import theme
-    from vertex.ui.library.state import LibraryState
+def test_filter_row_fits_long_names_and_narrow_windows(qapp, window, monkeypatch):
+    from vertex.ui.library.filters import NAME_MAX
+    from vertex.ui.library.state import Facet, LibraryState
 
-    rail = window.rail
+    filters = window.library_view.filters
     monkeypatch.setattr(LibraryState, "games",
-                        lambda self: [("Euro Truck Simulator 2", 632), ("R.E.P.O", 5)])
-    rail.rebuild_facets()
-    window.show()
-    assert theme.RAIL_WIDTH < rail.width() <= theme.RAIL_MAX_WIDTH
-    # Every name and count shows in full.
-    assert wait_until(qapp, lambda: all(row.width() >= row.needed_width()
-                                        for row in rail.facet_group.buttons()
-                                        if row.isVisible()))
+                        lambda self: [("Euro Truck Simulator 2", 632), ("Long " * 30, 1)])
+    window.state.set_facet(Facet("game", "Long " * 30))
+    # A name too long for its chip is cut short, the whole of it in a tooltip.
+    assert filters.games.sizeHint().width() < NAME_MAX + 80
+    assert filters.games.toolTip().strip() == ("Long " * 30).strip()
+    window.state.set_facet(Facet("all"))
+    for width in (1280, 980):
+        window.resize(width, 800)
+        qapp.processEvents()
+        # Nothing in the row is pushed past its edge; the disk's text goes first.
+        assert wait_until(qapp, lambda: filters.layout().sizeHint().width() <= filters.width())
+    assert window.library_view.filters.disk_text.isHidden()
 
-    # A name too long for any rail is cut short instead.
-    monkeypatch.setattr(LibraryState, "games", lambda self: [("Long " * 30, 1)])
-    rail.rebuild_facets()
-    assert rail.width() == theme.RAIL_MAX_WIDTH
+
+def test_top_bar_switches_pages_and_searches_the_library(qapp, window):
+    from PySide6.QtTest import QTest
+
+    bar = window.topbar
+    assert bar.tabs["library"].isChecked()
+    bar.tabs["sonar"].click()
+    assert window.stack.currentWidget() is window.sonar_view and bar.tabs["sonar"].isChecked()
+    # Typing a search elsewhere takes you to the library, filtered.
+    QTest.keyClicks(bar.search, "replay")
+    assert window.stack.currentWidget() is window.library_view
+    assert wait_until(qapp, lambda: window.state.query == "replay")
+    assert len(window.state.visible) == 1
+    assert window.library_view.filters.found.text() == "1 of 2 clips match"
+    bar.search.clear()
+    assert wait_until(qapp, lambda: len(window.state.visible) == 2)
+
+    # Only when the bar is too narrow for everything do the tabs drop their
+    # icons and the replay buffer its second line; at any width it all fits.
+    for width in (980, 1280):
+        window.resize(width, 800)
+        qapp.processEvents()
+        compact = bar.natural_width(False) > bar.width()
+        assert wait_until(qapp, lambda c=compact: bar.tabs["library"].compact == c)
+        assert bar.recorder.detail.isHidden() == compact
+        assert bar.recorder.geometry().right() <= bar.width()
+        assert bar.search.width() >= 180
 
 
 def test_new_apps_channel_is_chosen_in_the_header(qapp, window, fake_audio):

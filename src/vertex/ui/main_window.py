@@ -1,4 +1,4 @@
-"""The main window: the rail beside whichever page is showing."""
+"""The main window: the top bar over whichever page is showing."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from PySide6.QtCore import QFileSystemWatcher, QTimer
 from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
-    QHBoxLayout,
     QMainWindow,
     QStackedWidget,
     QSystemTrayIcon,
@@ -27,9 +26,9 @@ from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView, SetupResult
 from vertex.ui.library.state import LibraryState
 from vertex.ui.library.view import LibraryView
-from vertex.ui.rail import Rail
 from vertex.ui.settings.view import SettingsView
 from vertex.ui.sonar_view import SonarView
+from vertex.ui.topbar import TopBar
 from vertex.ui.widgets import Banner, ChoiceDialog, GlowArea
 
 
@@ -52,17 +51,17 @@ class MainWindow(QMainWindow):
         central = QWidget()
         central.setObjectName("Page")
         self.setCentralWidget(central)
-        row = QHBoxLayout(central)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(0)
-        self.rail = Rail(context, self.state)
-        self.rail.navigate.connect(self.navigate)
-        row.addWidget(self.rail)
+        rows = QVBoxLayout(central)
+        rows.setContentsMargins(0, 0, 0, 0)
+        rows.setSpacing(0)
+        self.topbar = TopBar(context, self.state)
+        self.topbar.navigate.connect(self.navigate)
+        rows.addWidget(self.topbar)
         self.page_area = GlowArea()
         column = QVBoxLayout(self.page_area)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
-        row.addWidget(self.page_area, 1)
+        rows.addWidget(self.page_area, 1)
         self.stack = QStackedWidget()
         column.addWidget(self.stack, 1)
         # Messages float over the pages as toasts.
@@ -105,16 +104,16 @@ class MainWindow(QMainWindow):
         if self.first_run is not None:
             return
         if self._on_settings() and page != "settings" and not self._may_leave_settings():
-            self.rail.set_page("settings")
+            self.topbar.set_page("settings")
             return
         self._close_editor()
-        self.rail.show()
+        self.topbar.show()
         target = {"library": self.library_view, "sonar": self.sonar_view,
                   "settings": self.settings_view}[page]
         if page == "settings":
             self.settings_view.load()
         self.stack.setCurrentWidget(target)
-        self.rail.set_page(page)
+        self.topbar.set_page(page)
         if page == "library":
             self.library_view.grid.setFocus()
 
@@ -146,7 +145,7 @@ class MainWindow(QMainWindow):
 
     def show_setup(self, config: Config | None = None, missing=(), again: bool = False) -> None:
         self._close_editor()
-        self.rail.hide()
+        self.topbar.hide()
         self.first_run = FirstRunView(self.context, config, missing, again=again)
         self.first_run.finished.connect(self._setup_done)
         self.first_run.cancelled.connect(self._setup_cancelled)
@@ -265,7 +264,6 @@ class MainWindow(QMainWindow):
             # In place: Sonar and the recorder hold on to the settings' parts.
             reset.reset_in_place(context.config, Config())
             self.settings_view.load()
-            self.rail.rebuild_facets()
             self.show_setup()
             self.banner.show_message(f"Settings reset. {_kept(where, 'old ones are')}", "ok",
                                      10000)
@@ -350,8 +348,8 @@ class MainWindow(QMainWindow):
     def _focus_search(self) -> None:
         if self.first_run is None:
             self.navigate("library")
-            self.rail.search.setFocus()
-            self.rail.search.selectAll()
+            self.topbar.search.setFocus()
+            self.topbar.search.selectAll()
 
     # --- Editor ----------------------------------------------------------------
 
@@ -367,8 +365,8 @@ class MainWindow(QMainWindow):
         self.editor.trimmed.connect(self._clip_trimmed)
         self.stack.addWidget(self.editor)
         self.stack.setCurrentWidget(self.editor)
-        # The editor takes the whole window: nothing on the rail helps mid-trim.
-        self.rail.hide()
+        # The editor takes the whole window: nothing on the top bar helps mid-trim.
+        self.topbar.hide()
         self.editor.setFocus()
 
     def _close_editor(self) -> None:

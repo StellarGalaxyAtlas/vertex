@@ -57,7 +57,7 @@ What the tokens are for:
 
 | Token | Used for |
 |---|---|
-| `MAIN_BG`, `SIDEBAR_BG`, `SECTION_BG` | the page, the rail, panels and sections |
+| `MAIN_BG`, `SIDEBAR_BG`, `SECTION_BG` | the page, the top bar, panels and sections |
 | `CARD_BG`, `CARD_HOVER`, `CONTROL_BG` | cards, hover, buttons and an off switch's track |
 | `FIELD_BG`, `EDGE` | text fields and drop-downs (recessed); their 3:1 edge |
 | `LINE` / `SEAM` | dividers / menu and tooltip edges |
@@ -83,10 +83,15 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
 
 ## The layout
 
-- **Rail** as wide as its longest filter (name and count) needs, from 216 to
-  320 px (item 26); past that, names are cut short. The filters sit on the
-  rail itself, with no box behind them. The replay buffer card shows its state on top and a
-  "Save clip" button with start/stop below it.
+- **Top bar** (item 31), 60 px: the mark and "Vertex", the page tabs (the
+  page showing is underlined in the accent, with a glow), the search in the
+  middle, the replay pill on the right. A line under it fades from the
+  accent into the second colour. Too narrow, the tabs drop their icons and
+  the pill its second line. The rail of 24 to 26 is gone.
+- **Library filters** (item 33) in one row over the grid: chips for All
+  clips, Favorites and Untagged; Games ▾ and People ▾ open a searchable list
+  with counts, so long names never squeeze anything; then sort, card size,
+  rescan and the disk. Narrow, the disk's text goes first.
 - **Messages are toasts** in the bottom-right corner of the page
   (`widgets.Banner`). A click dismisses one. No strip is kept for them.
 - **Sonar.** "New apps go to [channel]" sits in the page header, next to
