@@ -477,6 +477,12 @@ the first switch puts the microphones in Manual, as decided with 13 (a pick
 in Auto goes to the top of the list, so cycling would bounce between two).
 Superseded by 53.
 
+**54. Reset and delete, regrouped.** Reset settings and Clear cache share
+one card, a row each. Reset library has its own card under them, with an
+amber warning on top: only do this if something's wrong and clearing the
+cache didn't fix it. "Reset the library" and "Clear the cache" are now
+"Reset library" and "Clear cache" on the buttons and dialog titles.
+
 **53. Devices: the priority list decides, picks are for now.** Auto and
 Manual are gone, for outputs and microphones alike. Sonar uses the highest
 connected device in the list: A unplugged, B; A back, A. A device picked by
@@ -511,7 +517,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53, 54, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

@@ -5,11 +5,11 @@ the two that lose your own work only go ahead once a word is typed."""
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLineEdit, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLineEdit, QVBoxLayout
 
 from vertex.core import storage
 from vertex.ui import theme
-from vertex.ui.widgets import ChoiceDialog, Section, TextDialog, button, label
+from vertex.ui.widgets import ChoiceDialog, Section, TextDialog, button, label, setting_row
 
 
 class TypeToConfirm(TextDialog):
@@ -60,6 +60,24 @@ class TypeToConfirm(TextDialog):
         return cls(parent, *args).exec() == QDialog.DialogCode.Accepted
 
 
+def _warning(text: str) -> QFrame:
+    """A bold amber box that stops you before a step you probably don't need."""
+    box = QFrame()
+    box.setObjectName("ResetWarning")
+    theme.style(box, lambda: f"#ResetWarning {{ border: 2px solid {theme.WARN}; "
+                             f"border-radius: {theme.RADIUS_CONTROL}px; }}")
+    layout = QHBoxLayout(box)
+    layout.setContentsMargins(14, 12, 14, 12)
+    layout.setSpacing(12)
+    sign = label("⚠")
+    theme.style(sign, lambda: f"color: {theme.WARN}; font-size: 22px;")
+    layout.addWidget(sign, 0, Qt.AlignmentFlag.AlignVCenter)
+    words = label(text, wrap=True)
+    theme.style(words, lambda: f"color: {theme.WARN}; font-weight: bold;")
+    layout.addWidget(words, 1)
+    return box
+
+
 def _kept_where() -> str:
     return ("It's moved to the Trash." if storage.trash_available() else
             "A .bak backup is kept.")
@@ -73,16 +91,19 @@ class ResetPage(QObject):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent_widget = parent
-        settings = Section("Reset settings",
-                           "Restore defaults and run setup again")
-        settings.add(button("Reset settings…", "danger", on_click=self._settings))
-        library = Section("Reset the library",
-                          "Clear titles, tags, favorites and edits. Video files are kept")
-        library.add(button("Reset the library…", "danger", on_click=self._library))
-        cache = Section("Clear the cache",
-                        "Delete thumbnails and previews")
-        cache.add(button("Clear the cache…", on_click=self._cache))
-        self.sections = [settings, library, cache]
+        basics = Section()
+        basics.add(setting_row("Reset settings", button(
+            "Reset settings…", "danger", on_click=self._settings),
+            "Restore defaults and run setup again"))
+        basics.add(setting_row("Clear cache", button("Clear cache…", on_click=self._cache),
+                               "Delete thumbnails and previews"))
+        library = Section()
+        library.add(_warning(
+            "Only do this if something's wrong and clearing the cache didn't fix it."))
+        library.add(setting_row("Reset library", button(
+            "Reset library…", "danger", on_click=self._library),
+            "Clear titles, tags, favorites and edits. Video files are kept"))
+        self.sections = [basics, library]
 
     def _settings(self) -> None:
         if TypeToConfirm.ask(
@@ -94,14 +115,14 @@ class ResetPage(QObject):
 
     def _library(self) -> None:
         if TypeToConfirm.ask(
-                self.parent_widget, "Reset the library", "Reset the library?",
+                self.parent_widget, "Reset library", "Reset the library?",
                 ["Titles, tags and favorites", "Trims and track volumes"],
                 f"Video files are kept. {_kept_where()}",
-                "DELETE", "Reset the library"):
+                "DELETE", "Reset library"):
             self.reset_requested.emit("library")
 
     def _cache(self) -> None:
-        if ChoiceDialog.ask(self.parent_widget, "Clear the cache", "Clear the cache?",
+        if ChoiceDialog.ask(self.parent_widget, "Clear cache", "Clear the cache?",
                             "They're rebuilt as you browse.",
-                            [("Clear the cache", "clear", "danger")]) == "clear":
+                            [("Clear cache", "clear", "danger")]) == "clear":
             self.reset_requested.emit("cache")
