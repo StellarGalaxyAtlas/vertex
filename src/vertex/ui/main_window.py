@@ -238,9 +238,9 @@ class MainWindow(QMainWindow):
                 # Linked, one channel's device is every channel's.
                 for channel in (channels.OUTPUTS[:1] if context.config.sonar.linked
                                 else channels.OUTPUTS):
-                    context.sonar.set_channel_output(channel.id, output)
+                    context.sonar.set_channel_output(channel.id, output, lasting=True)
             if mic and mic != status.mic:
-                context.sonar.set_mic(mic)
+                context.sonar.set_mic(mic, lasting=True)
         if context.config.recorder != before.recorder:
             context.recorder.detect()
             context.recorder.restart_if_running()

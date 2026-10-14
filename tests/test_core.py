@@ -210,12 +210,12 @@ class TestDeviceOrder:
         from vertex.audio import devices
         assert devices.learn([], [], ["a", "b", "c"], first="b") == ["b", "a", "c"]
         assert devices.learn(["c"], ["x"], ["a", "x", "c"]) == ["c", "a"]
-        assert devices.choose(["a", "b"], [], ["b"], "", auto=True) == "b"
-        assert devices.choose(["a", "b"], ["a"], ["a", "b"], "", auto=True) == "b"
-        assert devices.choose(["a", "b"], [], ["a", "b"], "b", auto=False) == "b"
-        assert devices.choose(["a", "b"], [], ["a"], "b", auto=False) == "a"
-        assert devices.choose(["a"], ["a"], ["a"], "a", auto=False) == "a"   # picked by hand
-        assert devices.choose(["a"], [], ["z"], "", auto=True) == ""
+        assert devices.choose(["a", "b"], [], ["b"]) == "b"
+        assert devices.choose(["a", "b"], ["a"], ["a", "b"]) == "b"
+        assert devices.choose(["a", "b"], [], ["a", "b"], "b") == "b"      # picked for now
+        assert devices.choose(["a", "b"], [], ["a"], "b") == "a"           # unplugged
+        assert devices.choose(["a"], ["a"], ["a"], "a") == "a"             # picked by hand
+        assert devices.choose(["a"], [], ["z"]) == ""
         assert devices.promote(["a", "b"], ["c"], "c") == (["c", "a", "b"], [])
 
     def test_reorder_keeps_hidden_entries_in_place(self):

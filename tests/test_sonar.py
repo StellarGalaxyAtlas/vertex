@@ -87,7 +87,7 @@ class TestSonar:
     def test_output_change_moves_the_loopbacks(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         sonar.up()
-        sonar.set_output("hw_speakers")
+        sonar.set_channel_output("game", "hw_speakers")
         targets = {m.args["sink"] for m in fake.modules_ if m.name == "module-loopback"}
         assert targets == {"hw_speakers"}
         assert len([m for m in fake.modules_ if m.name == "module-loopback"]) == 3
@@ -119,7 +119,7 @@ class TestSonar:
         # Linking from Media plays everything through Media's device.
         sonar.set_linked(True, "media")
         assert set(targets().values()) == {"hw_speakers"}
-        assert sonar.config.output_device == "hw_speakers"
+        assert sonar.status().output_picked                 # for now, as any pick
         # Linked, picking a device for one channel picks it for all.
         sonar.set_channel_output("chat", "hw_headset")
         assert set(targets().values()) == {"hw_headset"}
@@ -148,22 +148,59 @@ class TestSonar:
         sonar.reconcile()
         assert sonar.status().output == "hw_headset"
 
-        # Picking one in Auto puts it on top, out of excluded.
+        # Picked by hand (even an excluded one): used for now, the lists as they were.
         sonar.set_channel_output("game", "hw_speakers")
-        assert sonar.config.output_priority[0] == "hw_speakers"
-        assert sonar.config.output_excluded == []
-        assert sonar.status().output == "hw_speakers"
-
-        # Manual: the device picked, whatever the order; the list only says
-        # what plays while it is unplugged.
-        sonar.config.output_auto = False
-        sonar.config.output_priority = ["hw_headset", "hw_speakers"]
-        sonar.set_channel_output("game", "hw_speakers")
-        assert sonar.config.output_priority == ["hw_headset", "hw_speakers"]
-        assert sonar.status().output == "hw_speakers"
+        assert sonar.config.output_priority == ["hw_speakers", "hw_headset"]
+        assert sonar.config.output_excluded == ["hw_speakers"]
+        status = sonar.status()
+        assert status.output == "hw_speakers" and status.output_picked
+        # Until it is unplugged: back, the list decides again.
         fake.remove_device("hw_speakers")
         sonar.reconcile()
-        assert sonar.status().output == "hw_headset"
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        status = sonar.status()
+        assert status.output == "hw_headset" and not status.output_picked
+
+        # Setup's choice lasts: on top of the list, out of excluded.
+        sonar.set_channel_output("game", "hw_speakers", lasting=True)
+        assert sonar.config.output_priority[0] == "hw_speakers"
+        assert sonar.config.output_excluded == []
+        assert sonar.status().output == "hw_speakers" and not sonar.status().output_picked
+
+    def test_microphones_follow_the_list_and_a_pick_lasts_until_a_plug_in(self, tmp_path):
+        sonar, fake = _sonar(tmp_path, mic_priority=["hw_a", "hw_b"])
+        fake.add_source("hw_a")
+        fake.add_source("hw_b")
+        sonar.up()
+        assert sonar.status().mic == "hw_a"
+        # A unplugged: B. A back: A again.
+        fake.remove_device("hw_a")
+        sonar.reconcile()
+        assert sonar.status().mic == "hw_b"
+        fake.add_source("hw_a")
+        sonar.reconcile()
+        assert sonar.status().mic == "hw_a"
+        # Switched to B (`vertex device next mic`): B, the order kept, through
+        # repairs that plug nothing in.
+        sonar.set_mic("hw_b")
+        sonar.reconcile()
+        status = sonar.status()
+        assert status.mic == "hw_b" and status.mic_picked
+        assert sonar.config.mic_priority == ["hw_a", "hw_b"]
+        # Something unplugged that isn't B: still B. Anything plugged in: the list.
+        fake.remove_device("hw_mic")
+        sonar.reconcile()
+        assert sonar.status().mic == "hw_b"
+        fake.add_source("hw_usb")
+        sonar.reconcile()
+        status = sonar.status()
+        assert status.mic == "hw_a" and not status.mic_picked
+        # A pick doesn't outlast Sonar.
+        sonar.set_mic("hw_b")
+        sonar.down()
+        sonar.up()
+        assert sonar.status().mic == "hw_a"
 
     def test_new_devices_go_to_the_bottom(self, tmp_path):
         sonar, fake = _sonar(tmp_path, output_priority=["hw_speakers", "hw_headset"])

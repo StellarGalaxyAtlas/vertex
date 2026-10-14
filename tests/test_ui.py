@@ -839,7 +839,7 @@ def test_each_channel_shows_and_picks_its_device(qapp, window, fake_audio):
     view.toggle_link("media")
     assert wait_until(qapp, lambda: sonar.linked and all(
         strips[c].current_device == "hw_headset" for c in ("game", "chat", "media")))
-    assert Config.load().sonar.output_device == "hw_headset"
+    assert wait_until(qapp, lambda: view.output_panel.picked_note.isVisibleTo(view))
 
 
 def test_device_manager_orders_the_devices(qapp, window, fake_audio):
@@ -852,7 +852,7 @@ def test_device_manager_orders_the_devices(qapp, window, fake_audio):
     assert wait_until(qapp, lambda: panel.priority.names() == ["hw_headset", "hw_speakers"]
                       and panel.now.full_text() == "hw_headset")
     assert sonar.output_priority == ["hw_headset", "hw_speakers"]    # learned and saved
-    assert panel.mode.current == "auto"
+    assert panel.picked_note.isHidden()
     assert view.mic_panel.priority.names() == ["hw_mic"]
 
     # Reordered: Auto plays through the new top device.
@@ -876,10 +876,15 @@ def test_device_manager_orders_the_devices(qapp, window, fake_audio):
     view.show_disconnected.setChecked(False)
     assert sonar.output_excluded == ["hw_speakers"]
 
-    # Manual: the device picked stays, whatever the order.
-    panel.mode._pick("manual")
-    assert wait_until(qapp, lambda: not sonar.output_auto)
-    assert "you pick" in panel.mode_hint.text()
+    # Picked on a channel: used for now, said under the device in use, and
+    # the list keeps its order.
+    fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})
+    view.controller.refresh_devices()
+    view.controller.set_channel_output("game", "hw_speakers")
+    assert wait_until(qapp, lambda: view.controller.status.output == "hw_speakers")
+    assert wait_until(qapp, lambda: not panel.picked_note.isHidden())
+    assert (sonar.output_priority, sonar.output_excluded) == (["hw_headset"], ["hw_speakers"])
+    assert panel.format.text().startswith("In use")
 
 
 def test_channels_also_play_through_a_second_device(qapp, window, fake_audio):
@@ -1366,36 +1371,34 @@ def test_control_api_drives_sonar(qapp, window, fake_audio):
     assert call("mute", {"channel": "mic"})["data"]["muted"] is True
     assert wait_until(qapp, lambda: call("state")["data"]["sonar"]["channels"]["mic"]["muted"])
 
-    # Next device: the other connected output, in Manual mode; then back again.
+    # Next device: the other connected output, for now; then back again.
     fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})
     context.sonar.refresh_devices()
     assert wait_until(qapp, lambda: len(context.sonar.outputs) == 2)
     reply = call("device", {"action": "next"})
-    assert reply["ok"] and not context.config.sonar.output_auto
+    assert reply["ok"]
     assert wait_until(qapp, lambda: context.sonar.status.output == "hw_speakers")
+    assert context.sonar.status.output_picked and call("state")["data"]["sonar"][
+        "output_picked"]
+    assert context.config.sonar.output_priority == ["hw_headset", "hw_speakers"]
     call("device", {"action": "next"})
     assert wait_until(qapp, lambda: context.sonar.status.output == "hw_headset")
     assert call("device", {"action": "next", "channel": "mic"})["error"] == "no_device"
 
     # Microphones: down the device manager's list, top to bottom and round again,
-    # leaving the list's order as it is (Auto goes to Manual).
+    # leaving the list's order as it is.
     fake_audio.add_source("hw_webcam", props={"device.description": "Webcam"})
     fake_audio.add_source("hw_usb_mic", props={"device.description": "USB mic"})
     context.sonar.refresh_devices()
     assert wait_until(qapp, lambda: len(context.sonar.inputs) == 3)
     sonar_config = context.config.sonar
-    sonar_config.mic_priority = ["hw_usb_mic", "hw_mic", "hw_webcam"]
-    assert sonar_config.mic_auto
+    sonar_config.mic_priority = ["hw_mic", "hw_webcam", "hw_usb_mic"]
     context.sonar._got_status(context.sonar.sonar.status())
     assert context.sonar.status.mic == "hw_mic"
-    seen_mics = []
-    for _ in range(3):
+    for expected in ("hw_webcam", "hw_usb_mic", "hw_mic"):
         assert call("device", {"action": "next", "channel": "mic"})["ok"]
-        assert wait_until(qapp, lambda: context.sonar.status.mic == sonar_config.mic_device)
-        seen_mics.append(context.sonar.status.mic)
-    assert seen_mics == ["hw_webcam", "hw_usb_mic", "hw_mic"]
-    assert not sonar_config.mic_auto
-    assert sonar_config.mic_priority == ["hw_usb_mic", "hw_mic", "hw_webcam"]
+        assert wait_until(qapp, lambda e=expected: context.sonar.status.mic == e)
+    assert sonar_config.mic_priority == ["hw_mic", "hw_webcam", "hw_usb_mic"]
 
     # Subscribers heard the changes, and the notifications.
     context.notify("clip_saved", "Clip saved", "a.mp4")

@@ -48,7 +48,6 @@ from vertex.ui.widgets import (
     FlowLayout,
     IconButton,
     Section,
-    Segmented,
     Toggle,
     button,
     label,
@@ -462,9 +461,9 @@ class WrapLabel(QLabel):
 
 class DevicePanel(QWidget):
     """One kind of device in the device manager, the outputs or the mics, as
-    a row of four: Manual or Auto (and, for outputs, the second device), the
-    one in use, the priority list, the excluded list. Two by two when the
-    page is narrow."""
+    a row of three: the one in use under the panel's name (and, for outputs,
+    the second device), the priority list, the excluded list. When the page
+    is narrow, the first two side by side over the excluded list."""
 
     WIDE = 1000
 
@@ -475,11 +474,13 @@ class DevicePanel(QWidget):
         self.current = ""
         self._quiet = False
         self._wide = None
-        device = "device" if kind == "output" else "microphone"
+        device = "device" if kind == "output" else "mic"
 
-        # Manual or Auto, and the second device.
-        controls = QWidget()
-        column = QVBoxLayout(controls)
+        # The panel's name over the device in use, without a volume of its
+        # own (the channels' sliders above set what is heard); for outputs,
+        # the second device.
+        in_use = QWidget()
+        column = QVBoxLayout(in_use)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(8)
         head = QHBoxLayout()
@@ -493,11 +494,35 @@ class DevicePanel(QWidget):
         head.addWidget(name)
         head.addStretch(1)
         column.addLayout(head)
-        self.mode = Segmented([("manual", "Manual"), ("auto", "Auto")], "auto")
-        self.mode.changed.connect(self._on_mode)
-        column.addWidget(self.mode, 0, Qt.AlignmentFlag.AlignLeft)
-        self.mode_hint = label("", "Dim", wrap=True)
-        column.addWidget(self.mode_hint)
+        card = QFrame()
+        card.setObjectName("InUse")
+        theme.style(card, lambda: f"#InUse {{ background: {theme.CARD_BG}; border: 1px solid "
+                                  f"{theme.LINE}; border-radius: 12px; }}")
+        inside = QHBoxLayout(card)
+        inside.setContentsMargins(14, 12, 14, 12)
+        inside.setSpacing(12)
+        badge = QLabel()
+        badge.setFixedSize(36, 36)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        theme.themed(badge, lambda: badge.setPixmap(icons.pixmap(icon_name, "TEXT_MUTED", 18)),
+                     "icon")
+        theme.style(badge, lambda: f"background: {theme.CONTROL_BG}; border-radius: 10px;")
+        inside.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        self.now = WrapLabel("")
+        self.now.setStyleSheet("font-weight: 600; background: transparent;")
+        text.addWidget(self.now)
+        self.format = label("", "Dim")
+        text.addWidget(self.format)
+        inside.addLayout(text, 1)
+        column.addWidget(card)
+        # A device picked by hand (on a channel, or with a shortcut) is used
+        # for now; said here, as the list says otherwise.
+        self.picked_note = label(f"Picked for now, until a {device} is plugged in.", "Dim",
+                                 wrap=True)
+        self.picked_note.hide()
+        column.addWidget(self.picked_note)
 
         # Outputs: a device every channel also plays through, unless the
         # channel's own "Also on" switch is off.
@@ -535,38 +560,6 @@ class DevicePanel(QWidget):
                 "sink", self.second_device, self.second_volume.value() / 100))
         column.addStretch(1)
 
-        # The device in use, without a volume of its own: the channels'
-        # sliders above set what is heard.
-        in_use = QWidget()
-        column = QVBoxLayout(in_use)
-        column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(8)
-        column.addWidget(label("IN USE", "Group"))
-        card = QFrame()
-        card.setObjectName("InUse")
-        theme.style(card, lambda: f"#InUse {{ background: {theme.CARD_BG}; border: 1px solid "
-                                  f"{theme.LINE}; border-radius: 12px; }}")
-        inside = QHBoxLayout(card)
-        inside.setContentsMargins(14, 12, 14, 12)
-        inside.setSpacing(12)
-        badge = QLabel()
-        badge.setFixedSize(36, 36)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        theme.themed(badge, lambda: badge.setPixmap(icons.pixmap(icon_name, "TEXT_MUTED", 18)),
-                     "icon")
-        theme.style(badge, lambda: f"background: {theme.CONTROL_BG}; border-radius: 10px;")
-        inside.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
-        text = QVBoxLayout()
-        text.setSpacing(2)
-        self.now = WrapLabel("")
-        self.now.setStyleSheet("font-weight: 600; background: transparent;")
-        text.addWidget(self.now)
-        self.format = label("", "Dim")
-        text.addWidget(self.format)
-        inside.addLayout(text, 1)
-        column.addWidget(card)
-        column.addStretch(1)
-
         priority = QWidget()
         column = QVBoxLayout(priority)
         column.setContentsMargins(0, 0, 0, 0)
@@ -586,12 +579,12 @@ class DevicePanel(QWidget):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(8)
         column.addWidget(label("EXCLUDED", "Group"))
-        self.excluded = DeviceOrder(f"Drop a {device} here and Vertex never picks it by "
-                                    f"itself", numbered=False, dashed=True)
+        self.excluded = DeviceOrder(f"Drop a {device} here to never use it automatically",
+                                    numbered=False, dashed=True)
         column.addWidget(self.excluded)
         column.addStretch(1)
 
-        self.parts = [controls, in_use, priority, excluded]
+        self.parts = [in_use, priority, excluded]
         self.grid = QGridLayout(self)
         self.grid.setContentsMargins(0, 0, 0, 0)
         self.grid.setHorizontalSpacing(24)
@@ -608,14 +601,16 @@ class DevicePanel(QWidget):
         self._wide = wide
         for part in self.parts:
             self.grid.removeWidget(part)
+        in_use, priority, excluded = self.parts
         if wide:
             for index, part in enumerate(self.parts):
                 self.grid.addWidget(part, 0, index)
-            stretches = (4, 5, 6, 5)
+            stretches = (5, 6, 5)
         else:
-            for index, part in enumerate(self.parts):
-                self.grid.addWidget(part, index // 2, index % 2)
-            stretches = (1, 1, 0, 0)
+            self.grid.addWidget(in_use, 0, 0)
+            self.grid.addWidget(priority, 0, 1)
+            self.grid.addWidget(excluded, 1, 0, 1, 2)
+            stretches = (1, 1, 0)
         for index, stretch in enumerate(stretches):
             self.grid.setColumnStretch(index, stretch)
 
@@ -623,17 +618,17 @@ class DevicePanel(QWidget):
         super().resizeEvent(event)
         self._arrange(self.width() >= self.WIDE)
 
-    def show_devices(self, priority: list, excluded: list, auto: bool, current,
-                     current_text: str) -> None:
-        self.mode.set_current("auto" if auto else "manual")
-        self._show_hint(auto)
+    def show_devices(self, priority: list, excluded: list, current, current_text: str,
+                     picked: bool = False) -> None:
         self.priority.fill(priority)
         self.excluded.fill(excluded)
         self.current = current.name if current is not None else ""
         self.now.setText(current_text)
-        self.format.setText(devices.describe_format(current.sample_spec)
-                            if current is not None else "")
+        described = devices.describe_format(current.sample_spec) if current is not None else ""
+        self.format.setText(" · ".join(("In use", described)) if described else
+                            "In use" if current is not None else "")
         self.format.setVisible(bool(self.format.text()))
+        self.picked_note.setVisible(picked and current is not None)
 
     def show_second(self, choices: list[tuple[str, str]], current: str, device,
                     current_text: str, connected: bool = True) -> None:
@@ -666,18 +661,6 @@ class DevicePanel(QWidget):
         self.second_readout.setText(f"{value}%")
         if not self._quiet and self.second_device:
             self._second_timer.start()
-
-    def _on_mode(self, key: str, _descending: bool = True) -> None:
-        self._show_hint(key == "auto")
-        self.view.controller.set_auto(self.kind, key == "auto")
-
-    def _show_hint(self, auto: bool) -> None:
-        """Auto is explained once, above both lists; Manual here."""
-        device = "device" if self.kind == "output" else "mic"
-        self.mode_hint.setText(
-            f"Uses the highest connected {device} in the list." if auto else
-            f"Uses the {device} you pick; while it is unplugged, the highest connected one.")
-        self.mode_hint.setVisible(not auto)
 
 
 class ChannelColumn(QFrame):
@@ -1121,8 +1104,8 @@ class SonarView(QWidget):
         heading = label("Devices")
         heading.setStyleSheet("font-size: 14pt; font-weight: 700;")
         head.addWidget(heading)
-        about = label("Auto uses the first connected device on each priority list. Drag "
-                      "devices to reorder them, or into Excluded.", "Dim", wrap=True)
+        about = label("The first connected device on each list is used. Drag to reorder "
+                      "or exclude.", "Dim", wrap=True)
         head.addWidget(about, 1)
         head.addSpacing(12)
         disconnected = label("Show disconnected devices", "Muted")
@@ -1253,8 +1236,9 @@ class SonarView(QWidget):
             now = present.get(current)
             text = self._label(current) if now is not None else (
                 "Sonar is off" if not sonar.enabled else "No device in use")
-            panel.show_devices(shown_priority, shown_excluded, getattr(sonar, f"{kind}_auto"),
-                               now, text)
+            picked = status.output_picked if kind == "output" else status.mic_picked
+            panel.show_devices(shown_priority, shown_excluded, now, text,
+                               picked=picked and sonar.enabled)
         # The second device is one of the priority list's: connected, not
         # excluded, and not the one already in use.
         second = sonar.second_output

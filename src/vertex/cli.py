@@ -120,11 +120,14 @@ def _state(as_json: bool) -> int:
     if not sonar.get("enabled"):
         print("Sonar          off")
         return 0
+    for_now = " (picked for now)" if sonar.get("output_picked") else ""
     print(f"Sonar          {'on' if sonar.get('active') else 'starting'}, playing through "
-          f"{device(sonar.get('output'))} ({sonar.get('output_mode')})")
+          f"{device(sonar.get('output'))}{for_now}")
     for channel_id, entry in sonar.get("channels", {}).items():
         where = f"  {device(entry['device'])}" if channel_id == "mic" or \
             not sonar.get("linked") else ""
+        if channel_id == "mic" and sonar.get("mic_picked"):
+            where += " (picked for now)"
         print(f"  {entry['name']:<7} {entry['volume']:>3}%{'  muted' if entry['muted'] else ''}"
               f"{where}")
     return 0

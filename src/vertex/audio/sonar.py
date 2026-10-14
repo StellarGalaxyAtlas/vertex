@@ -95,6 +95,9 @@ class SonarStatus:
     output: str = ""             # real sink the channels play through
     mic: str = ""                # real source behind Vertex Mic
     channels: dict[str, ChannelStatus] = field(default_factory=dict)
+    # Picked by hand for now, rather than the device manager's choice.
+    output_picked: bool = False
+    mic_picked: bool = False
 
 
 @dataclass
@@ -114,6 +117,11 @@ class Sonar:
         self.pactl = pactl or Pactl()
         self.state_file = state_file
         self.state = self._load_state()
+        # Devices picked by hand for now, by kind ("output", "mic"): used
+        # instead of the device manager's choice until a device of that kind
+        # is plugged in or the one picked is unplugged. Never saved.
+        self.picked = {"output": "", "mic": ""}
+        self._connected: dict[str, set[str] | None] = {"output": None, "mic": None}
 
     # --- State file ---------------------------------------------------------
 
@@ -174,14 +182,25 @@ class Sonar:
                 return candidate
         return devices[0].name if devices else ""
 
+    def _picked_for_now(self, kind: str, connected: list[str]) -> str:
+        """The device picked by hand for `kind`, unless a device of that kind
+        was plugged in since the last look, or it was unplugged."""
+        before, now = self._connected[kind], set(connected)
+        self._connected[kind] = now
+        if self.picked[kind] and (self.picked[kind] not in now or
+                                  (before is not None and now - before)):
+            self.picked[kind] = ""
+        return self.picked[kind]
+
     def resolve_output(self, outputs: list[Device] | None = None) -> str:
-        """The device the channels share: by the device manager's lists, else
-        the one picked, the last one used, or the system's default."""
+        """The device the channels share: the one picked for now, else by the
+        device manager's lists, else the one chosen in setup, the last one
+        used, or the system's default."""
         outputs = self.outputs() if outputs is None else outputs
         cfg = self.config
-        chosen = devices.choose(cfg.output_priority, cfg.output_excluded,
-                                [device.name for device in outputs], cfg.output_device,
-                                cfg.output_auto)
+        names = [device.name for device in outputs]
+        chosen = devices.choose(cfg.output_priority, cfg.output_excluded, names,
+                                self._picked_for_now("output", names))
         return chosen or self._resolve(
             cfg.output_device, outputs,
             [self.state.output, self.state.previous_sink, self._default_sink()])
@@ -208,8 +227,9 @@ class Sonar:
     def resolve_mic(self, inputs: list[Device] | None = None) -> str:
         inputs = self.inputs() if inputs is None else inputs
         cfg = self.config
-        chosen = devices.choose(cfg.mic_priority, cfg.mic_excluded,
-                                [device.name for device in inputs], cfg.mic_device, cfg.mic_auto)
+        names = [device.name for device in inputs]
+        chosen = devices.choose(cfg.mic_priority, cfg.mic_excluded, names,
+                                self._picked_for_now("mic", names))
         return chosen or self._resolve(
             cfg.mic_device, inputs,
             [self.state.mic, self.state.previous_source, self._default_source()])
@@ -238,6 +258,9 @@ class Sonar:
         status.available = True
         status.output = self.state.output
         status.mic = self.state.mic
+        status.output_picked = bool(self.picked["output"]) and \
+            self.picked["output"] == status.output
+        status.mic_picked = bool(self.picked["mic"]) and self.picked["mic"] == status.mic
         for channel in channels.ALL:
             device = (sinks if channel.is_output else sources).get(channel.node)
             entry = ChannelStatus(channel, present=device is not None)
@@ -411,6 +434,8 @@ class Sonar:
 
     def down(self) -> None:
         """Remove every Vertex device and give the system its defaults back."""
+        self.picked = {"output": "", "mic": ""}      # picks last while Sonar runs
+        self._connected = {"output": None, "mic": None}
         outputs = self.outputs()
         names = {device.name for device in outputs}
         restore_sink = next((name for name in (self.state.previous_sink, self.state.output)
@@ -484,19 +509,28 @@ class Sonar:
         except AudioError:
             pass
 
-    def set_output(self, device: str) -> list[str]:
-        self.config.output_device = device
-        return self.up() if self.config.enabled else []
+    def _pick(self, kind: str, device: str, lasting: bool) -> None:
+        """Use `device` for now, or (`lasting`, as setup does) put it on top
+        of the device manager's list."""
+        if not lasting:
+            self.picked[kind] = device
+            self._connected[kind] = None     # what is plugged in now doesn't undo it
+            return
+        self.picked[kind] = ""
+        if device:
+            cfg = self.config
+            priority, excluded = devices.promote(getattr(cfg, f"{kind}_priority"),
+                                                 getattr(cfg, f"{kind}_excluded"), device)
+            setattr(cfg, f"{kind}_priority", priority)
+            setattr(cfg, f"{kind}_excluded", excluded)
+            setattr(cfg, f"{kind}_device", device)
 
-    def set_channel_output(self, channel_id: str, device: str) -> list[str]:
-        """Play a channel through `device`: every output channel while linked.
-        In Auto mode the device also goes to the top of the list, or the list
-        would take it straight back."""
+    def set_channel_output(self, channel_id: str, device: str,
+                           lasting: bool = False) -> list[str]:
+        """Play a channel through `device`: every output channel while linked,
+        for now (see _pick); unlinked, the channel keeps it as its own."""
         if self.config.linked:
-            self.config.output_device = device
-            if self.config.output_auto and device:
-                self.config.output_priority, self.config.output_excluded = devices.promote(
-                    self.config.output_priority, self.config.output_excluded, device)
+            self._pick("output", device, lasting)
         else:
             self.config.channel(channel_id).output_device = device
         return self.up() if self.config.enabled else []
@@ -507,23 +541,18 @@ class Sonar:
         if linked:
             if not self.config.linked:
                 own = self.config.channel(channel_id).output_device
-                self.config.output_device = own or self.config.output_device
-                if self.config.output_auto and own:
-                    # As when picking it: on top, or Auto would pick another.
-                    self.config.output_priority, self.config.output_excluded = \
-                        devices.promote(self.config.output_priority,
-                                        self.config.output_excluded, own)
+                if own:
+                    self._pick("output", own, lasting=False)
         else:
+            shared = self.state.output or self.config.output_device
             for channel in channels.OUTPUTS:
-                self.config.channel(channel.id).output_device = self.config.output_device
+                self.config.channel(channel.id).output_device = shared
         self.config.linked = linked
         return self.up() if self.config.enabled else []
 
-    def set_mic(self, device: str) -> list[str]:
-        self.config.mic_device = device
-        if self.config.mic_auto and device:
-            self.config.mic_priority, self.config.mic_excluded = devices.promote(
-                self.config.mic_priority, self.config.mic_excluded, device)
+    def set_mic(self, device: str, lasting: bool = False) -> list[str]:
+        """Feed Vertex Mic from `device`, for now (see _pick)."""
+        self._pick("mic", device, lasting)
         return self.up() if self.config.enabled else []
 
     def set_second_output(self, device: str) -> list[str]:

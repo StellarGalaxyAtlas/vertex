@@ -25,11 +25,9 @@ COMMANDS = (
         ("vertex mute mic", "Mute your microphone",
          "Mutes Vertex Mic; again to unmute. Any channel works."),
         ("vertex device next", "Next output device",
-         "Down the device manager's list, then round again; Auto goes to Manual. Also: "
-         "vertex device previous."),
+         "In list order, until a device is plugged in. Also: vertex device previous."),
         ("vertex device next mic", "Next microphone",
-         "Down the device manager's list of microphones, then round again; Auto goes to "
-         "Manual."),
+         "In list order, until a mic is plugged in."),
         ("vertex sonar up", "Turn Sonar on", ""),
         ("vertex sonar down", "Turn Sonar off", "Your previous default devices come back."),
     ]),

@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 52.
+and bugs get the next free number: 54.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -47,7 +47,7 @@ keybinds were left out for now.
   portal), so ask what the maintainer wants before building anything.
 - Decided with 13: linked, "next device" moves every output channel;
   unlinked, every one or the one named. Volume and mute are per channel, in
-  5% steps. Cycling devices in Auto switches the list to Manual.
+  5% steps. Cycling devices picks for now and keeps the list's order (53).
 
 **21.**
 **Documentation**
@@ -169,7 +169,8 @@ and Microphones, each with Manual | Auto, the device in use with its volume
 and format, a priority list to drag and an Excluded list. Auto uses the
 highest connected device in the list, at start too; picking one in Auto
 puts it on top; excluded devices are never picked by themselves; new devices
-join the bottom. One priority list for the outputs, linked or not. Aux went.
+join the bottom. One priority list for the outputs, linked or not. Aux went. Since 53 there is no
+Manual or Auto: the list decides, and a pick is for now.
 
 **10. Sonar › Second output.** "Also play through" one more device, with its
 own volume; each output channel has an "Also on" switch. Every Vertex volume
@@ -354,7 +355,8 @@ with its link, and the apps as pills. Devices sit under one heading
 (and for outputs the second device, with its volume once one is set), the
 device in use, the priority list (numbered, "In use" or "Connected" on each
 row) and the excluded list (a dashed drop zone while empty); two by two
-below 1000 px. Manual's explanation shows only in Manual.
+below 1000 px. Manual's explanation shows only in Manual. (53: the toggle went, three
+across.)
 
 **35. Home and the top bar on bigger screens.** On a big window Home's
 tiles stretched into gaps (the mixer's channels far apart) and the top bar
@@ -473,7 +475,22 @@ and round again, skipping excluded ones; Settings › Shortcuts now lists it
 on its own row. Checked: in Manual it follows the list as it is; in Auto
 the first switch puts the microphones in Manual, as decided with 13 (a pick
 in Auto goes to the top of the list, so cycling would bounce between two).
-Asked the maintainer whether Auto should stay on instead.
+Superseded by 53.
+
+**53. Devices: the priority list decides, picks are for now.** Auto and
+Manual are gone, for outputs and microphones alike. Sonar uses the highest
+connected device in the list: A unplugged, B; A back, A. A device picked by
+hand (`vertex device next`, a channel's device on the Sonar page, linking
+from a channel) is used for now, without touching the list: until a device
+of that kind is plugged in or the picked one is unplugged, and never across
+a restart of Vertex or Sonar (`Sonar.picked`, not saved). Setup's choice is
+the exception: it goes on top of the list. Unlinked channels keep their own
+device as before; excluded devices are never picked automatically but can
+be by hand. The device manager's panels are three across (the name over the
+device in use, with "Also play through" for outputs; priority; excluded);
+below 1000 px the first two side by side over the excluded list. A pick
+shows "Picked for now" under the device in use; `vertex state` says
+"picked for now" too (`output_picked`, `mic_picked` in the control API).
 
 ---
 
@@ -484,7 +501,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

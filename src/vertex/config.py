@@ -107,24 +107,21 @@ class SonarConfig:
     """The virtual audio devices and where they are routed."""
 
     enabled: bool = False
-    output_device: str = ""          # real sink the channels play through; "" = system default
+    output_device: str = ""          # the output chosen in setup, until the list has one
     linked: bool = True              # every output channel plays through output_device
     second_output: str = ""          # a device the output channels also play through; "" = none
-    mic_device: str = ""             # real source behind Vertex Mic; "" = system default
+    mic_device: str = ""             # the microphone chosen in setup, until the list has one
     default_channel: str = "game"    # becomes the system default output while Sonar runs
     set_default_mic: bool = True     # make Vertex Mic the system default input
     latency_ms: int = 20             # loopback latency between channel and output device
     channels: dict[str, ChannelSettings] = field(default_factory=_default_channels)
     app_rules: dict[str, str] = field(default_factory=dict)   # app key → channel id
     # The device manager (audio.devices): the order real devices are picked
-    # in, the ones never picked automatically, and Auto (the highest connected
-    # one) or Manual (the one picked).
+    # in, and the ones never picked automatically.
     output_priority: list[str] = field(default_factory=list)
     output_excluded: list[str] = field(default_factory=list)
-    output_auto: bool = True
     mic_priority: list[str] = field(default_factory=list)
     mic_excluded: list[str] = field(default_factory=list)
-    mic_auto: bool = True
     device_names: dict[str, str] = field(default_factory=dict)   # device → its description
     show_disconnected: bool = False
 

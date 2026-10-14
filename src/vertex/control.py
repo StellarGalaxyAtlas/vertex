@@ -33,9 +33,10 @@ Commands, with their arguments:
 Channels are game, chat, media and mic. Volumes are percentages, 0-100, as
 the Sonar page shows them. `mute mic` mutes Vertex Mic: everything recording
 it hears silence. `device` picks the next connected device in the device
-manager's priority list (skipping excluded ones) and puts that list in
-Manual mode. With no channel it moves every output channel; with the output
-channels unlinked, a channel moves that one alone; `mic` cycles microphones.
+manager's priority list (skipping excluded ones), for now: until a device is
+plugged in, and leaving the list's order alone. With no channel it moves
+every output channel; with the output channels unlinked, a channel moves that
+one alone; `mic` cycles microphones.
 
 `state` describes everything a button face may show:
 
@@ -43,7 +44,7 @@ channels unlinked, a channel moves that one alone; `mic` cycles microphones.
      "replay": {"state": "running", "running": true, "seconds": 60},
      "sonar": {"enabled": true, "active": true, "linked": true,
                "output": {"name": "alsa_output…", "description": "Headset"},
-               "output_mode": "auto", "mic": {…}, "mic_mode": "auto",
+               "output_picked": false, "mic": {…}, "mic_picked": false,
                "channels": {"game": {"name": "Game", "volume": 100,
                                      "muted": false, "device": {…}}, …}}}
 
@@ -166,9 +167,9 @@ def state(config, status, replay_phase: str) -> dict:
         "sonar": {
             "enabled": sonar.enabled, "active": active, "linked": sonar.linked,
             "output": _device(status.output if active else "", names),
-            "output_mode": "auto" if sonar.output_auto else "manual",
+            "output_picked": active and status.output_picked,
             "mic": _device(status.mic if active else "", names),
-            "mic_mode": "auto" if sonar.mic_auto else "manual",
+            "mic_picked": active and status.mic_picked,
             "channels": channel_states,
         },
     }

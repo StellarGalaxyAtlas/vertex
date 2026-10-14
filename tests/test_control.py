@@ -44,10 +44,9 @@ def test_cycling_follows_the_priority_list():
 def test_state_describes_what_buttons_show():
     config = Config()
     config.sonar.enabled = True
-    config.sonar.output_auto = False
     config.sonar.device_names = {"hw_headset": "Headset", "hw_mic": "Desk mic"}
     status = SonarStatus(available=True, active=True, output="hw_headset", mic="hw_mic",
-                         channels={
+                         output_picked=True, channels={
                              "game": ChannelStatus(channels.GAME, present=True, volume=0.8),
                              "mic": ChannelStatus(channels.MIC, present=True, muted=True)})
     state = control.state(config, status, "running")
@@ -55,7 +54,7 @@ def test_state_describes_what_buttons_show():
     assert state["replay"] == {"state": "running", "running": True, "seconds": 60}
     sonar = state["sonar"]
     assert sonar["output"] == {"name": "hw_headset", "description": "Headset"}
-    assert sonar["output_mode"] == "manual" and sonar["mic_mode"] == "auto"
+    assert sonar["output_picked"] and not sonar["mic_picked"]
     game, mic = sonar["channels"]["game"], sonar["channels"]["mic"]
     assert (game["volume"], game["muted"], game["device"]["description"]) == (80, False,
                                                                               "Headset")

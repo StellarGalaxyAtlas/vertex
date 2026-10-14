@@ -1,9 +1,11 @@
 """The order Sonar picks real devices in, and the ones it never picks itself.
 
 Outputs and microphones each have one priority list and one excluded list of
-device names, kept across plug-ins and restarts. In Auto mode Sonar uses the
-highest connected device in the priority list; in Manual mode the one picked,
-or the highest connected one while that is unplugged. Excluded devices are
+device names, kept across plug-ins and restarts. Sonar uses the highest
+connected device in the priority list. A device picked by hand (on a channel,
+or with `vertex device next`) is used instead, for now: until a device is
+plugged in or it is unplugged, and never across a restart. Picking leaves the
+list as it is; reordering it is the lasting choice. Excluded devices are
 never picked automatically, though they can still be picked by hand.
 
 Pure functions over names, so the config, Sonar and the UI share them.
@@ -26,11 +28,12 @@ def learn(priority: list[str], excluded: list[str], names: list[str],
     return [*priority, *new]
 
 
-def choose(priority: list[str], excluded: list[str], connected: list[str], picked: str,
-           auto: bool) -> str:
-    """The device to use, or "" when the lists have nothing connected."""
+def choose(priority: list[str], excluded: list[str], connected: list[str],
+           picked: str = "") -> str:
+    """The device to use: the one picked for now while it is connected, else
+    the highest connected one in the list; "" when nothing is."""
     present = set(connected)
-    if not auto and picked in present:
+    if picked and picked in present:
         return picked
     for name in priority:
         if name in present and name not in excluded:

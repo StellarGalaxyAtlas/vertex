@@ -285,10 +285,6 @@ class SonarController(QObject):
         setattr(sonar, f"{kind}_excluded", list(excluded))
         self._device_settings_changed()
 
-    def set_auto(self, kind: str, auto: bool) -> None:
-        setattr(self.context.config.sonar, f"{kind}_auto", auto)
-        self._device_settings_changed()
-
     def set_show_disconnected(self, shown: bool) -> None:
         self.context.config.sonar.show_disconnected = shown
         self.context.save_config()
@@ -298,7 +294,7 @@ class SonarController(QObject):
         QTimer.singleShot(200, self.refresh_devices)
 
     def _device_settings_changed(self) -> None:
-        # In Auto mode, a new order can mean another device.
+        # A new order can mean another device.
         self.context.save_config()
         if self.enabled:
             self._job(self.sonar.reconcile, self._after_change, quiet=True)
@@ -321,14 +317,10 @@ class SonarController(QObject):
         self._job(lambda: self.sonar.set_muted(channel_id, muted), quiet=True)
         self.context.save_config_later()
 
-    def set_output(self, device: str) -> None:
-        self.context.config.sonar.output_device = device
-        self.context.save_config()
-        self._job(lambda: self.sonar.set_output(device), self._after_change)
-
-    def set_channel_output(self, channel_id: str, device: str) -> None:
-        """Play a channel through `device`: every output channel while linked."""
-        self._job(lambda: self.sonar.set_channel_output(channel_id, device),
+    def set_channel_output(self, channel_id: str, device: str, lasting: bool = False) -> None:
+        """Play a channel through `device`: every output channel while linked,
+        for now; `lasting` (setup) puts it on top of the device manager's list."""
+        self._job(lambda: self.sonar.set_channel_output(channel_id, device, lasting),
                   self._devices_changed)
 
     def set_linked(self, linked: bool, channel_id: str) -> None:
@@ -343,18 +335,16 @@ class SonarController(QObject):
 
     def cycle_device(self, step: int, channel_id: str = "") -> list[tuple[str, str]]:
         """Switch to the next (1) or previous (-1) connected device in the
-        device manager's list, skipping excluded ones. The shared output list
-        and the microphones go to Manual: in Auto, the device picked would go
-        to the top of the list and cycling would bounce between two. With no
-        channel, every output channel moves; unlinked, `channel_id` moves
-        alone. Returns (channel id or "outputs", device) for each switch."""
+        device manager's list, skipping excluded ones, for now: the list keeps
+        its order. With no channel, every output channel moves; unlinked,
+        `channel_id` moves alone. Returns (channel id or "outputs", device)
+        for each switch."""
         sonar, status = self.context.config.sonar, self.status
         if channel_id == channels.MIC.id:
             following = devices.cycle(sonar.mic_priority, sonar.mic_excluded,
                                       [d.name for d in self.inputs], status.mic, step)
             if not following:
                 return []
-            sonar.mic_auto = False
             self.set_mic(following)
             return [(channel_id, following)]
         connected = [d.name for d in self.outputs]
@@ -363,7 +353,6 @@ class SonarController(QObject):
                                       connected, status.output, step)
             if not following:
                 return []
-            sonar.output_auto = False
             self.set_channel_output(channels.GAME.id, following)
             return [("outputs", following)]
         moved = []
@@ -385,10 +374,9 @@ class SonarController(QObject):
         self.context.save_config()
         self._after_change(None)
 
-    def set_mic(self, device: str) -> None:
-        self.context.config.sonar.mic_device = device
-        self.context.save_config()
-        self._job(lambda: self.sonar.set_mic(device), self._after_change)
+    def set_mic(self, device: str, lasting: bool = False) -> None:
+        """Feed Vertex Mic from `device`, for now; `lasting` as above."""
+        self._job(lambda: self.sonar.set_mic(device, lasting), self._devices_changed)
 
     def set_default_channel(self, channel_id: str) -> None:
         self.context.config.sonar.default_channel = channel_id
