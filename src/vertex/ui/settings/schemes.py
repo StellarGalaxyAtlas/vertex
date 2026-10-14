@@ -184,7 +184,8 @@ class SchemeCard(QAbstractButton):
 
 
 class SchemePicker(QWidget):
-    """The schemes in a grid, four to a row, or two when the page is narrow.
+    """The schemes in a grid, as many to a row as fit (two to four), but fewer
+    when that fills every row: nine go three by three, not four, four and one.
     Picking one emits `picked` with its key."""
 
     picked = Signal(str)
@@ -227,8 +228,18 @@ class SchemePicker(QWidget):
         for column in range(4):
             self.grid.setColumnStretch(column, 1 if column < per_row else 0)
 
+    @staticmethod
+    def per_row(count: int, fits: int) -> int:
+        """How many to a row: the most, up to `fits`, that leaves no row short;
+        `fits` when none does."""
+        for per_row in range(fits, 1, -1):
+            if count % per_row == 0:
+                return per_row
+        return fits
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         card = next(iter(self.cards.values()))
-        need = 4 * card.minimumSizeHint().width() + 3 * self.grid.spacing()
-        self._arrange(4 if self.width() >= need else 2)
+        step = card.minimumSizeHint().width() + self.grid.spacing()
+        fits = max(2, min(4, (self.width() + self.grid.spacing()) // step))
+        self._arrange(self.per_row(len(self.cards), fits))

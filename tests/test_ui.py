@@ -267,6 +267,22 @@ def test_pages_and_settings_save(qapp, window):
     assert Config.load().cache_path.endswith("-2")
 
 
+def test_the_scheme_picker_leaves_no_row_short(qapp, window):
+    """Nine schemes go three by three rather than four, four and one."""
+    from vertex.ui.settings.schemes import SchemePicker
+
+    assert SchemePicker.per_row(9, 4) == 3
+    assert SchemePicker.per_row(8, 4) == 4
+    assert SchemePicker.per_row(9, 2) == 2
+    window.navigate("settings")
+    window.settings_view.show_page("general")
+    window.resize(1600, 1000)
+    picker = window.settings_view.schemes
+    assert wait_until(qapp, lambda: picker._per_row == SchemePicker.per_row(
+        len(picker.cards), 4))
+    window.resize(1280, 800)
+
+
 def test_drop_down_rows_take_the_highlight(qapp, window):
     """A drop-down opens as a list, so its hovered and current rows take the
     selected colour (as a menu, Qt drew them darker than the list)."""

@@ -1,9 +1,9 @@
 """The colour schemes, the channel colours and the application stylesheet.
 
-Vertex has eight colour schemes (TODO items 30, 38 to 41), picked in Settings ›
+Vertex has nine colour schemes (TODO items 30, 38 to 42), picked in Settings ›
 General. Plum, the default, is the "Shelves" design of round 2: a deep plum
 page, a hot magenta accent and a periwinkle second colour for gradients. Navy
-is the look Vertex had before; Polar is a light one. Each scheme gives every
+is the look Vertex had before; Polar and Glacier are light ones. Each scheme gives every
 token below a value; the UI reads them as `theme.ACCENT` and so on when it
 paints, and anything set once when a widget is built (a stylesheet, an icon)
 goes through `themed`, so the whole app changes the moment a scheme is picked
@@ -125,6 +125,12 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     "polar": ("Polar", "Aurora violet on snow", _scheme(
         "#eceef7", "#fbfbfe", "#1a1730", "#47435f", "#5a5677", "#7c3aed", "#ffffff", "#7d7a97",
         "#0d9488", "#6d28d9", "#d92d3f", ("#047857", "#2563eb", "#c0267a", "#b45309", "#0e7490"))),
+    # The second light scheme: ice. Snow-white and ice-grey grounds, a deep
+    # glacier blue (white text on it) into icy teal; the channels kept off the
+    # blue, Chat in indigo.
+    "glacier": ("Glacier", "Glacier blue on ice", _scheme(
+        "#e9f0f5", "#fafcfd", "#0f1e2b", "#3d5163", "#506577", "#0a6cb4", "#ffffff", "#76889a",
+        "#14a3b8", "#0a5a96", "#d92d3f", ("#0f8a5f", "#4f46e5", "#c0267a", "#b45309", "#7c3aed"))),
     # Vertex's colours until round 3, as they were (the hint text one step
     # lighter, to pass on a hovered card).
     "navy": ("Navy", "Vertex's colours until now", {

@@ -12,12 +12,7 @@ the way, are in this file as it was at commit 606d1a2
 
 ## Open
 
-**42.** Next
-**Colour schemes › Glacier, a second light scheme**
-Snow-white and ice-grey grounds, a deep glacier-blue accent into icy teal.
-Asked for alongside 41, as a scheme of its own; built on 41's light path.
-
-**43.**
+**43.** Next
 **Editor › "Video" and "This clip has no audio." overlap**
 Under the timeline of a clip without audio, the Video lane's name and the
 note that there is no audio are drawn on top of each other (seen at
@@ -277,11 +272,11 @@ dashboard board without its replay buffer card; the Library's grid under
 Shelves' filter row; Sonar as on Shelves' board; a choice of colour schemes)
 drawn together on the canvas's Round 3 page, approved, and built as 30 to 34.
 
-**30. Colour schemes.** Settings › General › Appearance offers eight, each
+**30. Colour schemes.** Settings › General › Appearance offers nine, each
 drawn as a small picture of the app in its colours: Plum (the default,
-Shelves' palette), Spooky, Abyss, Aurora, Midnight blue, Coral, Polar and
-Navy (the colours before; its hint text one step lighter to pass on a
-hovered card). A pick shows across the whole app at once; Save keeps it
+Shelves' palette), Spooky, Abyss, Aurora, Midnight blue, Coral, Polar,
+Glacier and Navy (the colours before; its hint text one step lighter to
+pass on a hovered card). A pick shows across the whole app at once; Save keeps it
 (`colour_scheme` in the config), Revert or leaving without saving goes
 back, a settings reset returns to Plum. Each scheme brings its own channel
 colours, kept clear of its accent, and a second colour for gradients (the
@@ -400,6 +395,14 @@ an outline, the playhead the text colour, and the duration and star over
 a thumbnail stay light on their scrim (`ON_VIDEO`, `STAR`). The dark
 schemes look as before. Deep sea is gone; a config naming it gets Plum.
 
+**42. Colour schemes: Glacier, a second light scheme.** Asked for with 41
+as a scheme of its own: ice-grey page `#e9f0f5`, panels `#fafcfd`, text
+`#0f1e2b`, a deep glacier blue `#0a6cb4` with white text into icy teal
+`#14a3b8`, the channels green, indigo (kept off the blue), raspberry,
+amber and violet. With nine schemes the picker would leave one alone on a
+row, so it now takes as many to a row as fit (two to four) but fewer when
+that fills every row: three by three.
+
 ---
 
 ## Notes
@@ -409,10 +412,9 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–41, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–42, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
-Open: 42 (Glacier, a second light scheme), 43 (an editor bug), 9 (on hold)
-and 21 (documentation, at the end). Waiting on the
+Open: 43 (an editor bug), 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
