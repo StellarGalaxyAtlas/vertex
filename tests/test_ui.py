@@ -1141,6 +1141,8 @@ def test_notifications_pop_up_over_games_with_gsr_notifier(qapp, window, monkeyp
     popped, toasts = [], []
     monkeypatch.setattr(window, "tray", SimpleNamespace(pop_up=popped.append))
     monkeypatch.setattr(window, "isActiveWindow", lambda: False)
+    monkeypatch.setattr("vertex.ui.main_window.TOAST_GAP", 0)
+    monkeypatch.setattr(window.over_games, "command", "gsr-notify")
     monkeypatch.setattr(window.over_games, "show",
                         lambda *args: toasts.append(args) or True)
 
@@ -1151,10 +1153,37 @@ def test_notifications_pop_up_over_games_with_gsr_notifier(qapp, window, monkeyp
     context.notify("vertex_problem", "Could not save settings", "disk full")
     assert toasts[-1][1:3] == ("error", theme.DANGER) and toasts[-1][4] == ""
 
+    # Volume: Vertex's own icon, drawn for the notifier, and not in the window.
+    monkeypatch.setitem(window._toast_icons, "volume", "/cache/volume.png")
+    window.banner.show_message("", "info", 1)
+    context.config.notifications = {"volume_changed": True}
+    context.sonar.announce_volume("game", 55, False)
+    assert toasts[-1][0] == "Game volume: 55%" and toasts[-1][4] == "/cache/volume.png"
+    assert window.banner.text() != "Game volume: 55%"
+    context.config.notifications = {}
+
+    # A key held down: one toast now, the latest after TOAST_GAP, none between.
+    monkeypatch.setattr("vertex.ui.main_window.TOAST_GAP", 0.2)
+    window._toast_shown = 0.0
+    count = len(toasts)
+    context.notify("clip_saved", "Clip saved", "1.mp4")
+    context.notify("clip_saved", "Clip saved", "2.mp4")
+    context.notify("clip_saved", "Clip saved", "3.mp4")
+    assert [t[0] for t in toasts[count:]] == ["Clip saved: 1.mp4"]
+    assert wait_until(qapp, lambda: len(toasts) == count + 2)
+    assert toasts[-1][0] == "Clip saved: 3.mp4" and not popped
+    monkeypatch.setattr("vertex.ui.main_window.TOAST_GAP", 0)
+
     # Not installed, or it couldn't start: a desktop notification instead.
     monkeypatch.setattr(window.over_games, "show", lambda *args: False)
     context.notify("clip_saved", "Clip saved", "b.mp4")
     assert [n.body for n in popped] == ["b.mp4"]
+    monkeypatch.setattr(window.over_games, "command", None)
+    monkeypatch.setattr(window.over_games, "show",
+                        lambda *args: toasts.append(args) or True)
+    context.notify("clip_saved", "Clip saved", "b2.mp4")
+    assert popped[-1].body == "b2.mp4"
+    monkeypatch.setattr(window.over_games, "command", "gsr-notify")
 
     # Switched off in Settings.
     settings = window.settings_view
@@ -1351,6 +1380,11 @@ def test_control_api_drives_sonar(qapp, window, fake_audio):
     context.sonar.set_enabled(True)
     assert wait_until(qapp, lambda: context.sonar.status.active)
     events = commands.subscribers.add()
+    notices = []
+    context.notified.connect(notices.append)
+
+    def volume_notices():
+        return [(n.line, n.icon) for n in notices if n.kind == "volume_changed"]
 
     reply = call("volume", {"channel": "chat", "action": "set", "value": 40})
     assert reply["ok"] and reply["data"]["volume"] == 40
@@ -1358,6 +1392,30 @@ def test_control_api_drives_sonar(qapp, window, fake_audio):
     assert call("volume", {"channel": "chat", "action": "up"})["data"]["volume"] == 45
     assert call("mute", {"channel": "mic"})["data"]["muted"] is True
     assert wait_until(qapp, lambda: call("state")["data"]["sonar"]["channels"]["mic"]["muted"])
+    # Each command says what it did, once: the server's report of it isn't
+    # announced again.
+    qapp.processEvents()
+    assert volume_notices() == [("Chat volume: 40%", "volume"), ("Chat volume: 45%", "volume"),
+                                ("Mic muted", "mute")]
+    # The desktop's volume keys (another program) turning Game down are announced.
+    from vertex.audio.pulse import to_server
+    context.sonar._own_until.clear()
+    fake_audio.set_sink_volume("vertex_game", to_server(0.3))
+    context.sonar.refresh()
+    assert wait_until(qapp, lambda: volume_notices()[-1] == ("Game volume: 30%", "volume"))
+    fake_audio.set_sink_mute("vertex_game", True)
+    context.sonar.refresh()
+    assert wait_until(qapp, lambda: volume_notices()[-1] == ("Game muted", "mute"))
+    fake_audio.set_sink_mute("vertex_game", False)
+    context.sonar.refresh()
+    assert wait_until(qapp, lambda: volume_notices()[-1] == ("Game unmuted: 30%", "volume"))
+    # A fader moved in Vertex's own window isn't.
+    count = len(volume_notices())
+    context.sonar.set_volume("game", 0.6)
+    context.sonar.refresh()
+    assert wait_until(qapp, lambda: context.sonar.status.channels["game"].volume > 0.55)
+    qapp.processEvents()
+    assert len(volume_notices()) == count
 
     # Next device: the other connected output, in Manual mode; then back again.
     fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})

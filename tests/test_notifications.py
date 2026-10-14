@@ -83,3 +83,13 @@ def test_gsr_notifier_shows_one_toast_at_a_time(tmp_path):
     second = shown._shown
     shown.dismiss()
     assert second.wait(timeout=5) != 0 and shown._shown is None
+
+
+def test_volume_notices():
+    assert notifications.volume_notice("Game", 55, False, False) == \
+        notifications.Notice("volume_changed", "Game volume", "55%", "volume")
+    assert notifications.volume_notice("Chat", 55, True, True).line == "Chat muted"
+    assert notifications.volume_notice("Chat", 55, True, False).icon == "mute"
+    assert notifications.volume_notice("Mic", 70, False, True).line == "Mic unmuted: 70%"
+    kind = notifications.BY_ID["volume_changed"]
+    assert not kind.default and not kind.in_window

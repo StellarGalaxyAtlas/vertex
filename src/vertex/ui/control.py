@@ -135,11 +135,12 @@ class Commands(QObject):
         refused = self._need_sonar()
         if refused:
             return refused
-        current = self.state()["sonar"]["channels"][channel.id]["volume"]
-        volume = control.volume_after(current, action, value, step)
+        current = self.state()["sonar"]["channels"][channel.id]
+        volume = control.volume_after(current["volume"], action, value, step)
         sonar = self.context.sonar
         sonar.set_volume(channel.id, volume / 100)
         sonar.refresh()           # the Sonar page and subscribers follow
+        sonar.announce_volume(channel.id, volume, current["muted"])
         return control.ok(f"{channel.label} at {volume}%.", channel=channel.id, volume=volume)
 
     def _mute(self, args) -> dict:
@@ -148,12 +149,14 @@ class Commands(QObject):
         refused = self._need_sonar()
         if refused:
             return refused
-        muted = self.state()["sonar"]["channels"][channel.id]["muted"]
-        muted = not muted if action == "toggle" else action == "on"
+        current = self.state()["sonar"]["channels"][channel.id]
+        muted = not current["muted"] if action == "toggle" else action == "on"
         sonar = self.context.sonar
         self.context.config.sonar.channel(channel.id).muted = muted
         sonar.set_muted(channel.id, muted)
         sonar.refresh()
+        sonar.announce_volume(channel.id, current["volume"], muted,
+                              muted != current["muted"])
         return control.ok(f"{channel.label} {'muted' if muted else 'unmuted'}.",
                           channel=channel.id, muted=muted)
 

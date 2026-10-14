@@ -30,6 +30,7 @@ class Kind:
     default: bool = True  # pops up unless switched off
     level: str = "info"   # one of LEVELS: how it looks
     icon: str = ""        # GSR's notifier icon over games (notifier.ICONS), if any
+    in_window: bool = True  # also shown at the bottom of Vertex's window
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,7 @@ class Notice:
     kind: str
     title: str
     body: str = ""
+    icon: str = ""        # one of Vertex's own icons, drawn for it over games
 
     @property
     def line(self) -> str:
@@ -80,6 +82,10 @@ KINDS = (
     Kind("mic_changed", "sonar", "Microphone changed",
          "Vertex Mic records another microphone: one was picked, plugged in or "
          "unplugged."),
+    Kind("volume_changed", "sonar", "Volume changed",
+         "A channel turned up, down, muted or unmuted by a shortcut or your desktop's "
+         "volume keys. Pop-up only: Vertex's window shows it on the faders.",
+         default=False, in_window=False),
     Kind("sonar_problem", "sonar", "Sonar ran into a problem",
          "No output device or microphone was found, or a change didn't work.",
          level="warn"),
@@ -91,6 +97,17 @@ KINDS = (
 )
 
 BY_ID = {kind.id: kind for kind in KINDS}
+
+
+def volume_notice(label: str, volume: int, muted: bool, mute_changed: bool) -> Notice:
+    """A channel's new volume ("Game volume: 55%"), or that it was muted or
+    unmuted ("Chat muted")."""
+    icon = "mute" if muted else "volume"
+    if muted:
+        return Notice("volume_changed", f"{label} muted", "", icon)
+    if mute_changed:
+        return Notice("volume_changed", f"{label} unmuted", f"{volume}%", icon)
+    return Notice("volume_changed", f"{label} volume", f"{volume}%", icon)
 
 
 def in_category(category: str) -> list[Kind]:

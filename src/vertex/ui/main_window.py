@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import os
 import sqlite3
+import time
 
 from PySide6.QtCore import QFileSystemWatcher, QTimer
 from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
@@ -33,6 +34,11 @@ from vertex.ui.sonar_view import SonarView
 from vertex.ui.topbar import TopBar
 from vertex.ui.widgets import Banner, ChoiceDialog, GlowArea
 
+# The least time between two toasts over games, in seconds.
+TOAST_GAP = 0.4
+# Vertex's own icons a notice may ask the notifier for.
+TOAST_ICONS = ("volume", "mute")
+
 
 class MainWindow(QMainWindow):
     def __init__(self, context):
@@ -40,6 +46,11 @@ class MainWindow(QMainWindow):
         self.context = context
         self.tray = None
         self.over_games = notifier.Notifier()
+        self._toast_icons: dict[str, str] = {}    # Vertex icon name: PNG for the notifier
+        self._toast_shown = 0.0                   # monotonic time of the last toast
+        self._toast_waiting = None                # the latest toast held back, its args
+        self._toast_timer = QTimer(self, singleShot=True)
+        self._toast_timer.timeout.connect(self._show_waiting_toast)
         self._quitting = False
         self._told_about_tray = False
         self._services_started = False
@@ -315,6 +326,7 @@ class MainWindow(QMainWindow):
         self._services_started = True
         context = self.context
         context.open_library()
+        self._draw_toast_icons()
         if tags is not None:
             self._write_setup_tags(*tags)
         self.state.reload()
@@ -424,8 +436,9 @@ class MainWindow(QMainWindow):
         kind is switched on and the window isn't in front: over games through
         GPU Screen Recorder's notifier when that is on, else on the desktop."""
         kind = notifications.BY_ID[notice.kind]
-        self.banner.show_message(notice.line, kind.level, 12000 if kind.level == "error"
-                                 else 6000)
+        if kind.in_window:
+            self.banner.show_message(notice.line, kind.level, 12000 if kind.level == "error"
+                                     else 6000)
         in_front = self.isVisible() and self.isActiveWindow() and not self.isMinimized()
         if in_front or self._quitting or \
                 not notifications.enabled(self.context.config.notifications, kind.id):
@@ -436,10 +449,46 @@ class MainWindow(QMainWindow):
             self.tray.pop_up(notice)
 
     def _over_games(self, notice: notifications.Notice, kind: notifications.Kind) -> bool:
+        if not self.over_games.available:
+            return False
         background, ink = {"warn": (theme.WARN, theme.ON_DANGER),
                            "error": (theme.DANGER, theme.ON_DANGER)}.get(
             kind.level, (theme.ACCENT_FILL, theme.ON_ACCENT))
-        return self.over_games.show(notice.line, kind.level, background, ink, kind.icon)
+        icon = self._toast_icons.get(notice.icon, "") if notice.icon else kind.icon
+        args = (notice.line, kind.level, background, ink, icon)
+        # A key held down sends a notice per step: one toast per TOAST_GAP at
+        # most, the latest, rather than a new notifier on every step.
+        wait = self._toast_shown + TOAST_GAP - time.monotonic()
+        if wait > 0:
+            self._toast_waiting = args
+            if not self._toast_timer.isActive():
+                self._toast_timer.start(max(1, int(wait * 1000)))
+            return True
+        self._toast_shown = time.monotonic()
+        return self.over_games.show(*args)
+
+    def _show_waiting_toast(self) -> None:
+        args, self._toast_waiting = self._toast_waiting, None
+        if args is not None:
+            self._toast_shown = time.monotonic()
+            self.over_games.show(*args)
+
+    def _draw_toast_icons(self) -> None:
+        """Vertex's own icons the notifier shows (volume, mute), drawn once."""
+        if not self.over_games.available:
+            return
+        folder = os.path.join(self.context.config.resolved_cache_dir(), "notifier")
+
+        def draw():
+            os.makedirs(folder, exist_ok=True)
+            drawn = {}
+            for name in TOAST_ICONS:
+                path = os.path.join(folder, f"{name}.png")
+                if os.path.exists(path) or icons.save_png(name, theme.ON_VIDEO, 96, path):
+                    drawn[name] = path
+            return drawn
+
+        workers.run(draw, self._toast_icons.update, lambda _exc: None)
 
     # --- Window -------------------------------------------------------------------
 
