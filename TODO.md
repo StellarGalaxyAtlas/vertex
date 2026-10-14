@@ -56,15 +56,17 @@ behind:
   (item 22); the import tools are no longer where setup points.
 - The screenshots in `docs/` (first-run.png shows the old step 1). Since
   item 24 every one of them shows the old colours and layout.
+- Round 3 and after (items 29 to 45), in README and `docs/ARCHITECTURE.md`:
+  the rail is gone for a top bar (Home, Library, Sonar, Settings, search,
+  the replay pill; 31); Vertex opens on Home (32, 35, 37); the Library's
+  filter row (33); the Sonar page as on Shelves' board, with a panel per
+  kind of device (34, 36); nine colour schemes picked in Settings › General,
+  two of them light (30, 38 to 42, 44), and how `ui/theme.py` works them
+  out (`_scheme`, the light path, `ACCENT_FILL`, `ON_CHANNEL`, `ON_VIDEO`).
 
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
-- Switching to one installation (steps given 2026-10-13): quit Vertex, back
-  up the library, remove 1.x (`~/.local/lib/vertex`, the old
-  `~/.local/bin/vertex`) and `~/vertex-test`, `pipx install` from the
-  working branch, then `vertex install-desktop --autostart` so the start
-  menu and autostart entries point at it. CLAUDE.md gives the update command.
 - 1: Qt and GPU Screen Recorder name the monitors alike; if not, a monitor
   is drawn to the side of the map instead of in place.
 - 13: the commands against real audio (`vertex state`, `volume`, `mute`,
@@ -77,6 +79,16 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
+- 40 to 42, 44: Spooky, Polar and Glacier on their desktop. On the light
+  ones: the dark logo in the top bar, the panels standing off the page, the
+  slider handles and the editor's playhead visible, nothing white on white
+  (first-run setup and the export dialog were not looked at in a light
+  scheme).
+- 39, 45: Plum's white text on the deeper pink and its periwinkle
+  highlight; drop-downs opening as a list under their field, the hovered row
+  highlighted; the clip cards' outline subtle enough.
+- 36, 37: the Sonar page's two device panels; Home's faders lit and as wide
+  as their card allows, on their big screen.
 - 35: Home and the top bar on their big screen: two rows of clips, the
   tiles under them filled (faders, games, storage, people), a wider search.
 - 34: the Sonar page with their devices and apps: the big numbers and the
@@ -86,8 +98,8 @@ Built and tested in the container; only their system can confirm:
 - 31, 33: the top bar and the filter row in their font and display scale;
   the drop-downs open under their chip and take the keyboard.
 - 30: the schemes on their desktop: each one picked in Settings shows at
-  once everywhere (rail, Library, Sonar, Settings, the editor), and the saved
-  one is there after a restart.
+  once everywhere (top bar, Home, Library, Sonar, Settings, the editor), and
+  the saved one is there after a restart.
 - 24, 25: the new look on their desktop, in their font and display scale:
   toasts appear bottom-right and go after a few seconds; at 980 px wide the
   Sonar page doesn't scroll sideways.
@@ -276,9 +288,9 @@ drawn together on the canvas's Round 3 page, approved, and built as 30 to 34.
 drawn as a small picture of the app in its colours: Plum (the default,
 Shelves' palette), Spooky, Abyss, Aurora, Midnight blue, Coral, Polar,
 Glacier and Navy (the colours before; its hint text one step lighter to
-pass on a hovered card). A pick shows across the whole app at once; Save keeps it
-(`colour_scheme` in the config), Revert or leaving without saving goes
-back, a settings reset returns to Plum. Each scheme brings its own channel
+pass on a hovered card). A pick shows across the whole app at once; Save
+keeps it (`colour_scheme` in the config), Revert or leaving without saving
+goes back, a settings reset returns to Plum. Each scheme brings its own channel
 colours, kept clear of its accent, and a second colour for gradients (the
 page's corner glows, gauges). `theme.py` builds a scheme from its key
 colours; whatever a widget takes from the scheme when it is built goes
@@ -425,10 +437,24 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 and 45, including the bugs 14,
-16, 18 and 26: the new look of round 3 is built, and scales on big screens.
-Open: 43 (an editor bug), 9 (on hold) and 21 (documentation, at the end). Waiting on the
-maintainer: the checks listed above, and switching to one installation.
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 and 45, including the
+bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
+screens; there are nine colour schemes, two of them light. Next: 43 (an
+editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer
+says). Waiting on the maintainer: the checks listed above. The session that
+ended 2026-10-14 finished with 45; nothing was left half done.
+
+**Colour schemes.** Decided along the way (items 30, 38 to 45): the picker
+reads Plum, Spooky, Abyss, Aurora, Midnight blue, Coral, Polar, Glacier,
+Navy, the first three the maintainer's favourites. Ember, Forest and Deep
+sea were dropped, a grey palette rejected (item 25). A new or changed
+scheme is mocked up or screenshotted for the maintainer, and passes
+`tests/test_theme.py`. Where a mid-bright accent leaves dark text hard to
+read, text sits on a deeper `fill` and goes white (Plum). A selected item
+tinted from the accent can turn muddy (wine, brown); tint it from the second
+colour instead (`soft="second"`, Plum and Spooky). A light scheme needs its
+page a clear step darker than its panels (1.4:1), deeper channels and
+meaning colours, and nothing white that isn't over video.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
 a channel's gear with its shortcut fields; a channel's device list; the

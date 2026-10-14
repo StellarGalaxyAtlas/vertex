@@ -38,6 +38,10 @@ where the work stands. New requests and bugs get the next free number in
 - Keep token use down: no multi-agent work (workflows, parallel reviewers,
   subagents) unless it is strictly necessary, even if a session setting
   suggests it. Tests, screenshots and your own review are the default.
+- For a look (colours, a layout), show them choices side by side, as a
+  mockup image or screenshots, and let them pick; then build the pick.
+- They use a big screen (about 2560 px wide): check UI at the default size,
+  the minimum (980 px) and big sizes, and leave no dead space at any of them.
 
 ## Rules of the code
 
@@ -48,7 +52,9 @@ where the work stands. New requests and bugs get the next free number in
   place.
 - Before every push: `ruff check src tests tools` and
   `xvfb-run -a python -m pytest` must both pass. Set up with
-  `pip install -e ".[dev]"`.
+  `pip install -e ".[dev]"`. Check pytest's exit status itself (write its
+  output to a file, then look at `$?`): piped into `tail`, a failure looks
+  like a pass, and one push went out red that way.
 
 ## Working in the cloud container
 
@@ -65,6 +71,9 @@ where the work stands. New requests and bugs get the next free number in
   Settings › Recording, with a fake recorder and three fake monitors (one
   standing up). `xvfb-run -a python tools/first_run_screenshot.py /tmp/shot`
   shoots every step of first-run setup, with and without a recorder.
+  The tools shoot Plum, the default. A colour change is checked in a dark
+  and a light scheme: for another one, add `"colour_scheme": "polar"` to
+  the config a tool writes (and don't commit that).
 - Workflow agents with `isolation: "worktree"` get a worktree made from the
   repository's default branch (`main`, an early 2.0 merged long before the
   work on this branch), not the working branch. Have them `git reset --hard`
@@ -79,11 +88,14 @@ README before UI work. New UI follows its rules: every text colour at AA
 contrast, the accent never on an audio control, red only for recording, no
 dead space, nothing that only works on a dark ground (white handles, white
 text outside the video). A grey palette was tried and rejected. The colours
-live in
-`ui/theme.py`; use the tokens there, never a new hex value in a widget. A
-colour set when a widget is built goes through `theme.style` or
+live in `ui/theme.py`; use the tokens there, never a new hex value in a
+widget. A colour set when a widget is built goes through `theme.style` or
 `theme.themed` (icons take a token name), or it stays in the old scheme when
-the maintainer picks another.
+the maintainer picks another. Text on the accent sits on `ACCENT_FILL` in
+`ON_ACCENT`; what is drawn over video uses `ON_VIDEO`; a slider handle takes
+`theme.handle()`, the logo `theme.logo_ink()`. `theme.LIGHT` says whether
+the scheme in use is a light one. The decisions behind the schemes are in
+the Notes of `TODO.md`.
 
 ## Reference screenshots
 
