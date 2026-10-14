@@ -3,6 +3,8 @@ when it changes, and it sends commands without making the deck wait."""
 
 from __future__ import annotations
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -18,6 +20,7 @@ class VertexAction(ActionBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.has_configuration = False
+        self._face = ""
 
     @property
     def vertex(self):
@@ -45,6 +48,20 @@ class VertexAction(ActionBase):
     def show(self, state: dict | None) -> None:
         """Draw the key for `state` (None: Vertex isn't running)."""
 
+    def show_labels(self, top: str = "", center: str = "", bottom: str = "") -> None:
+        """All three labels at once, so a face never keeps another's text."""
+        self.set_top_label(top)
+        self.set_center_label(center)
+        self.set_bottom_label(bottom)
+
+    def face(self, name: str) -> None:
+        """Show `assets/<name>.png` if the plugin has that image (the icons
+        come later); the key keeps its image otherwise."""
+        path = os.path.join(getattr(self.plugin_base, "PATH", ""), "assets", f"{name}.png")
+        if path != self._face and os.path.exists(path):
+            self._face = path
+            self.set_media(media_path=path, size=0.8)
+
     def on_notice(self, notice: dict) -> None:
         """A notification from Vertex (kind, category, title, body)."""
 
@@ -64,10 +81,13 @@ class VertexAction(ActionBase):
     def setting(self, key: str, default):
         return self.get_settings().get(key, default)
 
-    def choice_row(self, title: str, key: str, choices, default) -> Adw.ComboRow:
+    def choice_row(self, title: str, key: str, choices, default,
+                   subtitle: str = "") -> Adw.ComboRow:
         """A drop-down row for the setting `key`, from (value, label) pairs."""
         values = [value for value, _label in choices]
         row = Adw.ComboRow(title=title, model=Gtk.StringList.new([label for _v, label in choices]))
+        if subtitle:
+            row.set_subtitle(subtitle)
         current = self.setting(key, default)
         row.set_selected(values.index(current) if current in values else values.index(default))
 

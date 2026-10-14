@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop, notifications, reset
+from vertex import APP_NAME, desktop, kwin, notifications, reset
 from vertex.audio import channels
 from vertex.config import Config
 from vertex.media.thumbnails import ThumbnailCache
@@ -450,6 +450,11 @@ class MainWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+        if QGuiApplication.platformName() == "wayland":
+            # Wayland won't let us take the focus; KWin can give it (see kwin).
+            # The pause lets a window coming out of the tray map first.
+            pid = os.getpid()
+            QTimer.singleShot(150, lambda: workers.run(lambda: kwin.activate(pid)))
 
     def closeEvent(self, event):
         tray_ok = self.tray is not None and QSystemTrayIcon.isSystemTrayAvailable()

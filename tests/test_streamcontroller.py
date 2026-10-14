@@ -55,6 +55,9 @@ class _ActionBase:
     def show_error(self, duration=-1):
         self.errors += 1
 
+    def set_background_color(self, color):
+        self.background = color
+
     def event_callback(self, event, data=None):
         if event == _Events.DOWN:
             self.on_key_down()
@@ -116,6 +119,14 @@ def vertex(tmp_path):
         received.append((command, args))
         if command == "state":
             return {"ok": True, "message": "", "data": box["state"]}
+        if command == "devices":
+            return {"ok": True, "message": "", "data": {"outputs": [], "mics": [
+                {"name": "desk_mic", "description": "Desk mic", "connected": True,
+                 "excluded": False},
+                {"name": "old_mic", "description": "Old mic", "connected": False,
+                 "excluded": False}]}}
+        if command == "device" and args.get("name") == "gone":
+            return {"ok": False, "error": "no_device", "message": "gone isn't plugged in."}
         return {"ok": command != "fail", "message": f"did {command}"}
 
     server = ipc.ControlServer(dispatch, sock, subscribers=subscribers)
@@ -135,6 +146,7 @@ def vertex(tmp_path):
 @pytest.mark.parametrize("relay", [None, []])
 def test_send_over_socket_and_relay(plugin, vertex, relay):
     client = plugin.client.Vertex(vertex.sock, relay=relay)
+    client.prefer_socket = False
     assert client.send("save-clip", seconds=30) == {"ok": True, "message": "did save-clip"}
     assert vertex.received == [("save-clip", {"seconds": 30})]
 
@@ -142,6 +154,7 @@ def test_send_over_socket_and_relay(plugin, vertex, relay):
 @pytest.mark.parametrize("relay", [None, []])
 def test_not_running(plugin, tmp_path, relay):
     client = plugin.client.Vertex(str(tmp_path / "missing.sock"), relay=relay)
+    client.prefer_socket = False
     with pytest.raises(plugin.client.NotRunning):
         client.send("show")
     replies = []
@@ -154,6 +167,7 @@ def test_not_running(plugin, tmp_path, relay):
 def test_follow_state_changes_and_vertex_stopping(plugin, vertex, relay, monkeypatch):
     monkeypatch.setattr(plugin.client, "RETRY", 0.1)
     client = plugin.client.Vertex(vertex.sock, relay=relay)
+    client.prefer_socket = False
     seen = []
     listener = lambda event, data: seen.append((event, data))  # noqa: E731
     client.add_listener(listener)
@@ -170,6 +184,14 @@ def test_follow_state_changes_and_vertex_stopping(plugin, vertex, relay, monkeyp
         assert seen[-1] == ("state", None)
     finally:
         client.stop()
+
+
+def test_socket_is_used_once_the_sandbox_can_see_it(plugin, vertex, tmp_path):
+    client = plugin.client.Vertex(vertex.sock, relay=["/nonexistent/flatpak-spawn"])
+    assert client.send("show")["ok"]                   # the folder is there: no relay
+    hidden = plugin.client.Vertex(str(tmp_path / "hidden" / "control.sock"),
+                                  relay=["/nonexistent/flatpak-spawn"])
+    assert hidden._relay_now() == hidden.relay
 
 
 def test_listeners_are_held_weakly(plugin):
@@ -255,3 +277,89 @@ def test_failed_command_shows_an_error(plugin, vertex):
     key, _ = _key(plugin, vertex, plugin.keys.ShowVertex)
     key.send("fail")
     assert _wait(lambda: key.errors == 1)
+
+
+def test_mic_toggle_faces(plugin, vertex):
+    key, _ = _key(plugin, vertex, plugin.keys.MicToggle, first="desk_mic", second="headset_mic")
+    key.show(_state(mic="Desk mic"))
+    assert key.labels == {"top": "Mic 1", "center": "", "bottom": "Desk mic"}
+    key.show(_state(mic="Headset mic"))
+    assert key.labels == {"top": "Mic 2", "center": "", "bottom": "Headset mic"}
+    key.show(_state(mic="Webcam"))                      # neither: the neutral face
+    assert key.labels == {"top": "Mic", "center": "No mic", "bottom": "Webcam"}
+    key.show(_state(active=False))
+    assert key.labels["center"] == "Sonar off"
+    key.show(None)
+    assert key.labels["center"] == "Vertex off"
+
+
+def _pressed(plugin, vertex, current, **picks):
+    key, client = _key(plugin, vertex, plugin.keys.MicToggle, **picks)
+    client.state = _state(mic=current)
+    key.on_key_down()
+    return key
+
+
+def test_mic_toggle_switches_to_the_other_pick(plugin, vertex):
+    _pressed(plugin, vertex, "Desk mic", first="desk_mic", second="headset_mic")
+    assert _wait(lambda: vertex.received == [
+        ("device", {"action": "set", "name": "headset_mic", "channel": "mic"})])
+
+
+def test_mic_toggle_from_neither_goes_to_the_first_plugged_in(plugin, vertex):
+    key = _pressed(plugin, vertex, "Webcam", first="gone", second="desk_mic")
+    assert _wait(lambda: [args["name"] for _c, args in vertex.received] == ["gone", "desk_mic"])
+    threading.Event().wait(0.1)
+    assert key.errors == 0
+
+
+def test_mic_toggle_shows_an_error_when_the_other_is_unplugged(plugin, vertex):
+    key = _pressed(plugin, vertex, "Desk mic", first="desk_mic", second="gone")
+    assert _wait(lambda: key.errors == 1)
+
+
+def test_mic_toggle_lists_sonars_mics(plugin, vertex):
+    key, _ = _key(plugin, vertex, plugin.keys.MicToggle, first="usb_mic")
+    choices, note = key._choices()
+    assert choices == [("", "None"), ("desk_mic", "Desk mic"),
+                       ("old_mic", "Old mic (not plugged in)"), ("usb_mic", "usb_mic")]
+    assert note == ""
+
+
+def test_output_toggle(plugin, vertex):
+    key, client = _key(plugin, vertex, plugin.keys.OutputToggle, first="headset",
+                       second="speakers")
+    key.show(_state())
+    assert key.labels == {"top": "Output 1", "center": "", "bottom": "Headset"}
+    client.state = _state()
+    key.on_key_down()
+    assert _wait(lambda: vertex.received == [("device", {"action": "set",
+                                                         "name": "speakers"})])
+
+
+def test_mute_and_replay_keys(plugin, vertex):
+    mute, _ = _key(plugin, vertex, plugin.keys.Mute, channel="game")
+    mute.show(_state(muted=True))
+    assert mute.labels == {"top": "Game", "center": "Muted", "bottom": ""}
+    mute.show(_state())
+    assert mute.labels["center"] == "On"
+    replay, _ = _key(plugin, vertex, plugin.keys.Replay)
+    replay.show(_state(replay=False))
+    assert replay.labels["center"] == "Off"
+    replay.show(_state())
+    assert replay.labels["center"] == "On"
+    mute.on_key_down()
+    replay.on_key_down()
+    assert _wait(lambda: len(vertex.received) == 2)
+    assert ("replay", {"action": "toggle"}) in vertex.received
+    assert ("mute", {"channel": "game"}) in vertex.received
+
+
+def test_save_clip_key_flashes_when_a_clip_lands(plugin, vertex, monkeypatch):
+    monkeypatch.setattr(plugin.keys, "FLASH_SECONDS", 0.05)
+    key, _ = _key(plugin, vertex, plugin.keys.SaveClip)
+    key.on_notice({"kind": "clip_saved"})
+    assert key.background == list(plugin.keys.FLASH)
+    assert _wait(lambda: key.background == [0, 0, 0, 0])
+    key.on_notice({"kind": "clip_not_saved"})
+    assert key.errors == 1

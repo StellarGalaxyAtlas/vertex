@@ -82,18 +82,25 @@ behind:
   two of them light (30, 38 to 42, 44), and how `ui/theme.py` works them
   out (`_scheme`, the light path, `ACCENT_FILL`, `ON_CHANNEL`, `ON_VIDEO`).
 
-**59.** In progress
+**59.** Waiting on the maintainer's test
 **A StreamController plugin for Vertex**
-In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`), a client
-of the control socket: keys for a channel's volume (a press can mute; on a
-dial, turning sets it), the next output, the next microphone, save clip and
-show Vertex. One subscription follows the state for every key. Inside the
-StreamController Flatpak, which can't see `$XDG_RUNTIME_DIR/vertex`, each
-connection goes through a relay run with `flatpak-spawn --host python3`.
-The control API gained `devices` and `device set` (a named device, for now)
-for the two-mic toggle key, which waits on the maintainer's answers: which
-two mics, for now or lasting, and what it shows on a third mic. Icons are
-a later stage.
+In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`, install
+and Flatseal steps in its README), a client of the control socket. Keys:
+Volume (a press can mute; on a dial, turning sets it), Mute, Next output,
+Next microphone, two-mic and two-output toggles, Replay buffer on or off,
+Save clip (flashes green when a clip lands) and Show Vertex. One
+subscription follows the state for every key. Decided (maintainer,
+2026-10-14): the toggles' two devices are picked in the key's settings from
+the list Sonar gives (`devices`); a press switches for now (`device set`),
+as the Sonar page does; on any other device the key shows a neutral "No
+mic" face. Inside the Flatpak the plugin uses the socket when given
+`xdg-run/vertex` (Flatseal), else a relay run with `flatpak-spawn --host
+python3`. Show Vertex on Wayland also asks KWin, through its scripting
+interface on the session bus, to activate Vertex's windows (`vertex.kwin`),
+since Wayland won't let Vertex take the focus itself; untested on a real
+Plasma. Faces load `assets/<name>.png` when present (mic-1, mic-2,
+mic-none, output-1/2/none, muted, unmuted, replay-on, replay-off); drawing
+those icons is the next stage.
 
 ## Waiting on the maintainer
 

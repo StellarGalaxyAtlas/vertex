@@ -14,7 +14,17 @@ from src.backend.PluginManager.ActionHolder import ActionHolder
 from src.backend.PluginManager.ActionInputSupport import ActionInputSupport
 from src.backend.PluginManager.PluginBase import PluginBase
 
-from .actions.keys import NextMic, NextOutput, SaveClip, ShowVertex, Volume
+from .actions.keys import (
+    MicToggle,
+    Mute,
+    NextMic,
+    NextOutput,
+    OutputToggle,
+    Replay,
+    SaveClip,
+    ShowVertex,
+    Volume,
+)
 from .vertex_client import Vertex
 
 KEY_ONLY = {Input.Key: ActionInputSupport.SUPPORTED,
@@ -33,8 +43,12 @@ class VertexPlugin(PluginBase):
 
         for action, suffix, name, support in (
             (Volume, "Volume", "Volume", KEY_OR_DIAL),
+            (Mute, "Mute", "Mute", KEY_ONLY),
             (NextOutput, "NextOutput", "Next output device", KEY_ONLY),
             (NextMic, "NextMic", "Next microphone", KEY_ONLY),
+            (MicToggle, "MicToggle", "Switch between two microphones", KEY_ONLY),
+            (OutputToggle, "OutputToggle", "Switch between two outputs", KEY_ONLY),
+            (Replay, "Replay", "Replay buffer on or off", KEY_ONLY),
             (SaveClip, "SaveClip", "Save clip", KEY_ONLY),
             (ShowVertex, "Show", "Show Vertex", KEY_ONLY),
         ):
