@@ -295,7 +295,7 @@ def test_plum_puts_white_text_on_a_deeper_pink():
 def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
     from vertex.ui import theme
 
-    plum, ember = theme.SCHEMES["plum"][2], theme.SCHEMES["ember"][2]
+    plum, spooky = theme.SCHEMES["plum"][2], theme.SCHEMES["spooky"][2]
     window.navigate("settings")
     settings = window.settings_view
     settings.show_page("general")
@@ -304,21 +304,21 @@ def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
     assert plum["SECTION_BG"] in pill.styleSheet()
     try:
         # Picking one restyles everything already built, before any Save.
-        settings.schemes.cards["ember"].click()
-        assert theme.scheme == "ember"
-        assert ember["ACCENT"] in qapp.styleSheet()
-        assert ember["SECTION_BG"] in pill.styleSheet()
+        settings.schemes.cards["spooky"].click()
+        assert theme.scheme == "spooky"
+        assert spooky["ACCENT"] in qapp.styleSheet()
+        assert spooky["SECTION_BG"] in pill.styleSheet()
         strip = window.sonar_view.strips["media"]
-        assert ember["MEDIA"] in strip.slider.styleSheet()
+        assert spooky["MEDIA"] in strip.slider.styleSheet()
         assert settings.is_dirty()
         # Leaving without saving puts the saved one back.
         settings.load()
         assert theme.scheme == "plum" and settings.schemes.value() == "plum"
         assert plum["SECTION_BG"] in pill.styleSheet()
         # Saved, it is the scheme the next start opens with.
-        settings.schemes.cards["ember"].click()
+        settings.schemes.cards["spooky"].click()
         assert settings.save()
-        assert Config.load().colour_scheme == "ember"
+        assert Config.load().colour_scheme == "spooky"
         assert not settings.is_dirty()
     finally:
         theme.use(theme.DEFAULT_SCHEME)

@@ -32,7 +32,7 @@ def test_round_trip_with_new_sections(tmp_path):
     cfg.sonar.app_rules["spotify"] = "media"
     cfg.recorder.chat_audio = ""
     cfg.recorder.mic_audio = "device:alsa_input.usb-mic"
-    cfg.colour_scheme = "ember"
+    cfg.colour_scheme = "spooky"
     path = tmp_path / "config.json"
     cfg.save(path)
     again = config.Config.load(path)

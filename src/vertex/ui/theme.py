@@ -1,6 +1,6 @@
 """The colour schemes, the channel colours and the application stylesheet.
 
-Vertex has eight colour schemes (TODO item 30), picked in Settings › General.
+Vertex has eight colour schemes (TODO items 30, 38 to 40), picked in Settings › General.
 Plum, the default, is the "Shelves" design of round 2: a deep plum page, a hot
 magenta accent and a periwinkle second colour for gradients. Navy is the look
 Vertex had before. Each scheme gives every token below a value; the UI reads
@@ -76,16 +76,23 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
         "#150a1f", "#1d0d2b", "#f8f0ff", "#d2bfe6", "#b39dcc", "#ff3ea5", "#ffffff", "#8d6fae",
         "#7d8bff", "#a9b4ff", "#ff4d6a", ("#2fd39b", "#4cb0ff", "#b4e04a", "#ffad33", "#c08cff"),
         fill="#d42481", soft="second")),
-    # Charcoal, near black and barely warm, so the orange and gold glow.
-    "ember": ("Ember", "Orange and gold on charcoal", _scheme(
-        "#0f0f0f", "#1a1918", "#f6f1ea", "#c9c1b6", "#aca398", "#ff8c1a", "#1a0d02", "#7d756b",
-        "#ffc83d", "#ffc83d", "#ff4d5a", ("#3cc8a8", "#5c9dff", "#b5d65a", "#b79bff", "#d9c4a3"))),
+    # Halloween night: near black with a hint of purple, a pumpkin's orange
+    # into witchy purple (the selected item a purple tint, not a muddy
+    # orange one), the channels slime green, dusk blue, candy-corn yellow,
+    # bone and ghost lilac.
+    "spooky": ("Spooky", "Pumpkin and purple on the dark", _scheme(
+        "#09070b", "#140f17", "#f6eee6", "#c9bccb", "#a898aa", "#ff7a1a", "#1a0a00", "#76667a",
+        "#a259ff", "#ffa95e", "#ff4757", ("#8be04e", "#6f8dff", "#ffd23f", "#e3d5c1", "#c3a6ff"),
+        soft="second")),
     # The deep sea, blue going on black, lit as its animals light themselves:
     # a cyan glow into fluorescent magenta, the channels in neon green,
     # electric blue, violet, a lure's gold and a fluorescent orange.
     "abyss": ("Abyss", "Deep-sea glow on black-blue", _scheme(
         "#02050c", "#071226", "#e4f3ff", "#a5bfdb", "#8ba6c4", "#1fe5ff", "#00161c", "#4f6c90",
         "#ff4fd8", "#7cefff", "#ff4766", ("#3dff8f", "#4d8dff", "#b98cff", "#ffc94a", "#ff9a57"))),
+    "aurora": ("Aurora", "Cyan and violet", _scheme(
+        "#0f0b24", "#1a1538", "#f3f0ff", "#c2bae6", "#a39bcf", "#52e0f0", "#0f0b24", "#6e64a6",
+        "#a68bff", "#b9a6ff", "#ff5470", ("#3cc78a", "#5b97ff", "#ee72c0", "#eba23e", "#d4e157"))),
     "midnight": ("Midnight blue", "Amber and cyan", _scheme(
         "#0a1020", "#1c2640", "#ecf1f9", "#aab6cb", "#99a5bc", "#f6b03e", "#0a1020", "#6c7b9a",
         "#3dd6f0", "#3dd6f0", "#ff5d62", ("#4fcb72", "#4a8ff7", "#e0709a", "#a88bfa", "#b8d860"))),
@@ -95,9 +102,6 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     "coral": ("Coral", "Coral and periwinkle on ink", _scheme(
         "#0d1117", "#1a2230", "#eef2f7", "#aeb8c8", "#97a2b5", "#ff8a66", "#1a0f0b", "#6a7690",
         "#8c9eff", "#8c9eff", "#f04a5a", ("#2ec4a6", "#4ea8f5", "#c084fc", "#e9b949", "#f07fb0"))),
-    "aurora": ("Aurora", "Cyan and violet", _scheme(
-        "#0f0b24", "#1a1538", "#f3f0ff", "#c2bae6", "#a39bcf", "#52e0f0", "#0f0b24", "#6e64a6",
-        "#a68bff", "#b9a6ff", "#ff5470", ("#3cc78a", "#5b97ff", "#ee72c0", "#eba23e", "#d4e157"))),
     # Vertex's colours until round 3, as they were (the hint text one step
     # lighter, to pass on a hovered card).
     "navy": ("Navy", "Vertex's colours until now", {

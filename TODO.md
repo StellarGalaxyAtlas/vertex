@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 40.
+and bugs get the next free number: 43.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -11,6 +11,19 @@ the way, are in this file as it was at commit 606d1a2
 ---
 
 ## Open
+
+**41.** Next
+**Colour schemes › Polar, a light scheme, replaces Deep sea**
+The first light scheme, coloured as an aurora over snow: white and
+snow-grey grounds, a violet accent into teal (the maintainer's pick).
+Everything so far assumes a dark ground (the derived steps, `INK`, white
+slider handles, glows), so the light ground needs its own path; every
+contrast rule still holds.
+
+**42.**
+**Colour schemes › Glacier, a second light scheme**
+Snow-white and ice-grey grounds, a deep glacier-blue accent into icy teal.
+Asked for alongside 41, as a scheme of its own; built on 41's light path.
 
 **9.** On hold
 **Sonar › Hotkeys**
@@ -268,7 +281,7 @@ drawn together on the canvas's Round 3 page, approved, and built as 30 to 34.
 
 **30. Colour schemes.** Settings › General › Appearance offers eight, each
 drawn as a small picture of the app in its colours: Plum (the default,
-Shelves' palette), Ember, Abyss, Midnight blue, Deep sea, Coral, Aurora and
+Shelves' palette), Spooky, Abyss, Aurora, Midnight blue, Deep sea, Coral and
 Navy (the colours before; its hint text one step lighter to pass on a
 hovered card). A pick shows across the whole app at once; Save keeps it
 (`colour_scheme` in the config), Revert or leaving without saving goes
@@ -367,6 +380,15 @@ schemes look as before. In every scheme, drop-downs open as a list, so
 their hovered and current rows take the highlight (as a menu, Qt drew them
 darker than the list).
 
+**40. Colour schemes: Spooky replaces Ember; Plum, Spooky, Abyss first.**
+Spooky is Halloween night: near black with a hint of purple (`#09070b`,
+panels `#140f17`), a pumpkin orange (`#ff7a1a`, dark text on it reads at
+8:1) into witchy purple (`#a259ff`), the selected item a purple tint (as
+Plum's, from the second colour, so it doesn't go muddy), the channels slime
+green, dusk blue, candy-corn yellow, bone and ghost lilac. The picker reads
+Plum, Spooky, Abyss, Aurora, Midnight blue, then the rest (the maintainer
+first wrote Aurora third, and meant Abyss). A config naming Ember gets Plum.
+
 ---
 
 ## Notes
@@ -376,9 +398,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–39, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–40, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
-Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
+Open: 41 and 42 (the light schemes Polar and Glacier), 9 (on hold) and 21
+(documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;

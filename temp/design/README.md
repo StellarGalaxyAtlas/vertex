@@ -45,12 +45,12 @@ the rules below for every one of them.
 | Scheme | Ground / panel | Accent → second | Game · Chat · Media · Mic |
 |---|---|---|---|
 | **Plum** (default) | `#150a1f` / `#1d0d2b` | `#ff3ea5` → `#7d8bff`; buttons `#d42481`, white text | `#2fd39b` · `#4cb0ff` · `#b4e04a` · `#ffad33` |
-| Ember | `#0f0f0f` / `#1a1918` | `#ff8c1a` → `#ffc83d` | `#3cc8a8` · `#5c9dff` · `#b5d65a` · `#b79bff` |
+| Spooky | `#09070b` / `#140f17` | `#ff7a1a` → `#a259ff`; selected items a purple tint | `#8be04e` · `#6f8dff` · `#ffd23f` · `#e3d5c1` |
 | Abyss | `#02050c` / `#071226` | `#1fe5ff` → `#ff4fd8` | `#3dff8f` · `#4d8dff` · `#b98cff` · `#ffc94a` |
+| Aurora | `#0f0b24` / `#1a1538` | `#52e0f0` → `#a68bff` | `#3cc78a` · `#5b97ff` · `#ee72c0` · `#eba23e` |
 | Midnight blue | `#0a1020` / `#1c2640` | `#f6b03e` → `#3dd6f0` | `#4fcb72` · `#4a8ff7` · `#e0709a` · `#a88bfa` |
 | Deep sea | `#061a1d` / `#0f2c2f` | `#5eead4` → `#60c5fa` | `#c08cff` · `#5ea8ff` · `#f2799f` · `#f5a742` |
 | Coral | `#0d1117` / `#1a2230` | `#ff8a66` → `#8c9eff` | `#2ec4a6` · `#4ea8f5` · `#c084fc` · `#e9b949` |
-| Aurora | `#0f0b24` / `#1a1538` | `#52e0f0` → `#a68bff` | `#3cc78a` · `#5b97ff` · `#ee72c0` · `#eba23e` |
 | Navy (before) | `#0b0e14` / `#161b26` | `#4a62ec` → `#9aabff` | `#2fb39b` · `#3b82f6` · `#c25d7b` · `#d98d2b` |
 
 What the tokens are for:
