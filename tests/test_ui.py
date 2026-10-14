@@ -1401,6 +1401,18 @@ def test_control_api_drives_sonar(qapp, window, fake_audio):
         assert wait_until(qapp, lambda e=expected: context.sonar.status.mic == e)
     assert sonar_config.mic_priority == ["hw_mic", "hw_webcam", "hw_usb_mic"]
 
+    # A named microphone, for now; the list names them all.
+    mics = call("devices")["data"]["mics"]
+    assert [(m["name"], m["connected"]) for m in mics] == [
+        ("hw_mic", True), ("hw_webcam", True), ("hw_usb_mic", True)]
+    reply = call("device", {"action": "set", "channel": "mic", "name": "hw_usb_mic"})
+    assert reply["ok"] and reply["data"]["devices"]["mic"]["name"] == "hw_usb_mic"
+    assert wait_until(qapp, lambda: context.sonar.status.mic == "hw_usb_mic")
+    assert sonar_config.mic_priority == ["hw_mic", "hw_webcam", "hw_usb_mic"]
+    assert call("device", {"action": "set", "channel": "mic",
+                           "name": "hw_gone"})["error"] == "no_device"
+    assert call("device", {"action": "set", "channel": "mic"})["error"] == "bad_argument"
+
     # Subscribers heard the changes, and the notifications.
     context.notify("clip_saved", "Clip saved", "a.mp4")
     seen = []

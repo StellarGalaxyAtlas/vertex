@@ -41,6 +41,14 @@ def test_cycling_follows_the_priority_list():
     assert devices.cycle(priority, excluded, connected, "gone", 1) == "a"
 
 
+def test_device_list_follows_the_device_manager():
+    listed = control.device_list(["a", "b"], ["b"], ["b", "new"], {"a": "Headset"})
+    assert listed == [
+        {"name": "a", "description": "Headset", "connected": False, "excluded": False},
+        {"name": "b", "description": "b", "connected": True, "excluded": True},
+        {"name": "new", "description": "new", "connected": True, "excluded": False}]
+
+
 def test_state_describes_what_buttons_show():
     config = Config()
     config.sonar.enabled = True

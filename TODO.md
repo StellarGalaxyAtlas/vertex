@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 54.
+and bugs get the next free number: 60.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -67,7 +67,8 @@ behind:
   subscriptions; still describes 1.x configs and their keys (`logo_variant`
   among them), the 1.x library upgrade, *Settings → Older clips* and an Aux
   lane.
-- `docs/CONTROL.md`: new, written from `vertex/control.py`'s docstring.
+- `docs/CONTROL.md`: new, written from `vertex/control.py`'s docstring
+  (since item 59 it also has `devices` and `device set`).
 - README's "Settings and first run": first-run setup now has the Vertex
   Sonar and Vertex Moments steps and brings an existing library along
   (item 22); the import tools are no longer where setup points.
@@ -80,6 +81,19 @@ behind:
   kind of device (34, 36); nine colour schemes picked in Settings › General,
   two of them light (30, 38 to 42, 44), and how `ui/theme.py` works them
   out (`_scheme`, the light path, `ACCENT_FILL`, `ON_CHANNEL`, `ON_VIDEO`).
+
+**59.** In progress
+**A StreamController plugin for Vertex**
+In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`), a client
+of the control socket: keys for a channel's volume (a press can mute; on a
+dial, turning sets it), the next output, the next microphone, save clip and
+show Vertex. One subscription follows the state for every key. Inside the
+StreamController Flatpak, which can't see `$XDG_RUNTIME_DIR/vertex`, each
+connection goes through a relay run with `flatpak-spawn --host python3`.
+The control API gained `devices` and `device set` (a named device, for now)
+for the two-mic toggle key, which waits on the maintainer's answers: which
+two mics, for now or lasting, and what it shows on a third mic. Icons are
+a later stage.
 
 ## Waiting on the maintainer
 

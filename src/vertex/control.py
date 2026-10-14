@@ -27,7 +27,8 @@ Commands, with their arguments:
     sonar        action: up|down|status
     volume       channel, action: up|down|set, value? (set: 0-100), step? (5)
     mute         channel, action?: on|off|toggle (toggle)
-    device       action: next|previous, channel?
+    device       action: next|previous|set, channel?, name? (set)
+    devices                                   data: outputs, mics (below)
     subscribe    keeps the connection open; see below
 
 Channels are game, chat, media and mic. Volumes are percentages, 0-100, as
@@ -36,7 +37,15 @@ it hears silence. `device` picks the next connected device in the device
 manager's priority list (skipping excluded ones), for now: until a device is
 plugged in, and leaving the list's order alone. With no channel it moves
 every output channel; with the output channels unlinked, a channel moves that
-one alone; `mic` cycles microphones.
+one alone; `mic` cycles microphones. `device set` switches to the device
+`name` the same way, for now, as picking it on the Sonar page does.
+
+`devices` lists the outputs and the microphones in the device manager's
+order, the ones not in its list yet last:
+
+    {"outputs": [{"name": "alsa_output…", "description": "Headset",
+                  "connected": true, "excluded": false}, …],
+     "mics": […]}
 
 `state` describes everything a button face may show:
 
@@ -137,6 +146,15 @@ def volume_after(current: int, action: str, value: int | None = None,
 
 def _device(name: str, names: dict[str, str]) -> dict | None:
     return {"name": name, "description": names.get(name, name)} if name else None
+
+
+def device_list(priority: list[str], excluded: list[str], connected: list[str],
+                names: dict[str, str]) -> list[dict]:
+    """One kind of device as the device manager lists them (see `devices`)."""
+    present = set(connected)
+    order = list(priority) + [name for name in connected if name not in priority]
+    return [{"name": name, "description": names.get(name, name),
+             "connected": name in present, "excluded": name in excluded} for name in order]
 
 
 def state(config, status, replay_phase: str) -> dict:

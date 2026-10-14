@@ -75,7 +75,7 @@ class Commands(QObject):
             "ping": lambda: control.ok("pong", api=control.API_VERSION, version=__version__),
             "show": self._show, "state": self._state, "save-clip": self._save_clip,
             "replay": self._replay, "sonar": self._sonar, "volume": self._volume,
-            "mute": self._mute, "device": self._device,
+            "mute": self._mute, "device": self._device, "devices": self._devices,
         }.get(command)
         if handler is None:
             return control.error(control.UNKNOWN_COMMAND, f"Unknown command: {command}")
@@ -158,15 +158,25 @@ class Commands(QObject):
                           channel=channel.id, muted=muted)
 
     def _device(self, args) -> dict:
-        action = control.choice_arg(args, "action", ("next", "previous"))
+        action = control.choice_arg(args, "action", ("next", "previous", "set"))
         channel = control.channel_arg(args, required=False)
+        name = str(args.get("name") or "")
+        if action == "set" and not name:
+            raise control.BadArgument("name must be the device to switch to.")
         refused = self._need_sonar()
         if refused:
             return refused
-        moved = self.context.sonar.cycle_device(1 if action == "next" else -1,
-                                                channel.id if channel else "")
-        if not moved:
-            return control.error(control.NO_DEVICE, "There is no other device to switch to.")
+        sonar = self.context.sonar
+        if action == "set":
+            moved = sonar.pick_device(name, channel.id if channel else "")
+            if not moved:
+                return control.error(control.NO_DEVICE, f"{name} isn't plugged in.")
+        else:
+            moved = sonar.cycle_device(1 if action == "next" else -1,
+                                       channel.id if channel else "")
+            if not moved:
+                return control.error(control.NO_DEVICE,
+                                     "There is no other device to switch to.")
         names = self.context.config.sonar.device_names
         described = {target: {"name": device, "description": names.get(device, device)}
                      for target, device in moved}
@@ -175,3 +185,13 @@ class Commands(QObject):
                 f"{channel.label} plays through" if channel and len(moved) == 1 and
                 not self.context.config.sonar.linked else "Playing through")
         return control.ok(f"{what} {fmt.oxford(sorted(devices))}.", devices=described)
+
+    def _devices(self, _args) -> dict:
+        sonar, config = self.context.sonar, self.context.config.sonar
+        names = {**config.device_names,
+                 **{d.name: d.description for d in sonar.outputs + sonar.inputs}}
+        return control.ok(
+            "", outputs=control.device_list(config.output_priority, config.output_excluded,
+                                            [d.name for d in sonar.outputs], names),
+            mics=control.device_list(config.mic_priority, config.mic_excluded,
+                                     [d.name for d in sonar.inputs], names))

@@ -368,6 +368,25 @@ class SonarController(QObject):
                 moved.append((channel.id, following))
         return moved
 
+    def pick_device(self, device: str, channel_id: str = "") -> list[tuple[str, str]]:
+        """Switch to `device`, for now, the way `cycle_device` moves: returns
+        the same pairs, or [] when it isn't plugged in."""
+        if channel_id == channels.MIC.id:
+            if device not in [d.name for d in self.inputs]:
+                return []
+            self.set_mic(device)
+            return [(channel_id, device)]
+        if device not in [d.name for d in self.outputs]:
+            return []
+        if self.context.config.sonar.linked:
+            self.set_channel_output(channels.GAME.id, device)
+            return [("outputs", device)]
+        moved = [channel.id for channel in channels.OUTPUTS
+                 if not channel_id or channel.id == channel_id]
+        for target in moved:
+            self.set_channel_output(target, device)
+        return [(target, device) for target in moved]
+
     def _devices_changed(self, warnings) -> None:
         for text in warnings or []:
             self.context.notify("sonar_problem", "Sonar", text)
