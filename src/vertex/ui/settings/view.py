@@ -156,14 +156,12 @@ class SettingsView(QWidget):
     # --- Pages ----------------------------------------------------------------
 
     def _build_general(self) -> None:
-        appearance = Section("Appearance", "Colours for the whole app. A scheme shows as soon "
-                                           "as you pick it; Save keeps it.")
+        appearance = Section("Appearance")
         self.schemes = SchemePicker()
         self.schemes.picked.connect(theme.use)
         appearance.add(self.schemes)
 
-        folders = Section("Folders", "Where clips are recorded and scanned from, and where "
-                                     "exports go. Your recordings are never modified.")
+        folders = Section("Folders")
         self.clip_path = PathField(placeholder="~/Videos/Game Recordings")
         self.export_path = PathField(placeholder="~/Videos/Game Recordings/Vertex/Exports")
         folders.add_row("Clips", self.clip_path)
@@ -172,40 +170,36 @@ class SettingsView(QWidget):
         self.state_path = PathField(placeholder=str(paths.default_state_dir()))
         self.cache_path = PathField(placeholder=str(paths.default_cache_dir()))
         # Vertex's own folders: set up once, and best left alone.
-        self.folders_advanced = Disclosure("Advanced", "Where Vertex keeps its library, "
-                                                       "state and cache")
+        self.folders_advanced = Disclosure("Advanced", "Library, state and cache folders")
         self.folders_advanced.body_layout.setSpacing(12)
         for title, field, hint in (
                 ("Library", self.data_path, "Tags, titles, trims and mixes"),
-                ("State", self.state_path, "What Vertex remembers between runs"),
-                ("Cache", self.cache_path, "Thumbnails; safe to delete")):
+                ("State", self.state_path, ""),
+                ("Cache", self.cache_path, "Thumbnails")):
             self.folders_advanced.add(setting_row(title, field, hint))
         folders.add(self.folders_advanced)
         for field in (self.clip_path, self.export_path, self.data_path, self.state_path,
                       self.cache_path):
             field.setMinimumWidth(420)
 
-        behaviour = Section("Behaviour")
+        behaviour = Section("Behavior")
         self.close_to_tray = Toggle()
-        behaviour.add_row("Keep running in the tray when the window is closed",
-                          self.close_to_tray, "Sonar routing and the replay buffer keep "
-                          "working; quit from the tray menu.")
+        behaviour.add_row("Close to tray", self.close_to_tray,
+                          "Sonar and the replay buffer keep running")
         self.autostart = Toggle()
-        behaviour.add_row("Start Vertex when you log in", self.autostart,
-                          "Starts hidden in the tray.")
+        behaviour.add_row("Start with your computer", self.autostart,
+                          "Starts minimized to the tray")
         self.pages["general"] = scroll_page(appearance, folders, behaviour)
         self.stack.addWidget(self.pages["general"])
 
     def _build_recording(self) -> None:
-        status = Section("GPU Screen Recorder", "Vertex runs GPU Screen Recorder's replay "
-                                                "buffer and saves clips into the clips folder.")
+        status = Section("GPU Screen Recorder")
         self.gsr_status = label("", "Muted", wrap=True)
         status.add(self.gsr_status)
         self.rec_autostart = Toggle()
-        status.add_row("Start the replay buffer with Vertex", self.rec_autostart)
+        status.add_row("Start replay buffer with Vertex", self.rec_autostart)
 
-        clips = Section("Recording Settings", "Lower settings make smaller clips and leave "
-                                              "more of your computer to the game.")
+        clips = Section("Recording")
         # The monitor and the drop-downs under it, shared with first-run setup.
         self.choices = ClipChoices(self)
         self.choices.add_to(clips)
@@ -215,8 +209,8 @@ class SettingsView(QWidget):
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
         self.tag_from_game = Toggle()
-        clips.add_row("Tag new clips with the game on the Game channel", self.tag_from_game,
-                      "Needs Sonar. Only when exactly one app is playing there.")
+        clips.add_row("Auto-tag clips with the game", self.tag_from_game,
+                      "Uses the app on Sonar's Game channel")
         self.game_audio = QComboBox()
         self.chat_audio = QComboBox()
         self.mic_audio = QComboBox()
@@ -225,26 +219,21 @@ class SettingsView(QWidget):
                               ("Microphone", self.mic_audio)):
             tracks.add(title, widget)
         clips.add(tracks)
-        clips.add(label("Each is its own track in your clips. While Sonar is off, its "
-                        "channels record the default output and microphone instead.",
-                        "Dim", wrap=True))
+        clips.add(label("Each is saved as a separate audio track", "Dim", wrap=True))
         clips.add(self._build_estimate())
 
-        advanced = Disclosure("Advanced", "Bitrate, codecs, audio, where clips go, and the "
-                                          "recorder's command")
+        advanced = Disclosure("Advanced", "Bitrate, codecs, audio and more")
         video = Section("Video")
         self.bitrate_mode = combo(BITRATE_MODES, "cbr")
-        video.add_row("Bitrate mode", self.bitrate_mode, "Constant bitrate keeps clip sizes "
-                      "and the buffer's memory use predictable")
+        video.add_row("Bitrate mode", self.bitrate_mode)
         self.bitrate = QSpinBox()
         self.bitrate.setRange(0, 500000)
         self.bitrate.setSingleStep(1000)
         self.bitrate.setSuffix(" kbps")
         self.bitrate.setSpecialValueText("From video quality")
-        video.add_row("Bitrate", self.bitrate, "For constant bitrate: set one by hand instead "
-                      "of what the video quality comes to")
+        video.add_row("Bitrate", self.bitrate, "Constant bitrate only")
         self.video_codec = combo(VIDEO_CODECS, "auto")
-        video.add_row("Codec", self.video_codec, "H.264 plays everywhere a clip is shared")
+        video.add_row("Codec", self.video_codec, "H.264 is the most compatible")
         self.framerate_mode = combo(FRAMERATE_MODES, "vfr")
         video.add_row("Frame rate mode", self.framerate_mode)
         self.container = combo(CONTAINERS, "mp4")
@@ -261,15 +250,13 @@ class SettingsView(QWidget):
 
         replay = Section("Replay buffer")
         self.replay_storage = combo(REPLAY_STORAGES, "ram")
-        replay.add_row("Buffer in", self.replay_storage, "Disk saves memory on long buffers")
+        replay.add_row("Buffer location", self.replay_storage, "Disk uses less memory")
         self.output_dir = PathField(placeholder="The clips folder")
         self.output_dir.setMinimumWidth(380)
-        replay.add_row("Save clips to", self.output_dir, "Blank saves them into the clips "
-                       "folder set under General")
+        replay.add_row("Save clips to", self.output_dir, "Leave blank for the clips folder")
         self.clip_path.changed.connect(self._show_clips_folder)
 
-        audio = Section("Audio", "How the tracks chosen under Recording Settings are "
-                                 "encoded.")
+        audio = Section("Audio")
         self.audio_codec = combo(AUDIO_CODECS, "aac")
         audio.add_row("Codec", self.audio_codec)
         self.audio_bitrate = QSpinBox()
@@ -292,7 +279,7 @@ class SettingsView(QWidget):
         self.preview.setReadOnly(True)
         self.preview.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
         self.preview.setFixedHeight(96)
-        recorder.add(label("The command Vertex will run:", "Dim"))
+        recorder.add(label("Command preview", "Dim"))
         recorder.add(self.preview)
         for section in (video, replay, audio, recorder):
             advanced.add(section)
@@ -346,19 +333,12 @@ class SettingsView(QWidget):
         return box
 
     def _build_import(self) -> None:
-        copy_section = Section("Copy clips in", "Bring recordings from another folder — "
-                                                "a SteelSeries Moments library, say — into "
-                                                "the clips folder.")
-        copy_section.add(button("Copy clips…", on_click=self._copy_clips))
-        tag_section = Section("Tag from file names", "SteelSeries Moments names clips after "
-                                                     "the game. Review the games found in the "
-                                                     "clips folder and tag them in one go.")
+        copy_section = Section("Import clips", "From SteelSeries Moments or another folder")
+        copy_section.add(button("Import clips…", on_click=self._copy_clips))
+        tag_section = Section("Tag games from file names",
+                              "Reads the game from Moments-style file names")
         tag_section.add(button("Review tags…", on_click=self._tag_clips))
-        setup = Section("First-run setup", "Go through the steps Vertex showed the first "
-                                           "time it ran: the clips folder, Vertex Sonar, "
-                                           "Vertex Moments and bringing in clips you already "
-                                           "have. They open with your current settings "
-                                           "filled in.")
+        setup = Section("Run setup again", "Starts with your current settings")
         setup.add(button("Run setup again…", on_click=self.setup_requested.emit))
         self.pages["import"] = scroll_page(copy_section, tag_section, setup)
         self.stack.addWidget(self.pages["import"])
@@ -474,8 +454,8 @@ class SettingsView(QWidget):
         if recorder_changed:
             self.context.recorder.detect()
             self.context.recorder.restart_if_running()
-        self.banner.show_message("Saved. Restarting the replay buffer to use the new "
-                                 "settings." if restarting else "Saved.", "ok", 5000)
+        self.banner.show_message("Saved. Replay buffer restarting." if restarting else "Saved.",
+                                 "ok", 5000)
         self._refresh_storage()
         self.saved.emit(folders_changed)
         return True

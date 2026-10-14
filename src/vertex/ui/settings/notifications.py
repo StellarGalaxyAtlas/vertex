@@ -12,20 +12,14 @@ class NotificationsPage:
     def __init__(self):
         self.switches: dict[str, Toggle] = {}
         pop_ups = Section(
-            "Desktop notifications",
-            "Which of these pop up on your desktop while Vertex's window isn't in front. "
-            "With the window in front, every one of them shows at the bottom of it "
-            "instead.")
+            "Desktop notifications", "Shown when Vertex isn't in front")
         self.over_games = Toggle()
         found = notifier.find() is not None
         self.over_games.setEnabled(found)
         pop_ups.add_row(
             "Show them over games", self.over_games,
-            "With GPU Screen Recorder's notifier, the way its own overlay shows them, "
-            "so they appear over fullscreen games too." if found else
-            "Needs GPU Screen Recorder's notifier (gsr-notify, in the "
-            "gpu-screen-recorder-notification package). Until it is installed they "
-            "pop up as desktop notifications.")
+            "Uses GPU Screen Recorder's overlay" if found else
+            "Requires gpu-screen-recorder-notification")
         self.sections = [pop_ups]
         for category in notifications.CATEGORIES:
             section = Section(category.name, category.description)

@@ -492,6 +492,16 @@ below 1000 px the first two side by side over the excluded list. A pick
 shows "Picked for now" under the device in use; `vertex state` says
 "picked for now" too (`output_picked`, `mic_picked` in the control API).
 
+**52. Shorter UI strings.** Most labels and hints read like explanations,
+not settings. Every string was listed with a shorter wording and the
+maintainer approved them all: switches are a few words ("Close to tray"),
+hints one short line or none, notification kinds mostly without a hint,
+errors start "Couldn't", spelling is American. Left out on purpose: the
+Auto/Manual and device-priority text (replaced by the mic-switching work),
+the colour schemes' descriptions (dropping them leaves room in the scheme
+cards, a look to show first), and the shortcut hint for `--last`, which
+keeps naming 10, 60, 300, 600 or 1800 since only those work.
+
 ---
 
 ## Notes

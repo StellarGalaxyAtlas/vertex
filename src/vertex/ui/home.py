@@ -908,7 +908,7 @@ class HomeView(QWidget):
         apps = list(dict.fromkeys(capture.name for capture in recorders))
         for mixer in (self.channels, self.faders):
             mixer[channels.MIC.id].set_apps(
-                f"Recording from it: {', '.join(apps)}" if apps else "Nothing recording it")
+                f"In use by {', '.join(apps)}" if apps else "Not in use")
 
     # --- Games, the disk, people ---------------------------------------------------
 
@@ -917,8 +917,7 @@ class HomeView(QWidget):
         self.games_count = label("", "Muted")
         tile.header.addWidget(self.games_count)
         tile.add_link("All games", self._all_games)
-        self.games = RankList("Tag clips with their game, and the games show here with how "
-                              "many clips each has.")
+        self.games = RankList("Tag clips with a game to see them here")
         self.games.picked.connect(lambda game: self.show_in_library(Facet("game", game)))
         tile.body.addWidget(self.games, 1)
         return tile
@@ -957,10 +956,8 @@ class HomeView(QWidget):
         self.page_layout.setStretchFactor(self.latest_tile, 0 if total else 1)
         self.page_layout.setStretchFactor(self.bottom, 1 if total else 0)
         if not total:
-            folder = self.context.config.resolved_clip_dir()
-            self.empty_text.setText(f"Clips saved into {folder} show up here. Start the replay "
-                                    f"buffer and press your save-clip hotkey, or bring an "
-                                    f"existing library in.")
+            self.empty_text.setText("Start the replay buffer and save a clip, or import "
+                                    "existing clips.")
             self.empty_record.setVisible(not self.context.recorder.running)
         games = state.games()
         self.games_count.setText(str(len(games)) if games else "")

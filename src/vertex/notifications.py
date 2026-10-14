@@ -48,46 +48,33 @@ class Notice:
 
 
 CATEGORIES = (
-    Category("clips", "Clips", "Saving clips and the replay buffer."),
-    Category("sonar", "Sonar", "Sonar's channels and the devices they use."),
-    Category("vertex", "Vertex", "The app itself, and problems it runs into."),
+    Category("clips", "Clips", ""),
+    Category("sonar", "Sonar", ""),
+    Category("vertex", "Vertex", ""),
 )
 
 KINDS = (
-    Kind("clip_saved", "clips", "Clip saved", "Each new clip, with its name.", level="ok",
+    Kind("clip_saved", "clips", "Clip saved", "", level="ok",
          icon="replay"),
-    Kind("clip_not_saved", "clips", "A clip couldn't be saved",
-         "Saving was asked for while the replay buffer wasn't running, or GPU Screen "
-         "Recorder couldn't be reached.", level="error", icon="replay"),
+    Kind("clip_not_saved", "clips", "Clip not saved", "", level="error", icon="replay"),
     Kind("replay_started", "clips", "Replay buffer started",
-         "Also when it starts with Vertex.", default=False, icon="replay"),
+         "", default=False, icon="replay"),
     Kind("replay_stopped", "clips", "Replay buffer stopped",
-         "When it is stopped from the window, the tray or a command.", default=False,
+         "", default=False,
          icon="replay"),
-    Kind("replay_failed", "clips", "Replay buffer stopped unexpectedly",
-         "With GPU Screen Recorder's reason.", level="error", icon="replay"),
+    Kind("replay_failed", "clips", "Replay buffer crashed", "", level="error", icon="replay"),
     Kind("replay_restarted", "clips", "Replay buffer restarted",
-         "To use changed settings or tracks. It starts empty again.", default=False,
+         "After a settings change", default=False,
          level="ok", icon="replay"),
-    Kind("track_missing", "clips", "A track's device is missing",
-         "Clips record a stand-in, or go without that track, until it is back.",
-         level="warn"),
-    Kind("sonar_switched", "sonar", "Sonar turned on or off", "From anywhere.",
+    Kind("track_missing", "clips", "Audio device missing", "", level="warn"),
+    Kind("sonar_switched", "sonar", "Sonar turned on or off", "",
          default=False),
-    Kind("output_changed", "sonar", "Output device changed",
-         "Sonar plays through another device: one was picked, plugged in or "
-         "unplugged."),
-    Kind("mic_changed", "sonar", "Microphone changed",
-         "Vertex Mic records another microphone: one was picked, plugged in or "
-         "unplugged."),
-    Kind("sonar_problem", "sonar", "Sonar ran into a problem",
-         "No output device or microphone was found, or a change didn't work.",
-         level="warn"),
+    Kind("output_changed", "sonar", "Output device changed", ""),
+    Kind("mic_changed", "sonar", "Microphone changed", ""),
+    Kind("sonar_problem", "sonar", "Sonar errors", "", level="warn"),
     Kind("in_tray", "vertex", "Still running in the tray",
-         "Once per run, when the window is closed and Vertex keeps running."),
-    Kind("vertex_problem", "vertex", "Settings, library or folder problems",
-         "Settings couldn't be saved, the library couldn't be opened, or a folder "
-         "couldn't be created.", level="error"),
+         "Once per session"),
+    Kind("vertex_problem", "vertex", "App errors", "", level="error"),
 )
 
 BY_ID = {kind.id: kind for kind in KINDS}

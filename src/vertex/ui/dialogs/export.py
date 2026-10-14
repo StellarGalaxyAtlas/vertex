@@ -97,7 +97,7 @@ class ExportDialog(QDialog):
 
         buttons = QHBoxLayout()
         self.copy_button = button("Copy file", icon="save-clip", on_click=self._copy,
-                                  tooltip="Copy the exported file, then paste it into a chat")
+                                  tooltip="Copy to clipboard")
         self.folder_button = button("Open folder", icon="folder", on_click=self._open_folder)
         self.copy_button.hide()
         self.folder_button.hide()
@@ -231,7 +231,7 @@ class ExportDialog(QDialog):
     def _copy(self) -> None:
         if self.out_path:
             copy_file_to_clipboard(self.out_path)
-            self.status.setText("Copied — paste it into a chat or an upload field.")
+            self.status.setText("Copied to clipboard")
             theme.style(self.status, lambda: f"color: {theme.OK};")
 
     def _open_folder(self) -> None:

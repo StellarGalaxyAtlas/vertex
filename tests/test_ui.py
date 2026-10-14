@@ -834,7 +834,7 @@ def test_each_channel_shows_and_picks_its_device(qapp, window, fake_audio):
     view.choose_device("media").pick("hw_headset")
     assert wait_until(qapp, lambda: strips["media"].current_device == "hw_headset")
     assert strips["game"].current_device == "hw_speakers"
-    assert "own device" in view.subtitle.text()
+    assert view.subtitle.text() == "On"
     # Linking from Media: everything plays through Media's device.
     view.toggle_link("media")
     assert wait_until(qapp, lambda: sonar.linked and all(
@@ -906,14 +906,14 @@ def test_channels_also_play_through_a_second_device(qapp, window, fake_audio):
     assert wait_until(qapp, lambda: view.controller.status.channels["chat"].also)
     assert not strips["game"].also_row.isHidden() and strips["mic"].also_row.isHidden()
     assert strips["chat"].also_label.full_text() == "Also on Speakers"
-    assert "and also Speakers" in view.subtitle.text()
+    assert view.subtitle.text().endswith("+ Speakers")
     assert Config.load().sonar.second_output == "hw_speakers"
 
     strips["chat"].also.setChecked(False)                 # Chat stays in the headset
     assert wait_until(qapp, lambda: not view.controller.status.channels["chat"].also)
     assert view.controller.status.channels["game"].also
     assert sonar.channel("chat").also_second is False
-    assert "and Game and Media also through Speakers" in view.subtitle.text()
+    assert view.subtitle.text().endswith("+ Speakers")
 
     # An excluded device isn't offered; one excluded after being set stays shown.
     fake_audio.add_sink("hw_hdmi", props={"device.description": "HDMI"})
@@ -1079,7 +1079,7 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio, monkeypatch):
     assert view.install_title.text() == "Install GPU Screen Recorder"
     # Its notifier is looked for on the same step.
     assert not view.notifier_row.isHidden() and not view.notifier_check.isHidden()
-    assert "notifier isn't installed" in view.notifier_status.text()
+    assert "Install gpu-screen-recorder-notification" in view.notifier_status.text()
 
     view.config.recorder.command = str(script)         # installed both; Check again
     monkeypatch.setattr("vertex.recorder.notifier.find", lambda: "/usr/bin/gsr-notify")
@@ -1088,7 +1088,7 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio, monkeypatch):
     assert wait_until(qapp, lambda: view.gsr_info is not None)
     assert view.install.isHidden()
     assert view.notifier_path == "/usr/bin/gsr-notify" and view.notifier_check.isHidden()
-    assert view.notifier_status.text().startswith("Notifications show over games")
+    assert view.notifier_status.text() == "In-game notifications available"
     assert [m.name for m in view.choices.monitor_map.monitors] == ["DP-1"]
     assert view.choices.resolution.itemText(0) == "720p · 1280 × 720"
     assert view.rec_autostart.isEnabled() and view.rec_autostart.isChecked()
