@@ -44,7 +44,7 @@ the rules below for every one of them.
 
 | Scheme | Ground / panel | Accent → second | Game · Chat · Media · Mic |
 |---|---|---|---|
-| **Plum** (default) | `#150a1f` / `#1d0d2b` | `#ff3ea5` → `#7d8bff` | `#2fd39b` · `#4cb0ff` · `#b4e04a` · `#ffad33` |
+| **Plum** (default) | `#150a1f` / `#1d0d2b` | `#ff3ea5` → `#7d8bff`; buttons `#d42481`, white text | `#2fd39b` · `#4cb0ff` · `#b4e04a` · `#ffad33` |
 | Ember | `#0f0f0f` / `#1a1918` | `#ff8c1a` → `#ffc83d` | `#3cc8a8` · `#5c9dff` · `#b5d65a` · `#b79bff` |
 | Abyss | `#02050c` / `#071226` | `#1fe5ff` → `#ff4fd8` | `#3dff8f` · `#4d8dff` · `#b98cff` · `#ffc94a` |
 | Midnight blue | `#0a1020` / `#1c2640` | `#f6b03e` → `#3dd6f0` | `#4fcb72` · `#4a8ff7` · `#e0709a` · `#a88bfa` |
@@ -62,10 +62,11 @@ What the tokens are for:
 | `FIELD_BG`, `EDGE` | text fields and drop-downs (recessed); their 3:1 edge |
 | `LINE` / `SEAM` | dividers / menu and tooltip edges |
 | `TEXT`, `TEXT_MUTED`, `TEXT_DIM` | body text, secondary text, hints |
-| `ACCENT`, `ON_ACCENT` | primary button, switch on, gauges, selected text; what sits on it |
+| `ACCENT` | lines, glows, underlines, a switch that is on, gauges |
+| `ACCENT_FILL`, `ON_ACCENT` | what text sits on (a primary button, selected text) and that text; the accent itself unless the scheme deepens it so the text can be white (Plum) |
 | `SECOND` | the accent's partner in gradients: gauges, the page's glow |
 | `ACCENT_EDGE` / `SELECT` | the accent as a line or icon / focus, trim handles, links |
-| `ACCENT_SOFT` | the selected row, tab, segment or menu item |
+| `ACCENT_SOFT` | the selected row, tab, segment, menu or drop-down item (Plum: a periwinkle tint, from its second colour) |
 | `INK` | text on a bright colour: an app's badge, a red button on hover |
 | `RECORDING` | the replay buffer while it records |
 | `DANGER` / `WARN` / `OK` | meanings, the same in every scheme |

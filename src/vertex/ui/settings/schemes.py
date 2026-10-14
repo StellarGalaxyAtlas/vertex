@@ -92,7 +92,7 @@ class SchemeCard(QAbstractButton):
         if checked:
             tick = QRectF(right - 20, top, 20, 20)
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor(theme.ACCENT))
+            p.setBrush(QColor(theme.ACCENT_FILL))
             p.drawEllipse(tick)
             p.drawPixmap(tick.adjusted(4, 4, -4, -4).toRect(),
                          icons.pixmap("check", "ON_ACCENT", 12))

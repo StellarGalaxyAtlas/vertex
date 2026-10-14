@@ -44,8 +44,9 @@ def test_every_scheme_meets_the_contrast_rules(name, each_scheme):
         for ground in GROUNDS:
             need(text, ground, 4.5)
     need("TEXT", "ACCENT_SOFT", 4.5)                  # a selected row
-    need("ON_ACCENT", "ACCENT", 4.5)                  # a primary button
+    need("ON_ACCENT", "ACCENT_FILL", 4.5)             # a primary button
     need("ON_ACCENT", "ACCENT_HOVER", 4.5)
+    need("ON_ACCENT", "ACCENT", 3)                    # a switch's knob on its track
     need("INK", "DANGER", 4.5)                        # a red button, hovered
     for ground in ("SECTION_BG", "CARD_BG"):
         need("SELECT", ground, 4.5)                   # links
@@ -54,6 +55,7 @@ def test_every_scheme_meets_the_contrast_rules(name, each_scheme):
         # Edges, a switch that is on, the accent as an icon, the channels: 3:1.
         need("EDGE", ground, 3)
         need("ACCENT", ground, 3)
+        need("ACCENT_FILL", ground, 3)                # a primary button's shape
         need("ACCENT_EDGE", ground, 3)
         for channel in CHANNELS:
             need(channel, ground, 3)

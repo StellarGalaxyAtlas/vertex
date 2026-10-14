@@ -151,8 +151,8 @@ class EditorView(QWidget):
         self.play_button = IconButton("pause", "Play / pause (Space)", 22, "ON_ACCENT",
                                       kind="")
         theme.style(self.play_button, lambda: (
-            f"QToolButton {{ background: {theme.ACCENT}; border-radius: 10px; padding: 7px; "
-            f"border: 1px solid {theme.ACCENT_EDGE}; }}"
+            f"QToolButton {{ background: {theme.ACCENT_FILL}; border-radius: 10px; padding: 7px; "
+            f"border: 1px solid {theme.ACCENT_FILL_EDGE}; }}"
             f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}"))
         self.play_button.clicked.connect(self.toggle_play)
         transport.addWidget(self.play_button)

@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 39.
+and bugs get the next free number: 40.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -354,6 +354,19 @@ deep sea's animals light themselves, a cyan glow into fluorescent magenta,
 the channels neon green, electric blue, violet, a lure's gold and a
 fluorescent orange. Both keep every contrast rule.
 
+**39. Plum: text on the pink, and the selected highlight.** Dark text on
+the hot pink was hard to read (6:1, but the pink sits where neither black
+nor white reads well), and the selected tab, segment and menu item were a
+wine (the pink faded into plum) that barely stood out and clashed. Mocked
+up side by side; the maintainer picked white text on a deeper pink
+(`#d42481`, 4.8:1) for what text sits on, while lines, glows, the tab
+underline and switches keep the hot pink; and a periwinkle tint (Plum's
+second colour) for the selected item. A scheme now has `ACCENT_FILL` for
+the first and may tint `ACCENT_SOFT` from its second colour; the other
+schemes look as before. In every scheme, drop-downs open as a list, so
+their hovered and current rows take the highlight (as a menu, Qt drew them
+darker than the list).
+
 ---
 
 ## Notes
@@ -363,7 +376,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–38, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–39, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.

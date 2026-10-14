@@ -267,6 +267,31 @@ def test_pages_and_settings_save(qapp, window):
     assert Config.load().cache_path.endswith("-2")
 
 
+def test_drop_down_rows_take_the_highlight(qapp, window):
+    """A drop-down opens as a list, so its hovered and current rows take the
+    selected colour (as a menu, Qt drew them darker than the list)."""
+    from PySide6.QtWidgets import QComboBox, QStyledItemDelegate
+
+    from vertex.ui import theme
+
+    combo = QComboBox(window)
+    combo.addItems(["30 seconds", "60 seconds"])
+    assert isinstance(combo.itemDelegate(), QStyledItemDelegate)
+    assert f"background: {theme.ACCENT_SOFT}" in qapp.styleSheet().split("::item:hover")[1]
+    combo.deleteLater()
+
+
+def test_plum_puts_white_text_on_a_deeper_pink():
+    """Plum's buttons: white on a pink deeper than its accent, which stays hot
+    for lines and glows; its selected items are periwinkle, not wine."""
+    from vertex.ui import theme
+
+    plum = theme.SCHEMES["plum"][2]
+    assert plum["ON_ACCENT"] == "#ffffff"
+    assert plum["ACCENT_FILL"] != plum["ACCENT"]
+    assert plum["ACCENT_SOFT"] == theme._mix(plum["CARD_BG"], plum["SECOND"], 0.3)
+
+
 def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
     from vertex.ui import theme
 

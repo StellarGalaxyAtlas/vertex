@@ -264,7 +264,7 @@ class DeviceList(QFrame):
         manager = button("Device manager", "primary", on_click=self._manage)
         # Its own look: the list's buttons are plain, left-aligned rows.
         manager.setStyleSheet(
-            f"QPushButton {{ background: {theme.ACCENT}; color: {theme.ON_ACCENT}; "
+            f"QPushButton {{ background: {theme.ACCENT_FILL}; color: {theme.ON_ACCENT}; "
             f"text-align: center; "
             f"padding: 8px; border-radius: 8px; font-weight: 600; }}"
             f"QPushButton:hover {{ background: {theme.ACCENT_HOVER}; }}")

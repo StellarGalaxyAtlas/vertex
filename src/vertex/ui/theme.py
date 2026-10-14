@@ -34,24 +34,33 @@ def _mix(a: str, b: str, amount: float) -> str:
 
 def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: str,
             on_accent: str, edge: str, second: str, select: str, recording: str,
-            channels: tuple[str, str, str, str, str]) -> dict[str, str]:
+            channels: tuple[str, str, str, str, str], fill: str = "",
+            soft: str = "") -> dict[str, str]:
     """A scheme from its key colours; the steps between them are worked out.
 
     `ground` is the page, `panel` the sections on it; cards and controls are
     lifted off the panel towards the text colour. `channels` are Game, Chat,
-    Media, Mic and the desktop's own track."""
+    Media, Mic and the desktop's own track. `fill` is what text sits on where
+    it isn't the accent itself (a deeper shade, so `on_accent` can be white),
+    and `soft`, "second", makes the selected row, tab or menu item a tint of
+    the second colour rather than of the accent."""
+    fill = fill or accent
     dark_label = sum(int(on_accent[i:i + 2], 16) for i in (1, 3, 5)) < 300
     game, chat, media, mic, desktop = channels
+    card = _mix(panel, text, 0.04)
     return {
         "MAIN_BG": ground, "SIDEBAR_BG": _mix(ground, "#000000", 0.25), "SECTION_BG": panel,
-        "CARD_BG": _mix(panel, text, 0.04), "CARD_HOVER": _mix(panel, text, 0.09),
+        "CARD_BG": card, "CARD_HOVER": _mix(panel, text, 0.09),
         "CONTROL_BG": _mix(panel, text, 0.07), "FIELD_BG": _mix(ground, "#000000", 0.2),
         "LINE": _mix(panel, text, 0.08), "SEAM": _mix(panel, text, 0.14), "EDGE": edge,
         "TEXT": text, "TEXT_MUTED": muted, "TEXT_DIM": dim,
-        "ACCENT": accent,
-        "ACCENT_HOVER": (_mix(accent, "#ffffff", 0.18) if dark_label
-                         else _mix(accent, "#000000", 0.1)),
-        "ACCENT_EDGE": _mix(accent, "#ffffff", 0.3), "ACCENT_SOFT": _mix(ground, accent, 0.25),
+        "ACCENT": accent, "ACCENT_FILL": fill,
+        "ACCENT_HOVER": (_mix(fill, "#ffffff", 0.18) if dark_label
+                         else _mix(fill, "#000000", 0.1)),
+        "ACCENT_EDGE": _mix(accent, "#ffffff", 0.3),
+        "ACCENT_FILL_EDGE": _mix(fill, "#ffffff", 0.3),
+        "ACCENT_SOFT": (_mix(card, second, 0.3) if soft == "second"
+                        else _mix(ground, accent, 0.25)),
         "ON_ACCENT": on_accent, "INK": _mix(ground, "#000000", 0.3),
         "SELECT": select, "SECOND": second, "RECORDING": recording,
         "GAME": game, "CHAT": chat, "MEDIA": media, "MIC": mic, "DESKTOP": desktop,
@@ -60,9 +69,13 @@ def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: st
 
 # name: (label in Settings, what it looks like, its colours)
 SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
+    # White text on a deeper pink than the accent, and the selected item in
+    # periwinkle: dark text on hot pink was hard to read, and a pink tint on
+    # plum came out wine (TODO item 39).
     "plum": ("Plum", "Magenta and periwinkle", _scheme(
-        "#150a1f", "#1d0d2b", "#f8f0ff", "#d2bfe6", "#b39dcc", "#ff3ea5", "#1c0517", "#8d6fae",
-        "#7d8bff", "#a9b4ff", "#ff4d6a", ("#2fd39b", "#4cb0ff", "#b4e04a", "#ffad33", "#c08cff"))),
+        "#150a1f", "#1d0d2b", "#f8f0ff", "#d2bfe6", "#b39dcc", "#ff3ea5", "#ffffff", "#8d6fae",
+        "#7d8bff", "#a9b4ff", "#ff4d6a", ("#2fd39b", "#4cb0ff", "#b4e04a", "#ffad33", "#c08cff"),
+        fill="#d42481", soft="second")),
     # Charcoal, near black and barely warm, so the orange and gold glow.
     "ember": ("Ember", "Orange and gold on charcoal", _scheme(
         "#0f0f0f", "#1a1918", "#f6f1ea", "#c9c1b6", "#aca398", "#ff8c1a", "#1a0d02", "#7d756b",
@@ -92,7 +105,8 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
         "CARD_BG": "#1f2533", "CARD_HOVER": "#29303f", "CONTROL_BG": "#262d3c",
         "FIELD_BG": "#0d1017", "LINE": "#2a3141", "SEAM": "#343c4e", "EDGE": "#66718a",
         "TEXT": "#eef0f3", "TEXT_MUTED": "#aab2bf", "TEXT_DIM": "#9099a9",
-        "ACCENT": "#4a62ec", "ACCENT_HOVER": "#3d55dd", "ACCENT_EDGE": "#9aabff",
+        "ACCENT": "#4a62ec", "ACCENT_FILL": "#4a62ec", "ACCENT_HOVER": "#3d55dd",
+        "ACCENT_EDGE": "#9aabff", "ACCENT_FILL_EDGE": "#9aabff",
         "ACCENT_SOFT": "#27336a", "ON_ACCENT": "#ffffff", "INK": "#0b0e14",
         "SELECT": "#9aabff", "SECOND": "#9aabff", "RECORDING": "#ff5c6c",
         "GAME": "#2fb39b", "CHAT": "#3b82f6", "MEDIA": "#c25d7b", "MIC": "#d98d2b",
@@ -102,11 +116,13 @@ DEFAULT_SCHEME = "plum"
 
 # --- The tokens, set from the scheme in use by `select` ------------------------
 # Accent
-ACCENT = ""
-ACCENT_HOVER = ""
+ACCENT = ""                 # lines, glows, underlines, a switch that is on
+ACCENT_FILL = ""            # what text sits on: a primary button, selected text
+ACCENT_HOVER = ""           # ACCENT_FILL, hovered
 ACCENT_EDGE = ""            # the accent as a line or an icon on a dark ground
+ACCENT_FILL_EDGE = ""       # the rim of a primary button
 ACCENT_SOFT = ""            # the selected row, tab or menu item
-ON_ACCENT = ""              # text and icons on ACCENT
+ON_ACCENT = ""              # text and icons on ACCENT_FILL, a switch's knob
 SECOND = ""                 # the accent's partner in a gradient
 INK = ""                    # text on a bright colour: an app's badge, a red button
 SELECT = ""                 # the keyboard focus, the trim handles, links
@@ -195,7 +211,7 @@ def select(name: str) -> str:
     tokens = dict(values)
     ground, card, text = values["MAIN_BG"], values["CARD_BG"], values["TEXT"]
     tokens.update(
-        SELECTION=values["ACCENT"],
+        SELECTION=values["ACCENT_FILL"],
         CARD_TOP=_mix(card, text, 0.012), CARD_BOTTOM=_mix(card, ground, 0.35),
         CARD_HOVER_TOP=_mix(card, text, 0.06), CARD_HOVER_BOTTOM=card,
         BADGE_BG=_mix(ground, "#000000", 0.5), TRIM_SHADE=_mix(ground, "#000000", 0.45),
@@ -325,7 +341,8 @@ QPushButton:hover, QToolButton:hover {{ background: {CARD_HOVER}; }}
 QPushButton:pressed, QToolButton:pressed {{ background: {SECTION_BG}; }}
 QPushButton:disabled, QToolButton:disabled {{ color: {TEXT_DIM}; background: {SECTION_BG}; }}
 QPushButton[kind="primary"] {{
-    background: {ACCENT}; border: 1px solid {ACCENT_EDGE}; color: {ON_ACCENT}; font-weight: 600;
+    background: {ACCENT_FILL}; border: 1px solid {ACCENT_FILL_EDGE}; color: {ON_ACCENT};
+    font-weight: 600;
 }}
 QPushButton[kind="primary"]:hover {{ background: {ACCENT_HOVER}; }}
 QPushButton[kind="primary"]:disabled {{
@@ -352,12 +369,17 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0; border: none
 QComboBox {{
     background: {FIELD_BG}; border: 1px solid {EDGE}; border-radius: {RADIUS_CONTROL}px;
     padding: 6px 10px; min-height: 20px;
+    combobox-popup: 0;      /* a list, so the rows below take their colours */
 }}
 QComboBox:focus {{ border-color: {SELECT}; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
 QComboBox QAbstractItemView {{
     background: {CARD_BG}; border: 1px solid {SEAM}; selection-background-color: {ACCENT_SOFT};
     outline: none; padding: 4px;
+}}
+QComboBox QAbstractItemView::item {{ padding: 5px 8px; border-radius: 6px; }}
+QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:hover {{
+    background: {ACCENT_SOFT}; color: {TEXT};
 }}
 QCheckBox {{ spacing: 8px; }}
 QCheckBox::indicator {{
