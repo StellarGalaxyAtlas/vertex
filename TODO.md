@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 36.
+and bugs get the next free number: 37.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -315,7 +315,7 @@ doing, then "New apps go to" and Enabled. Each channel is a card lit by its
 colour: a coloured top edge, a badge, the mute beside the name, the volume
 as a big number in the channel's colour over a slider in it, the device
 with its link, and the apps as pills. Devices sit under one heading
-(with "Show disconnected devices") in one panel: per kind, Manual or Auto
+(with "Show disconnected devices"), a panel per kind (item 36): Manual or Auto
 (and for outputs the second device, with its volume once one is set), the
 device in use, the priority list (numbered, "In use" or "Connected" on each
 row) and the excluded list (a dashed drop zone while empty); two by two
@@ -334,6 +334,10 @@ to five rows of clips) was not what the maintainer meant. The top bar's
 search grows with the window (to 760 px) and the tabs get more room
 either side.
 
+**36. Sonar › Devices: outputs and microphones apart.** They shared one
+panel with a line between them and ran together; now each kind has a
+panel of its own under the Devices heading.
+
 ---
 
 ## Notes
@@ -343,7 +347,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–35, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–36, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
 Open: 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.

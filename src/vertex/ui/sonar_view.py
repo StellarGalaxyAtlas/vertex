@@ -51,7 +51,6 @@ from vertex.ui.widgets import (
     Segmented,
     Toggle,
     button,
-    hline,
     label,
 )
 
@@ -1138,14 +1137,13 @@ class SonarView(QWidget):
         manager.addLayout(head)
         self.output_panel = DevicePanel(self, "output", "Output devices", "headphones")
         self.mic_panel = DevicePanel(self, "mic", "Microphones", icons.channel_icon_name("mic"))
-        self.panels_host = Panel()
-        panels = QVBoxLayout(self.panels_host)
-        panels.setContentsMargins(20, 18, 20, 18)
-        panels.setSpacing(18)
-        panels.addWidget(self.output_panel)
-        panels.addWidget(hline())
-        panels.addWidget(self.mic_panel)
-        manager.addWidget(self.panels_host)
+        # Each kind in a panel of its own, so the two read apart.
+        for panel in (self.output_panel, self.mic_panel):
+            host = Panel()
+            inside = QVBoxLayout(host)
+            inside.setContentsMargins(20, 18, 20, 18)
+            inside.addWidget(panel)
+            manager.addWidget(host)
         layout.addWidget(self.manager)
         # What each panel's lists held when last filled: the full lists and
         # the names shown, so a drag can be laid back onto the full lists.

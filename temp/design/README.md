@@ -108,8 +108,9 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
   a badge, the mute by its name, the volume as a big number in its colour
   (large text, so 3:1 is enough) over a slider in it, the device, and its
   apps as pills. Four in a row, two by two when they don't fit. The devices
-  sit in one panel, a row of four per kind (Manual/Auto and the second
-  device, in use, priority, excluded), two by two below 1000 px. At the
+  sit in a panel per kind (item 36), each a row of four (Manual/Auto and
+  the second device, in use, priority, excluded), two by two below
+  1000 px. At the
   minimum width, 980 px, nothing scrolls sideways.
 - **Library cards** have two lines under the thumbnail: the title, then
   game · people · age · size. An untagged clip says "Untagged", which turns
