@@ -11,6 +11,7 @@ from PySide6.QtGui import (
     QLinearGradient,
     QPainter,
     QPainterPath,
+    QPen,
 )
 from PySide6.QtWidgets import QLineEdit, QStyle, QStyledItemDelegate
 
@@ -169,7 +170,22 @@ class ClipDelegate(QStyledItemDelegate):
                          Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
                          metrics.elidedText(text, Qt.TextElideMode.ElideRight,
                                             int(line.right() - x)))
+        self._outline(painter, card, hovered)
         painter.restore()
+
+    @staticmethod
+    def _outline(painter: QPainter, card: QRectF, hovered: bool) -> None:
+        """A faint edge in the scheme's own colours, the accent into the second
+        one, so a card stands off the page; brighter while hovered."""
+        alpha = 0.6 if hovered else 0.25
+        edge = QLinearGradient(card.topLeft(), card.bottomRight())
+        for at, token in ((0, theme.ACCENT), (1, theme.SECOND)):
+            colour = QColor(token)
+            colour.setAlphaF(alpha)
+            edge.setColorAt(at, colour)
+        painter.setPen(QPen(QBrush(edge), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), RADIUS, RADIUS)
 
     @staticmethod
     def _shadow(painter: QPainter, card: QRectF, hovered: bool) -> None:

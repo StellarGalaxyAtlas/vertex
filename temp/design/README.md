@@ -133,7 +133,9 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
 - **Library cards** have two lines under the thumbnail: the title, then
   game · people · age · size. An untagged clip says "Untagged", which turns
   into "Add tags" on hover. A click on that line edits the tags, and a click
-  on the title renames the clip.
+  on the title renames the clip. Each card has a faint 1 px outline in the
+  scheme's colours, the accent into the second colour (25 %, 60 % while
+  hovered), so it stands off the page (item 45).
 
 ## Tried and rejected
 

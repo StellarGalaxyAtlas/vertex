@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 45.
+and bugs get the next free number: 46.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -411,6 +411,11 @@ step stronger on a light scheme, and fields sit half way between page and
 panel instead of taking the page's colour. Glacier's hint text went one
 step darker to keep 4.5:1 on the darker page.
 
+**45. Clip cards: a faint outline in the scheme's colours.** Asked for so
+a clip stands off the background: every clip card (Library and Home) has
+a 1 px outline running from the accent at its top left into the second
+colour at its bottom right, at 25 % (60 % while hovered), over its shadow.
+
 ---
 
 ## Notes
@@ -420,7 +425,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42 and 44, including the bugs 14,
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 and 45, including the bugs 14,
 16, 18 and 26: the new look of round 3 is built, and scales on big screens.
 Open: 43 (an editor bug), 9 (on hold) and 21 (documentation, at the end). Waiting on the
 maintainer: the checks listed above, and switching to one installation.
