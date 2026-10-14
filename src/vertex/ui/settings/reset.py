@@ -5,11 +5,11 @@ the two that lose your own work only go ahead once a word is typed."""
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLineEdit, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLineEdit, QVBoxLayout, QWidget
 
 from vertex.core import storage
 from vertex.ui import theme
-from vertex.ui.widgets import ChoiceDialog, Section, TextDialog, button, label, setting_row
+from vertex.ui.widgets import ChoiceDialog, Section, TextDialog, button, label
 
 
 class TypeToConfirm(TextDialog):
@@ -78,6 +78,19 @@ def _warning(text: str) -> QFrame:
     return box
 
 
+def _titled(title: str, blurb: str, control: QWidget) -> QWidget:
+    """A title, a sentence and a full-width button, like a Section of its own,
+    so two of them can share one card."""
+    block = QWidget()
+    layout = QVBoxLayout(block)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(12)
+    layout.addWidget(label(title, "Subheading"))
+    layout.addWidget(label(blurb, "Muted", wrap=True))
+    layout.addWidget(control)
+    return block
+
+
 def _kept_where() -> str:
     return ("It's moved to the Trash." if storage.trash_available() else
             "A .bak backup is kept.")
@@ -92,17 +105,17 @@ class ResetPage(QObject):
         super().__init__(parent)
         self.parent_widget = parent
         basics = Section()
-        basics.add(setting_row("Reset settings", button(
-            "Reset settings…", "danger", on_click=self._settings),
-            "Restore defaults and run setup again"))
-        basics.add(setting_row("Clear cache", button("Clear cache…", on_click=self._cache),
-                               "Delete thumbnails and previews"))
+        basics.body.setSpacing(24)
+        basics.add(_titled("Reset settings", "Restore defaults and run setup again",
+                           button("Reset settings…", "danger", on_click=self._settings)))
+        basics.add(_titled("Clear cache", "Delete thumbnails and previews",
+                           button("Clear cache…", on_click=self._cache)))
         library = Section()
         library.add(_warning(
             "Only do this if something's wrong and clearing the cache didn't fix it."))
-        library.add(setting_row("Reset library", button(
-            "Reset library…", "danger", on_click=self._library),
-            "Clear titles, tags, favorites and edits. Video files are kept"))
+        library.add(_titled("Reset library",
+                            "Clear titles, tags, favorites and edits. Video files are kept",
+                            button("Reset library…", "danger", on_click=self._library)))
         self.sections = [basics, library]
 
     def _settings(self) -> None:

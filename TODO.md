@@ -478,7 +478,8 @@ in Auto goes to the top of the list, so cycling would bounce between two).
 Superseded by 53.
 
 **54. Reset and delete, regrouped.** Reset settings and Clear cache share
-one card, a row each. Reset library has its own card under them, with an
+one card, each laid out like an Import and setup card (title, line, full-width
+button). Reset library has its own card under them, with an
 amber warning on top: only do this if something's wrong and clearing the
 cache didn't fix it. "Reset the library" and "Clear the cache" are now
 "Reset library" and "Clear cache" on the buttons and dialog titles.
