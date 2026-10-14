@@ -481,7 +481,7 @@ Superseded by 53.
 the tabs grow (up to 1.5 times, icons and text alike) and spread out until
 they nearly reach the search, and the bar gets a little taller to fit them
 (60 to 72 px). The search keeps its width and place; at 980 and 1280 px
-the bar looks as before (`topbar.TopBar._fit`).
+the bar barely changes (`topbar.TopBar._fit`).
 
 **57. Editor: the mixer no longer stalls playback.** Every slider step
 swapped mpv's whole lavfi-complex, and mpv seeks each time it changes: the
