@@ -76,7 +76,7 @@ class LibraryState(QObject):
             scan = clips_mod.scan_clips(folder) if folder else clips_mod.ClipScan()
         except OSError as exc:
             scan = clips_mod.ClipScan()
-            self.error = f"Could not read {folder}: {exc}"
+            self.error = f"Couldn't read {folder}: {exc}"
         self.all_clips = scan.clips
         tagged = self._index()
         self._load_metadata()
@@ -88,7 +88,7 @@ class LibraryState(QObject):
             # only reports a file appearing, not it being finished.
             self._settle_timer.start(int(SETTLE_SECONDS * 1000) + 500)
         if tagged:
-            self.status.emit(f"Tagged {fmt.plural(tagged, 'clip')} from their file names", "info")
+            self.status.emit(f"Tagged {fmt.plural(tagged, 'clip')}", "info")
 
     def _index(self) -> int:
         """Settle each clip's game and recording date in the library, once."""
@@ -259,7 +259,7 @@ class LibraryState(QObject):
         try:
             trashed = storage.delete_file(clip.path)
         except OSError as exc:
-            self.status.emit(f"Could not delete {clip.name}: {exc}", "error")
+            self.status.emit(f"Couldn't delete {clip.name}: {exc}", "error")
             return ""
         if self.library is not None:
             self.library.forget(clip.name)
@@ -280,7 +280,7 @@ class LibraryState(QObject):
         try:
             trashed = storage.delete_file(clip.path)
         except OSError as exc:
-            self.status.emit(f"Could not replace {clip.name}: {exc}", "error")
+            self.status.emit(f"Couldn't replace {clip.name}: {exc}", "error")
             return False
         try:
             os.replace(trimmed_path, clip.path)
@@ -292,8 +292,8 @@ class LibraryState(QObject):
             except OSError:
                 salvage = trimmed_path
             self.reload()
-            self.status.emit(f"Trim saved as {os.path.basename(salvage)} — could not take "
-                             f"over the original name: {exc}", "error")
+            self.status.emit(f"Trim saved as {os.path.basename(salvage)}. Couldn't replace "
+                             f"the original: {exc}", "error")
             return False
         if self.library is not None:
             self.library.clear_trim(clip.name)

@@ -38,7 +38,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import fmt
 from vertex.audio import channels, devices
 from vertex.audio.pulse import from_server
 from vertex.audio.sonar import AppCapture, AppStream, SonarStatus
@@ -171,8 +170,7 @@ class AppChip(QFrame):
             action.triggered.connect(lambda _c=False, c=output.id: self.view.route(self.key, c))
         if self.rule:
             menu.addSeparator()
-            reset = menu.addAction("Use the default channel")
-            reset.setToolTip("Forget where this app was sent")
+            reset = menu.addAction("Reset")
             reset.triggered.connect(lambda: self.view.route(self.key, None))
         menu.exec(event.globalPos())
 
@@ -510,8 +508,6 @@ class DevicePanel(QWidget):
             self.second.setSizeAdjustPolicy(
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.second.setMinimumContentsLength(10)
-            self.second.setToolTip("Every channel plays here too, unless its “Also on” "
-                                   "switch is off.")
             self.second.activated.connect(lambda _i: view.controller.set_second_output(
                 self.second.currentData() or ""))
             column.addWidget(self.second)
@@ -521,7 +517,7 @@ class DevicePanel(QWidget):
             self.second_volume.setRange(0, 100)
             self.second_volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             theme.style(self.second_volume, neutral_slider)
-            self.second_volume.setToolTip("The second device's own volume")
+            self.second_volume.setToolTip("Volume")
             self.second_volume.valueChanged.connect(self._on_second_volume)
             row.addWidget(self.second_volume, 1)
             self.second_readout = label("", "Muted")
@@ -795,7 +791,7 @@ class ChannelColumn(QFrame):
         self.apps_host = QWidget()
         self.apps = FlowLayout(self.apps_host, spacing=6)
         layout.addWidget(self.apps_host)
-        empty = ("Drop an app here" if channel.is_output else "No app is using the mic")
+        empty = ("Drop an app here" if channel.is_output else "No apps")
         self.empty = label(empty, "Dim")
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty.setMinimumHeight(32)
@@ -869,13 +865,12 @@ class ChannelColumn(QFrame):
         self.device.setText(text)
         self.device.setToolTip(f"{self.channel.label} plays through {text}. Click to pick "
                                f"another device." if self.channel.is_output else
-                               f"Vertex Mic is fed by {text}. Click to pick another mic.")
+                               f"Microphone: {text}")
         if self.link is not None:
             self.link.set_icon("link" if linked else "unlink",
                                "ACCENT_EDGE" if linked else "TEXT_DIM")
             self.link.setToolTip(
-                "Every output channel plays through the same device. Click to give "
-                "each its own." if linked else
+                "Click to set per channel" if linked else
                 f"{self.channel.label} has its own device. Click to play every output "
                 f"channel through this one's.")
 
@@ -1073,8 +1068,6 @@ class SonarView(QWidget):
         # The channel apps play on until they are dragged to another one.
         header.addWidget(label("New apps go to", "Muted"))
         self.default_channel = QComboBox()
-        self.default_channel.setToolTip("Apps play on this channel until you drag them to "
-                                        "another one.")
         for output in channels.OUTPUTS:
             self.default_channel.addItem(output.label, output.id)
         theme.themed(self.default_channel, self._paint_default_channel, "icon")
@@ -1103,9 +1096,7 @@ class SonarView(QWidget):
 
         # Apps that picked an output themselves, past every channel. Only
         # shown while there are any.
-        self.unrouted = Section("Not routed", "These apps play straight to a device instead "
-                                              "of the default, so no channel controls them. "
-                                              "Drag one onto a channel to route it.")
+        self.unrouted = Section("Not routed", "Drag onto a channel to control them")
         self.unrouted_host = QWidget()
         self.unrouted_flow = FlowLayout(self.unrouted_host, spacing=8)
         self.unrouted.add(self.unrouted_host)
@@ -1126,12 +1117,8 @@ class SonarView(QWidget):
         head.addWidget(about, 1)
         head.addSpacing(12)
         disconnected = label("Show disconnected devices", "Muted")
-        hint = ("Ones Vertex has seen before, so they can be placed in the list before "
-                "they are plugged in.")
-        disconnected.setToolTip(hint)
         head.addWidget(disconnected)
         self.show_disconnected = Toggle(context.config.sonar.show_disconnected)
-        self.show_disconnected.setToolTip(hint)
         self.show_disconnected.toggled.connect(self._on_show_disconnected)
         head.addWidget(self.show_disconnected)
         manager.addLayout(head)
@@ -1178,22 +1165,19 @@ class SonarView(QWidget):
         if not status.available and status.error:
             self.subtitle.setText(f"No audio server: {status.error}")
         elif enabled and status.active and not self.context.config.sonar.linked:
-            self.subtitle.setText("Running · each channel plays through its own device")
+            self.subtitle.setText("On")
         elif enabled and status.active:
             output = self._names.get(status.output, status.output)
-            where = f" through {output}" if output else ""
             second = self.context.config.sonar.second_output
-            also = [entry.channel.label for entry in status.channels.values() if entry.also]
-            outputs = [entry for entry in status.channels.values() if entry.channel.is_output]
+            also = any(entry.also for entry in status.channels.values())
+            where = f" · {output}" if output else ""
             if second and also:
-                where += (f", and also {self._label(second)}" if len(also) == len(outputs)
-                          else f", and {fmt.oxford(also)} also through {self._label(second)}")
-            self.subtitle.setText(f"Running · every channel plays{where}")
+                where += f" + {self._label(second)}"
+            self.subtitle.setText(f"On{where}")
         elif enabled:
             self.subtitle.setText("Starting…")
         else:
-            self.subtitle.setText("Off. Turn it on to create Vertex's virtual devices: one "
-                                  "output per channel and a shared Vertex Mic.")
+            self.subtitle.setText("Off")
         self.strips_host.setEnabled(enabled and status.active)
         for channel_id, entry in status.channels.items():
             if entry.present:
@@ -1386,10 +1370,8 @@ class SonarView(QWidget):
             return AppChip(
                 self, stream.key, stream.name, stream.icon, rule=rule,
                 note=f"still here — moving to {target}…", warn=True,
-                tooltip=f"Part of {stream.name}'s sound hasn't moved to {target} yet: the "
-                        f"audio server refused, which happens while a stream is starting "
-                        f"or stopping. Vertex retries on every change. If it stays, "
-                        f"restarting the app's audio moves it.")
+                tooltip=f"Couldn't move {stream.name} to {target} yet. Restart its audio "
+                        f"if this stays.")
         return AppChip(self, stream.key, stream.name, stream.icon, note=note, rule=rule)
 
     def _show_recorders(self, recorders: list[AppCapture]) -> None:

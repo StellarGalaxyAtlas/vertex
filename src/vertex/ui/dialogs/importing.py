@@ -36,19 +36,18 @@ class CopyClipsDialog(QDialog):
         self.copied: list[str] = []
         self._cancel = workers.Cancel()
         self._running = False
-        self.setWindowTitle("Copy clips in")
+        self.setWindowTitle("Import clips")
         self.setMinimumWidth(520)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
-        layout.addWidget(label("Copy clips in", "Subheading"))
+        layout.addWidget(label("Import clips", "Subheading"))
         layout.addWidget(label(
-            f"Copies the recordings in a folder into {paths.tilde(target)}. The originals "
-            "are only read, and a name that already exists is skipped, never overwritten.",
+            f"Copies videos into {paths.tilde(target)}. Existing files are skipped.",
             "Muted", wrap=True))
         row = QHBoxLayout()
         self.source = QLineEdit(paths.tilde(source) if source else "")
-        self.source.setPlaceholderText("Folder to copy from, e.g. your Moments library")
+        self.source.setPlaceholderText("Folder to import from")
         row.addWidget(self.source, 1)
         row.addWidget(button("Browse…", on_click=self._browse))
         layout.addLayout(row)
@@ -71,7 +70,7 @@ class CopyClipsDialog(QDialog):
             self._scan()
 
     def _browse(self) -> None:
-        chosen = QFileDialog.getExistingDirectory(self, "Copy clips from",
+        chosen = QFileDialog.getExistingDirectory(self, "From",
                                                   paths.normalize(self.source.text()) or
                                                   paths.normalize("~"))
         if chosen:
@@ -98,7 +97,7 @@ class CopyClipsDialog(QDialog):
         try:
             plan = importing.plan_copy(source, self.target)
         except OSError as exc:
-            self._say(f"Could not read the folder: {exc}", "DANGER")
+            self._say(f"Couldn't read the folder: {exc}", "DANGER")
             return
         present = f" {fmt.plural(len(plan.present), 'clip')} already there will be skipped." \
             if plan.present else ""
@@ -173,7 +172,7 @@ class TagImportDialog(QDialog):
                                               library.tags().keys())
         except OSError as exc:
             self.plan = importing.ImportPlan(folder=folder)
-            layout.addWidget(label(f"Could not read {folder}: {exc}", "Muted", wrap=True))
+            layout.addWidget(label(f"Couldn't read {folder}: {exc}", "Muted", wrap=True))
         plan = self.plan
         layout.addWidget(label(
             f"{fmt.plural(plan.taggable, 'clip')} carry a game in their name. Every game is "

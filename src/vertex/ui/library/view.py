@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import paths
 from vertex.config import CARD_WIDTH_DEFAULT, CARD_WIDTH_RANGE
 from vertex.core import storage
 from vertex.ui import icons, theme
@@ -139,7 +138,7 @@ class LibraryView(QWidget):
         self.sort = Segmented([("date", "Date"), ("game", "Game")], "date", directional=True)
         self.sort.changed.connect(state.set_sort)
         card_size = self._build_card_size()
-        refresh = IconButton("refresh", "Rescan the clips folder (F5)")
+        refresh = IconButton("refresh", "Refresh (F5)")
         refresh.clicked.connect(self.reload)
         self.filters = FilterRow(state, [self.sort, card_size, refresh], self.size_icons)
         self.filters.setContentsMargins(0, 0, 8, 0)
@@ -188,7 +187,7 @@ class LibraryView(QWidget):
     def _build_card_size(self) -> QWidget:
         """Small cards to big ones: a slider between a small and a large grid."""
         box = QWidget()
-        box.setToolTip("Card size (Ctrl+scroll, Ctrl+plus/minus; Ctrl+0 resets)")
+        box.setToolTip("Card size (Ctrl+scroll)")
         row = QHBoxLayout(box)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
@@ -256,7 +255,6 @@ class LibraryView(QWidget):
             self.stack.setCurrentWidget(self.grid)
         else:
             self.stack.setCurrentWidget(self.empty)
-            folder = paths.tilde(self.context.config.resolved_clip_dir())
             if self.state.error:
                 self.empty_title.setText("Can't read the clips folder")
                 self.empty_text.setText(self.state.error)
@@ -265,9 +263,8 @@ class LibraryView(QWidget):
                 self.empty_text.setText("Try a different search or filter.")
             else:
                 self.empty_title.setText("No clips yet")
-                self.empty_text.setText(
-                    f"Clips saved into {folder} show up here. Start the replay buffer and "
-                    f"press your save-clip hotkey, or bring an existing library in.")
+                self.empty_text.setText("Start the replay buffer and save a clip, or import "
+                                        "existing clips.")
             self.empty_record.setVisible(not total and not self.context.recorder.running)
         self.grid.fit_cells(self.delegate)
 
@@ -312,8 +309,7 @@ class LibraryView(QWidget):
         trash = storage.trash_available()
         answer = ChoiceDialog.ask(
             self, "Delete clip", f"Delete “{self.state.title_of(clip)}”?",
-            ("The file goes to your Trash, along with its tags and edits."
-             if trash else "This deletes the file permanently — Send2Trash is not installed."),
+            ("It's moved to the Trash." if trash else "This can't be undone."),
             [("Move to Trash" if trash else "Delete permanently", "delete", "danger")])
         return answer == "delete"
 

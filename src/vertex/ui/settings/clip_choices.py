@@ -107,7 +107,7 @@ class ClipChoices(QObject):
             text, tip = " · ".join(part for part in (recorded, size) if part), ""
         elif not monitors.names_monitor(self.capture):
             text = f"{recorded} · primary monitor" if chosen.primary else recorded
-            tip = "No monitor picked yet, so Vertex records this one."
+            tip = "Recording this monitor by default"
         else:
             text, warn = f"{self.capture} isn't connected · recording {recorded}", True
             tip = (f"{self.capture} isn't connected, so Vertex records {recorded} until it "
@@ -220,8 +220,5 @@ class ClipSize(QWidget):
         self.figure.setText(f"{'About' if constant else 'Roughly'} {fmt.size(size, 0)} per clip")
         self.meter.set_fraction(size / largest if largest else 0)
         where = "in memory" if rec.replay_storage == "ram" else "on disk"
-        detail = f"The replay buffer holds about {fmt.size(size, 0)} {where} while it runs."
-        if not constant:
-            detail = f"It depends on what is on screen. {detail}"
-        self.detail.setText(detail)
+        self.detail.setText(f"Buffer size: about {fmt.size(size, 0)} {where}")
         return size

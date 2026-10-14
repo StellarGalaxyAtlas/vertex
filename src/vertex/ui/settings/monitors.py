@@ -135,10 +135,8 @@ class MonitorMap(QWidget):
         if monitor.primary:
             lines.append("The primary monitor")
         if not monitor.placed:
-            lines.append("The desktop didn't say where this monitor is, so it is drawn "
-                         "to the side.")
-        lines.append("Recording this monitor." if monitor.name == self.current
-                     else "Click to record this monitor.")
+            lines.append("Position unknown")
+        lines.append("Recording" if monitor.name == self.current else "Click to record")
         return "\n".join(lines)
 
     def _describe(self) -> None:

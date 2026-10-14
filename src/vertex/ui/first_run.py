@@ -48,18 +48,13 @@ STEPS = {
                 "A few quick choices and you're ready to go. You can change any of them "
                 "later in Settings."),
     "sonar": ("Vertex Sonar",
-              "Sonar adds virtual audio devices to your system: Game, Chat and Media, plus "
-              "Vertex Mic. Send each app to its own device and give each one its own "
-              "volume, so the game never drowns out your friends."),
+              "Separate volumes for game, chat and media, plus a shared Vertex Mic."),
     "moments": ("Vertex Moments",
-                "Moments keeps recording in the background. When something worth keeping "
-                "happens, save it as a clip — even after the fact."),
+                "Records in the background so you can save what just happened."),
     "library": ("Clips you already have",
-                "Coming from SteelSeries Moments or another recorder? Bring your clips "
-                "along."),
+                "Import clips from SteelSeries Moments or another folder."),
     "tags": ("Tag your clips",
-             "Vertex read the game from each clip's file name. Check the names before "
-             "they're saved, and fix any that look wrong."),
+             "Check the games read from file names."),
 }
 
 
@@ -202,14 +197,11 @@ class FirstRunView(QWidget):
     # --- Step 1: the clips folder -----------------------------------------------
 
     def _folders(self, missing) -> QWidget:
-        section = Section("Your clips folder",
-                          "New clips are saved here, and every video in this folder shows up "
-                          "in your library.")
+        section = Section("Your clips folder", "New clips are saved here")
         if missing:
             named = "\n".join(f"{FOLDER_NAMES.get(key, key)}: {path}" for key, path in missing)
-            warning = label(f"Some folders in your settings are missing — renamed, moved, or "
-                            f"on a drive that isn't mounted. Nothing has been deleted.\n\n"
-                            f"{named}", wrap=True)
+            warning = label(f"Some folders couldn't be found. Nothing was deleted.\n\n{named}",
+                            wrap=True)
             theme.style(warning, lambda: f"color: {theme.WARN};")
             section.add(warning)
         self.clip_path = PathField(self.config.clip_path)
@@ -242,18 +234,15 @@ class FirstRunView(QWidget):
     def _sonar(self) -> QWidget:
         section = Section()
         self.sonar_enabled = Toggle(self.config.sonar.enabled if self.again else True)
-        section.add_row("Use Vertex Sonar", self.sonar_enabled,
-                        "You can turn it off any time on the Sonar page.")
+        section.add_row("Use Vertex Sonar", self.sonar_enabled)
         section.add(hline())
         self.output = QComboBox()
         self.mic = QComboBox()
         for combo in (self.output, self.mic):
             combo.addItem("System default", "")
-        output = DeviceField("Output device", "Your headset or speakers. Every channel "
-                                              "plays through it.", self.output)
+        output = DeviceField("Output device", "Headset or speakers", self.output)
         output.set_colour("headphones", "TEXT_MUTED")
-        mic = DeviceField("Input device", "Your microphone. In Discord and other chat apps, "
-                                          "choose Vertex Mic to use it.", self.mic)
+        mic = DeviceField("Input device", "In chat apps, pick Vertex Mic", self.mic)
         mic.set_colour(icons.channel_icon_name("mic"), "MIC")
         row = QHBoxLayout()
         row.setSpacing(16)
@@ -269,9 +258,8 @@ class FirstRunView(QWidget):
         theme.style(self.sonar_note, lambda: f"color: {theme.WARN};")
         self.sonar_note.hide()
         section.add(self.sonar_note)
-        clips = label("Saving clips with Vertex Moments? Your game, chat and voice are each "
-                      "recorded as a track of their own, so you can turn one up or down "
-                      "afterwards.", "Dim", wrap=True)
+        clips = label("Game, chat and mic are saved as separate tracks in clips.", "Dim",
+                      wrap=True)
         sonar = self.context.sonar.sonar
         workers.run(lambda: (sonar.outputs(), sonar.inputs()), self._got_devices,
                     lambda exc: self._no_audio(str(exc)))
@@ -291,8 +279,7 @@ class FirstRunView(QWidget):
     def _no_audio(self, error: str) -> None:
         self.sonar_enabled.setChecked(False)
         self.sonar_enabled.setEnabled(False)
-        self.sonar_note.setText(f"Sonar needs PipeWire or PulseAudio, and neither answered "
-                                f"({error}). You can turn it on later on the Sonar page.")
+        self.sonar_note.setText(f"No audio server found ({error}).")
         self.sonar_note.show()
 
     # --- Step 3: Vertex Moments -------------------------------------------------
@@ -401,9 +388,8 @@ class FirstRunView(QWidget):
         if info.too_old:
             minimum = ".".join(map(str, gsr.MIN_VERSION))
             self.install_title.setText("Update GPU Screen Recorder")
-            self.install_text.setText(f"Moments records with GPU Screen Recorder. You have "
-                                      f"version {info.version_text}; Vertex needs {minimum} "
-                                      f"or newer. {later}")
+            self.install_text.setText(f"Version {minimum} or newer is needed (you have "
+                                      f"{info.version_text}). {later}")
             self.install_button.setText("How to update it")
         elif not info.missing:
             self.install_title.setText("GPU Screen Recorder didn't start")
@@ -411,22 +397,19 @@ class FirstRunView(QWidget):
             self.install_button.setText("How to install it")
         else:
             self.install_title.setText("Install GPU Screen Recorder")
-            self.install_text.setText(f"Moments records with GPU Screen Recorder, a free screen "
-                                      f"recorder for Linux, which isn't installed yet. {later}")
+            self.install_text.setText(f"Vertex records with GPU Screen Recorder, which isn't "
+                                      f"installed. {later}")
             self.install_button.setText("How to install it")
 
     def _show_notifier(self, found: bool) -> None:
         self.notifier_check.setEnabled(True)
         self.notifier_check.setVisible(not found)
         if found:
-            self.notifier_status.setText("Notifications show over games, with GPU Screen "
-                                         "Recorder's notifier.")
+            self.notifier_status.setText("In-game notifications available")
             theme.style(self.notifier_status, lambda: f"color: {theme.OK};")
         else:
             self.notifier_status.setText(
-                "GPU Screen Recorder's notifier isn't installed, so notifications pop up on "
-                "the desktop and not over games. It comes in the "
-                "gpu-screen-recorder-notification package.")
+                "Install gpu-screen-recorder-notification for in-game notifications")
             theme.style(self.notifier_status, lambda: f"color: {theme.TEXT_MUTED};")
         self.notifier_row.show()
 
@@ -444,11 +427,9 @@ class FirstRunView(QWidget):
         if self.again:
             self.fresh = ChoiceCard("Nothing to bring in", "Your library stays as it is.")
         else:
-            self.fresh = ChoiceCard("Start fresh", "Begin with an empty library. New clips "
-                                                   "are saved to your clips folder.")
-        self.existing = ChoiceCard("I already have clips", "Show Vertex the folder they're "
-                                                           "in, from SteelSeries Moments or "
-                                                           "anywhere else.")
+            self.fresh = ChoiceCard("Start fresh", "Begin with an empty library")
+        self.existing = ChoiceCard("I already have clips",
+                                   "From SteelSeries Moments or anywhere else")
         ChoiceCard.join(self.fresh, self.existing)
         self.fresh.setChecked(True)
         pair = QHBoxLayout()
@@ -462,10 +443,7 @@ class FirstRunView(QWidget):
         self.where.add(self.source)
         self.source_summary = label("", "Muted", wrap=True)
         self.where.add(self.source_summary)
-        self.in_place = ChoiceCard("Use them where they are", "This folder becomes your "
-                                                              "clips folder. Nothing is copied, "
-                                                              "and new clips are saved here "
-                                                              "too.")
+        self.in_place = ChoiceCard("Use them where they are", "Make this your clips folder")
         self.copy_in = ChoiceCard("Copy them to your clips folder", "")
         ChoiceCard.join(self.in_place, self.copy_in)
         self.in_place.setChecked(True)
@@ -507,8 +485,7 @@ class FirstRunView(QWidget):
 
     def _describe_modes(self) -> None:
         clips = paths.tilde(self.clip_path.value()) or "your clips folder"
-        self.copy_in.text.setText(f"Copies them into {clips}. The originals stay as they "
-                                  f"are.")
+        self.copy_in.text.setText(f"Copy to {clips}")
         self.copy_summary.setVisible(self.copy_in.isChecked())
 
     def _scan(self) -> None:
@@ -553,8 +530,7 @@ class FirstRunView(QWidget):
         self.copy_plan = plan
         self._say(self.source_summary, f"Found {fmt.plural(found, 'clip')}.", "OK")
         if not plan.files:
-            self._say(self.copy_summary, "They're all in your clips folder already, so there's "
-                                         "nothing to copy.")
+            self._say(self.copy_summary, "Already in your clips folder")
         elif not plan.fits:
             self._say(self.copy_summary, f"Copying needs {plan.total_human}, and only "
                                          f"{plan.free_human} is free there.", theme.DANGER)
@@ -645,8 +621,7 @@ class FirstRunView(QWidget):
         self.tags_note = label("", "Muted", wrap=True)
         self.tags_note.hide()
         self.tags_status = label("", "Muted", wrap=True)
-        self.games = Section("Games found in file names",
-                             "Each name is saved as the game for its clips.")
+        self.games = Section("Games found in file names")
         self.games_host = QWidget()
         self.games_grid = QGridLayout(self.games_host)
         self.games_grid.setContentsMargins(0, 0, 0, 0)
@@ -722,7 +697,7 @@ class FirstRunView(QWidget):
         self.others.setVisible(bool(plan.strays))
         status = ""
         if not plan.games and not plan.strays:
-            status = ("Every clip here already has a game, so there's nothing to tag."
+            status = ("All clips are already tagged"
                       if plan.already else "There are no clips here to tag.")
         elif len(plan.already) == 1:
             status = "1 clip already has a game and keeps it."

@@ -115,7 +115,7 @@ class EditorView(QWidget):
 
         header = QHBoxLayout()
         header.setSpacing(10)
-        back = button("Back", "ghost", "back", self.back.emit, "Back to the library (Esc)")
+        back = button("Back", "ghost", "back", self.back.emit, "Back (Esc)")
         header.addWidget(back)
         self.title = EditableLabel(self.state.title_of(self.clip), self.clip.name)
         self.title.display.setObjectName("Subheading")
@@ -145,7 +145,7 @@ class EditorView(QWidget):
 
         transport = QHBoxLayout()
         transport.setSpacing(6)
-        self.in_button = IconButton("mark-in", "Set In at the playhead (I)", 20)
+        self.in_button = IconButton("mark-in", "Set start (I)", 20)
         self.in_button.clicked.connect(self.set_in)
         transport.addWidget(self.in_button)
         self.play_button = IconButton("pause", "Play / pause (Space)", 22, "ON_ACCENT",
@@ -156,10 +156,10 @@ class EditorView(QWidget):
             f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}"))
         self.play_button.clicked.connect(self.toggle_play)
         transport.addWidget(self.play_button)
-        self.out_button = IconButton("mark-out", "Set Out at the playhead (O)", 20)
+        self.out_button = IconButton("mark-out", "Set end (O)", 20)
         self.out_button.clicked.connect(self.set_out)
         transport.addWidget(self.out_button)
-        reset = IconButton("reset", "Select the whole clip", 18)
+        reset = IconButton("reset", "Select all", 18)
         reset.clicked.connect(self.reset_trim)
         transport.addSpacing(6)
         transport.addWidget(reset)
@@ -172,10 +172,10 @@ class EditorView(QWidget):
         transport.addWidget(self.status)
         transport.addSpacing(8)
         self.trim_button = button("Trim", icon="scissors", on_click=self.confirm_trim,
-                                  tooltip="Cut the clip down to the selection")
+                                  tooltip="Trim to selection")
         transport.addWidget(self.trim_button)
         self.export_button = button("Export", "primary", "export", self.start_export,
-                                    "Make a shareable file of the selection")
+                                    "Export selection")
         transport.addWidget(self.export_button)
         for widget in (self.trim_button, self.export_button):
             widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -434,7 +434,7 @@ class EditorView(QWidget):
         if self._trim_job is not None:
             return
         if not self._has_trim():
-            self.status.setText("Set the In and Out markers first.")
+            self.status.setText("Set a start and end first.")
             return
         span = (f"{fmt.duration(self.trim_start)} – {fmt.duration(self.trim_end)} "
                 f"({fmt.duration(self.selection)})")

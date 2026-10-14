@@ -63,7 +63,7 @@ class TagDialog(QDialog):
 
         layout.addWidget(label("GAME", "Group"))
         self.game = QLineEdit(game)
-        self.game.setPlaceholderText("What was being played")
+        self.game.setPlaceholderText("Game")
         self.game.setCompleter(_completer(self._known_games, self))
         layout.addWidget(self.game)
         self.game_hint = label("", "Dim")
@@ -76,7 +76,7 @@ class TagDialog(QDialog):
         self.chips = FlowLayout(self.chips_host)
         layout.addWidget(self.chips_host)
         self.person = QLineEdit()
-        self.person.setPlaceholderText("Add a person and press Enter")
+        self.person.setPlaceholderText("Add people")
         self.person.setCompleter(_completer(list(people_pool), self))
         self.person.completer().activated[str].connect(self._add_suggested)
         self.person.returnPressed.connect(self._add_typed)
@@ -101,7 +101,7 @@ class TagDialog(QDialog):
         """Point out when a typed game is an existing tag spelled differently."""
         key = game_key(text)
         match = next((g for g in self._known_games if game_key(g) == key and g != text), "")
-        self.game_hint.setText(f"Saved as “{match}”, the spelling already in use." if
+        self.game_hint.setText(f"Saved as “{match}”" if
                                key and match else "")
 
     def _people(self) -> list[str]:

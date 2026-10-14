@@ -29,7 +29,7 @@ class TypeToConfirm(TextDialog):
         heading = label(message, "Subheading", wrap=True)
         theme.style(heading, lambda: f"color: {theme.DANGER};")
         layout.addWidget(heading)
-        layout.addWidget(label("This can't be undone from Vertex:", "Muted"))
+        layout.addWidget(label("This can't be undone:", "Muted"))
         for line in goes:
             layout.addWidget(label(f"•  {line}", wrap=True))
         layout.addWidget(label(stays, "Muted", wrap=True))
@@ -61,10 +61,8 @@ class TypeToConfirm(TextDialog):
 
 
 def _kept_where() -> str:
-    return ("It goes to the Trash, where you can restore it from."
-            if storage.trash_available() else
-            "It is renamed to a backup beside it (ending in .bak), where you can "
-            "restore it from.")
+    return ("It's moved to the Trash." if storage.trash_available() else
+            "A .bak backup is kept.")
 
 
 class ResetPage(QObject):
@@ -76,42 +74,34 @@ class ResetPage(QObject):
         super().__init__(parent)
         self.parent_widget = parent
         settings = Section("Reset settings",
-                           "Every setting goes back to how a fresh install has it, and "
-                           "first-run setup opens. The replay buffer stops and Sonar turns "
-                           "off until setup is done.")
+                           "Restore defaults and run setup again")
         settings.add(button("Reset settings…", "danger", on_click=self._settings))
         library = Section("Reset the library",
-                          "Forget what Vertex knows about your clips: titles, tags, "
-                          "favourites, trims and track volumes. The clips themselves stay "
-                          "as they are.")
+                          "Clear titles, tags, favorites and edits. Video files are kept")
         library.add(button("Reset the library…", "danger", on_click=self._library))
         cache = Section("Clear the cache",
-                        "Delete the thumbnails and previews. Vertex makes them again as "
-                        "you browse; nothing else changes.")
+                        "Delete thumbnails and previews")
         cache.add(button("Clear the cache…", on_click=self._cache))
         self.sections = [settings, library, cache]
 
     def _settings(self) -> None:
         if TypeToConfirm.ask(
                 self.parent_widget, "Reset settings", "Reset every setting?",
-                ["Your folders, recording settings, notifications and Sonar's settings: "
-                 "its devices, their order, volumes and where apps play."],
-                f"Your clips, the library and the start menu entry stay. {_kept_where()}",
+                ["All settings, including Sonar's devices and volumes"],
+                f"Clips and the library are kept. {_kept_where()}",
                 "RESET", "Reset settings"):
             self.reset_requested.emit("settings")
 
     def _library(self) -> None:
         if TypeToConfirm.ask(
                 self.parent_widget, "Reset the library", "Reset the library?",
-                ["Every clip's title, tags and favourite.",
-                 "Every clip's trims and track volumes."],
-                "Your clips stay, and games are read from Moments-style file names again. "
-                f"{_kept_where()}",
+                ["Titles, tags and favorites", "Trims and track volumes"],
+                f"Video files are kept. {_kept_where()}",
                 "DELETE", "Reset the library"):
             self.reset_requested.emit("library")
 
     def _cache(self) -> None:
         if ChoiceDialog.ask(self.parent_widget, "Clear the cache", "Clear the cache?",
-                            "Thumbnails and previews are deleted and made again as you "
-                            "browse.", [("Clear the cache", "clear", "danger")]) == "clear":
+                            "They're rebuilt as you browse.",
+                            [("Clear the cache", "clear", "danger")]) == "clear":
             self.reset_requested.emit("cache")

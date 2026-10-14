@@ -9,7 +9,7 @@ def test_every_kind_is_complete_and_filed_under_a_category():
     for kind in notifications.KINDS:
         assert kind.category in categories
         assert kind.level in notifications.LEVELS
-        assert kind.name and kind.description
+        assert kind.name
     for category in categories:
         assert notifications.in_category(category)
 

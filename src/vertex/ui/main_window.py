@@ -164,13 +164,9 @@ class MainWindow(QMainWindow):
         if self._on_settings() and not self._may_leave_settings():
             return
         answer = ChoiceDialog.ask(
-            self, "Run setup again", "Run first-run setup again?",
-            "Setup opens with your current settings filled in. When you finish it, what "
-            "you chose there replaces them: the clips and exports folders, whether Sonar "
-            "is on and its devices, the monitor, duration, video quality, resolution and "
-            "frame rate, and whether the replay buffer starts with Vertex. You can also "
-            "bring in clips you already have.\n\nCancel at any step to keep everything as "
-            "it is. Nothing is deleted: your clips, tags and edits stay.",
+            self, "Run setup again", "Run setup again?",
+            "Setup opens with your current settings. Finishing it replaces them; cancel "
+            "at any step to keep them. Your clips, tags and edits aren't touched.",
             [("Run setup", "run", "primary")])
         if answer == "run":
             self.show_setup(copy.deepcopy(self.context.config), again=True)
@@ -193,7 +189,7 @@ class MainWindow(QMainWindow):
         failed = context.config.ensure_dirs()
         context.save_config()
         if failed:
-            context.notify("vertex_problem", "Could not create a folder", failed[0])
+            context.notify("vertex_problem", "Couldn't create a folder", failed[0])
         page, self.first_run = self.first_run, None
         self._remove_page(page)
         self.settings_view.load()
@@ -215,7 +211,7 @@ class MainWindow(QMainWindow):
         try:
             library.apply_import(games, dates)
         except sqlite3.Error as exc:
-            self.context.notify("vertex_problem", "Could not save the tags", str(exc))
+            self.context.notify("vertex_problem", "Couldn't save the tags", str(exc))
             return False
         return True
 
@@ -266,7 +262,7 @@ class MainWindow(QMainWindow):
             try:
                 where = reset.discard_settings()
             except OSError as exc:
-                context.notify("vertex_problem", "Could not reset settings", str(exc))
+                context.notify("vertex_problem", "Couldn't reset settings", str(exc))
                 return
             # In place: Sonar and the recorder hold on to the settings' parts.
             reset.reset_in_place(context.config, Config())
@@ -288,7 +284,7 @@ class MainWindow(QMainWindow):
         try:
             where = reset.discard_library(context.config.resolved_data_dir())
         except OSError as exc:
-            context.notify("vertex_problem", "Could not reset the library", str(exc))
+            context.notify("vertex_problem", "Couldn't reset the library", str(exc))
             where = None
         context.open_library()
         self.state.reload()
@@ -303,8 +299,7 @@ class MainWindow(QMainWindow):
         ThumbnailCache(context.config.resolved_cache_dir()).clear()
         context.open_library()
         self.state.reload()
-        self.settings_view.banner.show_message("Cache cleared. Thumbnails come back as you "
-                                               "browse.", "ok")
+        self.settings_view.banner.show_message("Cache cleared", "ok")
 
     def start_services(self, enable_sonar: bool | None = None,
                        start_recorder: bool | None = None,
@@ -458,8 +453,7 @@ class MainWindow(QMainWindow):
             self.hide()
             if not self._told_about_tray:
                 self._told_about_tray = True
-                self.context.notify("in_tray", "Still running in the tray",
-                                    "Quit from its menu.")
+                self.context.notify("in_tray", "Still running in the tray")
             return
         if not self._quitting:
             event.ignore()

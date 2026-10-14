@@ -134,7 +134,7 @@ class ReplayPill(QFrame):
         text.addWidget(self.detail)
         layout.addLayout(text)
         self.save = button("Save clip", "primary", "save-clip", self._save,
-                           "Save the replay buffer as a clip")
+                           "Save clip")
         self.save.setStyleSheet("QPushButton { padding: 6px 14px; border-radius: 16px; }")
         layout.addWidget(self.save)
         self.toggle = IconButton("record", "Start the replay buffer", 14, "TEXT_MUTED", kind="")
@@ -177,7 +177,7 @@ class ReplayPill(QFrame):
                            .get(state, "Replay off"))
         self.detail.setText(f"keeps the last {fmt.duration(seconds)}" if running or
                             state == "restarting" else "start it to save clips")
-        self.setToolTip(error or ("Restarting to use the new settings. It starts empty."
+        self.setToolTip(error or ("Restarting"
                                   if state == "restarting" else ""))
         self.save.setEnabled(running)
         busy = running or state in ("starting", "restarting")

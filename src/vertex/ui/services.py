@@ -478,7 +478,7 @@ class RecorderController(QObject):
                 then(self.info)
 
         def failed(exc):
-            done((gsr.GsrInfo(command, error=f"Could not run GPU Screen Recorder: {exc}"), []))
+            done((gsr.GsrInfo(command, error=f"Couldn't run GPU Screen Recorder: {exc}"), []))
 
         workers.run(probe, done, failed)
 
@@ -543,8 +543,7 @@ class RecorderController(QObject):
                     "default_input": "the default microphone"}.get(instead)
             self.context.notify(
                 "track_missing", f"{role} audio: {device} isn't available",
-                f"Clips record {what} until it is." if what else
-                "Clips are recorded without that track.")
+                f"Recording {what} instead" if what else "Recording without it")
         try:
             self.recorder.start(gsr.build_argv(self._as_recorded(), tracks,
                                                config.resolved_recording_dir(), self.info),
@@ -602,7 +601,7 @@ class RecorderController(QObject):
         if not self.running:
             problem = "The replay buffer is not running."
         elif seconds is not None and int(seconds) not in gsr.SAVE_PRESETS:
-            problem = f"Can only save the last {sorted(gsr.SAVE_PRESETS)} seconds."
+            problem = f"Only the last {sorted(gsr.SAVE_PRESETS)} seconds can be saved"
         if problem:
             # Saving from a shortcut or the tray shows nothing else of it.
             self.context.notify("clip_not_saved", "Clip not saved", problem)
@@ -631,12 +630,11 @@ class RecorderController(QObject):
             self._restarting = False
             restarted = state == State.RUNNING
         if restarted:
-            self.context.notify("replay_restarted", "Replay buffer restarted",
-                                "It uses the new settings, and starts empty.")
+            self.context.notify("replay_restarted", "Replay buffer restarted")
         elif state == State.RUNNING:
             seconds = self.context.config.recorder.replay_seconds
             self.context.notify("replay_started", "Replay buffer on",
-                                f"Keeping the last {fmt.duration(seconds)}.")
+                                f"Last {fmt.duration(seconds)}")
         elif state == State.STOPPED:
             self.context.notify("replay_stopped", "Replay buffer off")
         elif state == State.FAILED and error:
@@ -685,7 +683,7 @@ class Context(QObject):
         try:
             self.library = Library(self.config.resolved_data_dir())
         except Exception as exc:     # run without a library rather than not at all
-            self.notify("vertex_problem", "Could not open the library", str(exc))
+            self.notify("vertex_problem", "Couldn't open the library", str(exc))
             self.library = Library.in_memory()
         self.thumbs = ThumbnailService(self.config.resolved_cache_dir(), self)
         self.library_reset.emit()
@@ -695,7 +693,7 @@ class Context(QObject):
         try:
             self.config.save()
         except OSError as exc:
-            self.notify("vertex_problem", "Could not save settings", str(exc))
+            self.notify("vertex_problem", "Couldn't save settings", str(exc))
             return
         self.config_changed.emit()
 
