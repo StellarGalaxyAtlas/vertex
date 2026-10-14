@@ -669,6 +669,13 @@ def test_home_and_top_bar_grow_with_the_window(qapp, window):
     them, and a wider search, not wider gaps."""
     window.navigate("home")
     home, bar = window.home_view, window.topbar
+    # Two clips fill one row, and never more rows than that.
+    window.resize(1920, 1080)
+    assert wait_until(qapp, lambda: home.grid.layout_width() > 0)
+    home._fit()
+    assert home.grid.rows == 1
+    # A library big enough to fill any screen.
+    window.state.all_clips = window.state.all_clips * 40
     shapes = {}
     for size in ((1280, 820), (1920, 1080), (2560, 1440)):
         window.resize(*size)
