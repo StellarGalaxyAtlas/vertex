@@ -51,19 +51,22 @@ behind:
 - The screenshots in `docs/` (first-run.png shows the old step 1). Since
   item 24 every one of them shows the old colours and layout.
 
-**27.** In progress
+**27.** Waiting on the maintainer's picks
 **Design round 2: more layouts and colours**
 The maintainer liked single ideas from round 1 (A, B, C) and asked for a lot
 more inspiration, above all where the navigation sits and the colours.
-Eight directions, each a Library and a Sonar board, made by a designer agent
-and checked by a reviewer agent (format, contrast, content, layout): Dock
-(bottom dock, deep sea), Split view (master-detail, ink and coral), Shelves
-(console-style shelves, nightclub), Studio (pro-app table, inspector and
-mixing console, midnight console), Home dashboard (bento home, aurora),
+Eight directions, each a Library and a Sonar board, one designer agent per
+direction (the maintainer reviews them; the automated review was dropped):
+Dock (bottom dock, deep sea), Split view (master-detail, ink and coral),
+Shelves (console-style shelves, nightclub), Studio (pro-app table, inspector
+and mixing console, midnight console), Home dashboard (bento home, aurora),
 Daylight (a light theme), Side mixer (a quick mixer always on the right,
-forest) and Command bar (a command bar instead of navigation, ember). They
-go on a Round 2 page of the private design canvas; the maintainer picks
-ideas from them.
+forest) and Command bar (a command bar instead of navigation, ember). All
+are on the Round 2 page of the private design canvas, with a board of the
+eight palettes beside today's and a note of each direction's pick-able
+ideas. Some mockups still give the device in use a volume slider; the
+maintainer is fine with that (28 removed it from the app). Next: the
+maintainer picks ideas, and building them becomes new items.
 
 ## Waiting on the maintainer
 
