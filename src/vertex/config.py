@@ -151,6 +151,8 @@ class Config:
     card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
     # Desktop pop-ups switched away from their default, by kind (see notifications).
     notifications: dict[str, bool] = field(default_factory=dict)
+    # Pop-ups through GPU Screen Recorder's notifier, over games, when it is installed.
+    notify_over_games: bool = True
 
     recorder: RecorderConfig = field(default_factory=RecorderConfig)
     sonar: SonarConfig = field(default_factory=SonarConfig)

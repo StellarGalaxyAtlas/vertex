@@ -1132,6 +1132,42 @@ def test_notifications_pop_up_by_kind_when_the_window_is_not_in_front(
         context.notify("no_such_kind", "?")
 
 
+def test_notifications_pop_up_over_games_with_gsr_notifier(qapp, window, monkeypatch):
+    from types import SimpleNamespace
+
+    from vertex.ui import theme
+
+    context = window.context
+    popped, toasts = [], []
+    monkeypatch.setattr(window, "tray", SimpleNamespace(pop_up=popped.append))
+    monkeypatch.setattr(window, "isActiveWindow", lambda: False)
+    monkeypatch.setattr(window.over_games, "show",
+                        lambda *args: toasts.append(args) or True)
+
+    assert context.config.notify_over_games          # on by default
+    context.notify("clip_saved", "Clip saved", "a.mp4")
+    assert popped == [] and toasts[-1][0] == "Clip saved: a.mp4"
+    assert toasts[-1][1:] == ("ok", theme.ACCENT_FILL, theme.ON_ACCENT, "replay")
+    context.notify("vertex_problem", "Could not save settings", "disk full")
+    assert toasts[-1][1:3] == ("error", theme.DANGER) and toasts[-1][4] == ""
+
+    # Not installed, or it couldn't start: a desktop notification instead.
+    monkeypatch.setattr(window.over_games, "show", lambda *args: False)
+    context.notify("clip_saved", "Clip saved", "b.mp4")
+    assert [n.body for n in popped] == ["b.mp4"]
+
+    # Switched off in Settings.
+    settings = window.settings_view
+    settings.notifications.over_games.setEnabled(True)
+    settings.notifications.over_games.setChecked(False)
+    assert settings.save() and not Config.load().notify_over_games
+    monkeypatch.setattr(window.over_games, "show",
+                        lambda *args: toasts.append(args) or True)
+    count = len(toasts)
+    context.notify("clip_saved", "Clip saved", "c.mp4")
+    assert len(toasts) == count and popped[-1].body == "c.mp4"
+
+
 def test_setup_runs_again_from_settings(qapp, window, monkeypatch):
     from vertex.ui import main_window
     from vertex.ui.widgets import ChoiceDialog

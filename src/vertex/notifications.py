@@ -29,6 +29,7 @@ class Kind:
     description: str     # when it happens
     default: bool = True  # pops up unless switched off
     level: str = "info"   # one of LEVELS: how it looks
+    icon: str = ""        # GSR's notifier icon over games (notifier.ICONS), if any
 
 
 @dataclass(frozen=True)
@@ -53,19 +54,21 @@ CATEGORIES = (
 )
 
 KINDS = (
-    Kind("clip_saved", "clips", "Clip saved", "Each new clip, with its name.", level="ok"),
+    Kind("clip_saved", "clips", "Clip saved", "Each new clip, with its name.", level="ok",
+         icon="replay"),
     Kind("clip_not_saved", "clips", "A clip couldn't be saved",
          "Saving was asked for while the replay buffer wasn't running, or GPU Screen "
-         "Recorder couldn't be reached.", level="error"),
+         "Recorder couldn't be reached.", level="error", icon="replay"),
     Kind("replay_started", "clips", "Replay buffer started",
-         "Also when it starts with Vertex.", default=False),
+         "Also when it starts with Vertex.", default=False, icon="replay"),
     Kind("replay_stopped", "clips", "Replay buffer stopped",
-         "When it is stopped from the window, the tray or a command.", default=False),
+         "When it is stopped from the window, the tray or a command.", default=False,
+         icon="replay"),
     Kind("replay_failed", "clips", "Replay buffer stopped unexpectedly",
-         "With GPU Screen Recorder's reason.", level="error"),
+         "With GPU Screen Recorder's reason.", level="error", icon="replay"),
     Kind("replay_restarted", "clips", "Replay buffer restarted",
          "To use changed settings or tracks. It starts empty again.", default=False,
-         level="ok"),
+         level="ok", icon="replay"),
     Kind("track_missing", "clips", "A track's device is missing",
          "Clips record a stand-in, or go without that track, until it is back.",
          level="warn"),

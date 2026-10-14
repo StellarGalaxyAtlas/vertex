@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 46.
+and bugs get the next free number: 47.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -428,6 +428,19 @@ a clip stands off the background: every clip card (Library and Home) has
 a 1 px outline running from the accent at its top left into the second
 colour at its bottom right, at 25 % (60 % while hovered), over its shadow.
 
+**46. Notifications over games.** Desktop notifications don't show over a
+fullscreen game, while GPU Screen Recorder's own overlay does. Pop-ups now
+go through GSR's notifier, `gsr-notify` (package
+gpu-screen-recorder-notification), when it is installed and Settings ›
+Notifications › "Show them over games" is on (the default); otherwise, or
+if it fails to start, they are desktop notifications as before. Its
+background is the scheme's accent (warning and error colours for those
+levels), replay kinds get its replay icon, and each toast replaces the one
+before (`recorder/notifier.py`). `vertex doctor` reports whether it is
+found. Open: it is looked up on the PATH only, so a Flatpak-only GSR has
+none (the Flatpak ships its own copy); not yet tried on the maintainer's
+system.
+
 ---
 
 ## Notes
@@ -437,7 +450,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 and 45, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 46, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

@@ -21,7 +21,8 @@ from vertex import APP_NAME, desktop, notifications, reset
 from vertex.audio import channels
 from vertex.config import Config
 from vertex.media.thumbnails import ThumbnailCache
-from vertex.ui import icons, workers
+from vertex.recorder import notifier
+from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView, SetupResult
 from vertex.ui.home import HomeView
@@ -38,6 +39,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.context = context
         self.tray = None
+        self.over_games = notifier.Notifier()
         self._quitting = False
         self._told_about_tray = False
         self._services_started = False
@@ -418,15 +420,26 @@ class MainWindow(QMainWindow):
         self.context.notify("clip_saved", "Clip saved", os.path.basename(path))
 
     def _notified(self, notice: notifications.Notice) -> None:
-        """Every notice shows at the bottom of the window. It pops up on the
-        desktop too, if its kind is switched on and the window isn't in front."""
+        """Every notice shows at the bottom of the window. It pops up too, if its
+        kind is switched on and the window isn't in front: over games through
+        GPU Screen Recorder's notifier when that is on, else on the desktop."""
         kind = notifications.BY_ID[notice.kind]
         self.banner.show_message(notice.line, kind.level, 12000 if kind.level == "error"
                                  else 6000)
         in_front = self.isVisible() and self.isActiveWindow() and not self.isMinimized()
-        if self.tray is not None and not in_front and not self._quitting and \
-                notifications.enabled(self.context.config.notifications, kind.id):
+        if in_front or self._quitting or \
+                not notifications.enabled(self.context.config.notifications, kind.id):
+            return
+        if self.context.config.notify_over_games and self._over_games(notice, kind):
+            return
+        if self.tray is not None:
             self.tray.pop_up(notice)
+
+    def _over_games(self, notice: notifications.Notice, kind: notifications.Kind) -> bool:
+        background, ink = {"warn": (theme.WARN, theme.ON_DANGER),
+                           "error": (theme.DANGER, theme.ON_DANGER)}.get(
+            kind.level, (theme.ACCENT_FILL, theme.ON_ACCENT))
+        return self.over_games.show(notice.line, kind.level, background, ink, kind.icon)
 
     # --- Window -------------------------------------------------------------------
 

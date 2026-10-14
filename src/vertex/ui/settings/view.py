@@ -377,7 +377,7 @@ class SettingsView(QWidget):
         if self.schemes.value() != theme.scheme:      # back from a scheme picked, not saved
             theme.use(self.schemes.value())
         self.autostart.setChecked(desktop.autostart_enabled())
-        self.notifications.load(config.notifications)
+        self.notifications.load(config.notifications, config.notify_over_games)
 
         rec = config.recorder
         self.command.setText(rec.command)
@@ -414,6 +414,7 @@ class SettingsView(QWidget):
         config.close_to_tray = self.close_to_tray.isChecked()
         config.colour_scheme = self.schemes.value()
         config.notifications = self.notifications.choices()
+        config.notify_over_games = self.notifications.over_games.isChecked()
         rec = config.recorder
         rec.command = self.command.text().strip() or "gpu-screen-recorder"
         rec.autostart = self.rec_autostart.isChecked()
@@ -462,7 +463,7 @@ class SettingsView(QWidget):
                               ("clip_path", "data_path", "cache_path", "state_path"))
         recorder_changed = new.recorder != old.recorder
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
-                    "close_to_tray", "colour_scheme", "notifications"):
+                    "close_to_tray", "colour_scheme", "notifications", "notify_over_games"):
             setattr(old, key, getattr(new, key))
         old.recorder = new.recorder
         old.ensure_dirs()
