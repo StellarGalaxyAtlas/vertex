@@ -96,10 +96,11 @@ token name (`IconButton("volume", "Mute", 16, "TEXT_MUTED")`), not a value.
 - **Home** (item 32), the start page: tiles with rounded corners and a
   faint gradient. Latest clips across the full width (lit from two corners
   by the accent and second colour), then Sonar's quick mixer, Games as bars,
-  Storage and People. It fits a 1280 × 820 window without scrolling. A bigger
-  window shows more clips (two to five rows of four to ten) rather than
-  stretching the tiles below (item 35); with no clips yet, the welcome takes
-  the room and the other tiles stay compact.
+  Storage and People. It fits a 1280 × 820 window without scrolling. The
+  clips stay two rows; on a bigger window the tiles below fill their height
+  instead of leaving gaps: faders for the mixer, roomier game rows, the
+  disk's breakdown, bigger people tiles (item 35). With no clips yet, the
+  welcome takes the room and the other tiles stay compact.
 - **Messages are toasts** in the bottom-right corner of the page
   (`widgets.Banner`). A click dismisses one. No strip is kept for them.
 - **Sonar** (item 34, as on Shelves' board): a one-line header with a status

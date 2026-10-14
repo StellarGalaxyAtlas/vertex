@@ -664,9 +664,10 @@ def test_home_shows_the_newest_clips_and_leads_to_the_library(qapp, window):
     assert state.facet == Facet("favorites") and window.topbar.tabs["library"].isChecked()
 
 
-def test_home_and_top_bar_grow_with_the_window(qapp, window):
-    """A bigger window shows more newest clips, not stretched tiles under
-    them, and a wider search, not wider gaps."""
+def test_home_keeps_two_rows_and_its_tiles_use_the_height(qapp, window):
+    """The newest clips stay two rows at any size; the tiles under them take
+    the rest of the height and use it (the mixer turns into faders), and the
+    top bar's search grows rather than its gaps."""
     window.navigate("home")
     home, bar = window.home_view, window.topbar
     # Two clips fill one row, and never more rows than that.
@@ -674,24 +675,18 @@ def test_home_and_top_bar_grow_with_the_window(qapp, window):
     assert wait_until(qapp, lambda: home.grid.layout_width() > 0)
     home._fit()
     assert home.grid.rows == 1
-    # A library big enough to fill any screen.
     window.state.all_clips = window.state.all_clips * 40
-    shapes = {}
-    for size in ((1280, 820), (1920, 1080), (2560, 1440)):
+    for size, faders in (((1280, 820), False), ((1920, 1080), True), ((2560, 1440), True)):
         window.resize(*size)
         qapp.processEvents()
-        assert wait_until(qapp, lambda: home.grid.layout_width() > 0)
         home._fit()
-        qapp.processEvents()
-        shapes[size] = (home.grid.columns, home.grid.rows)
-        if size != (1280, 820):
-            # The tiles below keep near their own height: what is left over
-            # is less than a row of clips.
-            assert home.sonar_tile.height() - home._bottom_height() < \
-                home.grid.row_height(home.grid.columns)
-    assert shapes[(1280, 820)][1] == 2
-    assert shapes[(2560, 1440)][0] * shapes[(2560, 1440)][1] > \
-        shapes[(1280, 820)][0] * shapes[(1280, 820)][1]
+        assert wait_until(qapp, lambda f=faders: home.grid.rows == 2 and
+                          home.mixer.faders.isVisible() == f)
+        assert home.mixer.rows.isVisible() != faders
+        assert 4 <= home.grid.columns <= 6
+    # A fader set here keeps the row in step, for when the window shrinks.
+    home.faders["media"].slider.setValue(30)
+    assert home.channels["media"].slider.value() == 30
     assert bar.search.width() > 400                     # at 2560 px
     window.resize(1280, 800)
 

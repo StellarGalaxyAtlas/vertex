@@ -71,8 +71,8 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
-- 35: Home and the top bar on their big screen: more clips, no stretched
-  tiles, a wider search.
+- 35: Home and the top bar on their big screen: two rows of clips, the
+  tiles under them filled (faders, games, storage, people), a wider search.
 - 34: the Sonar page with their devices and apps: the big numbers and the
   device lists in their font; nothing cut short at their window size.
 - 32: Home with their library (632 clips, 23 games) at their window size:
@@ -323,10 +323,16 @@ below 1000 px. Manual's explanation shows only in Manual.
 
 **35. Home and the top bar on bigger screens.** On a big window Home's
 tiles stretched into gaps (the mixer's channels far apart) and the top bar
-into empty stretches. Now the newest clips take the room: two to five rows
-of four to ten, whichever leaves the tiles under them nearest their own
-height, never a row more than there are clips. The top bar's search grows
-with the window (to 760 px) and the tabs get more room either side.
+into empty stretches. The newest clips stay two rows (four to six to a row,
+one row while one holds them all); the tiles under them use the height
+they get: Sonar's mixer turns into tall faders (the volume big in the
+channel's colour, mute at the foot) once it has 300 px, Games' rows open
+up (to 56 px, their bars thicker), Storage adds what the disk is made of
+(clips, everything else, free, the disk) and spreads it, and People's
+tiles grow, standing the name under a bigger initial. The first try (two
+to five rows of clips) was not what the maintainer meant. The top bar's
+search grows with the window (to 760 px) and the tabs get more room
+either side.
 
 ---
 

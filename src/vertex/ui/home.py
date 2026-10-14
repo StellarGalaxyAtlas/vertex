@@ -17,6 +17,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -36,12 +37,12 @@ from vertex.ui.library.filters import FilterChip
 from vertex.ui.library.model import ClipModel
 from vertex.ui.library.state import Facet, LibraryState
 from vertex.ui.library.view import ClipGrid
-from vertex.ui.widgets import ElidedLabel, IconButton, Meter, button, label
+from vertex.ui.widgets import ElidedLabel, IconButton, button, label
 
-ROWS = (2, 3, 4, 5)       # rows of newest clips, as many as there is room for
-COLUMNS = (4, 10)         # and how many to a row, at the least and the most
-CARD_MIN = 200            # a newest-clip card is at least this wide
-CARD_MAX = 340            # and at most this
+ROWS = 2                  # rows of newest clips (one, while one row holds them all)
+COLUMNS = (4, 6)          # how many to a row, at the least and the most
+CARD_MIN = 220            # a newest-clip card is at least this wide
+FADERS_FROM = 300         # the mixer turns into faders once it has this much height
 SPACING = 12
 
 
@@ -121,7 +122,7 @@ class LatestGrid(ClipGrid):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.columns, self.rows = 5, ROWS[0]
+        self.columns, self.rows = 5, ROWS
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
@@ -155,53 +156,66 @@ class LatestGrid(ClipGrid):
 
 
 class MixerRow(QWidget):
-    """One channel in the quick mixer: its badge and name, what plays on it,
-    its volume and mute, and a slider in its colour."""
+    """One channel in the quick mixer, as a row: its badge and name, what
+    plays on it, its volume and mute, and a slider in its colour under them."""
+
+    ORIENTATION = Qt.Orientation.Horizontal
+    BADGE = 20
+    MUTE = (24, 16)       # the mute button and its icon
 
     def __init__(self, controller, channel: channels.Channel, parent=None):
         super().__init__(parent)
         self.controller = controller
         self.channel = channel
+        self.twin: MixerRow | None = None      # the same channel in the other layout
         self._quiet = False
+        self.badge = QLabel()
+        self.badge.setFixedSize(self.BADGE, self.BADGE)
+        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        size, radius = self.BADGE * 13 // 20, self.BADGE * 6 // 20
+        theme.themed(self.badge, lambda: self.badge.setPixmap(
+            icons.pixmap(icons.channel_icon_name(channel.id), "INK", size)), "icon")
+        theme.style(self.badge, lambda: f"background: {self.colour}; "
+                                        f"border-radius: {radius}px;")
+        self.name = label(channel.label)
+        self.name.setStyleSheet("font-weight: 600;")
+        self.apps = ElidedLabel("")
+        self.apps.setObjectName("Dim")
+        self.value = label("100%")
+        box, glyph = self.MUTE
+        self.mute = IconButton("volume", "Mute", glyph, "TEXT_MUTED")
+        self.mute.setCheckable(True)
+        self.mute.setFixedSize(box, box)
+        self.mute.toggled.connect(self._on_mute)
+        self.slider = QSlider(self.ORIENTATION)
+        self.slider.setRange(0, 100)
+        self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.slider.setAccessibleName(f"{channel.label} volume")
+        theme.style(self.slider, self._slider_style)
+        self.slider.valueChanged.connect(self._on_slider)
+        self._arrange()
+        settings = controller.context.config.sonar.channel(channel.id)
+        self.show_status(settings.volume, settings.muted)
+
+    def _arrange(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         top = QHBoxLayout()
         top.setSpacing(8)
-        badge = QLabel()
-        badge.setFixedSize(20, 20)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        theme.themed(badge, lambda: badge.setPixmap(
-            icons.pixmap(icons.channel_icon_name(channel.id), "INK", 13)), "icon")
-        theme.style(badge, lambda: f"background: {self.colour}; border-radius: 6px;")
-        top.addWidget(badge)
-        name = label(channel.label)
-        name.setStyleSheet("font-weight: 600;")
-        top.addWidget(name)
-        self.apps = ElidedLabel("")
-        self.apps.setObjectName("Dim")
+        top.addWidget(self.badge)
+        top.addWidget(self.name)
         top.addWidget(self.apps, 1)
-        self.value = label("100%")
         self.value.setStyleSheet("font-weight: 600;")
         self.value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.value.setMinimumWidth(QFontMetrics(self.value.font()).horizontalAdvance("100%") + 4)
         top.addWidget(self.value)
-        self.mute = IconButton("volume", "Mute", 14, "TEXT_MUTED")
-        self.mute.setCheckable(True)
-        self.mute.setFixedSize(24, 24)
-        self.mute.toggled.connect(self._on_mute)
         top.addWidget(self.mute)
         layout.addLayout(top)
-        self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(0, 100)
-        self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.slider.setAccessibleName(f"{channel.label} volume")
-        theme.style(self.slider, lambda: f"QSlider::sub-page:horizontal {{ background: "
-                                         f"{self.colour}; border-radius: 2px; }}")
-        self.slider.valueChanged.connect(self._on_slider)
         layout.addWidget(self.slider)
-        settings = controller.context.config.sonar.channel(channel.id)
-        self.show_status(settings.volume, settings.muted)
+
+    def _slider_style(self) -> str:
+        return f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 2px; }}"
 
     @property
     def colour(self) -> str:
@@ -224,12 +238,16 @@ class MixerRow(QWidget):
         self.value.setText(f"{value}%")
         if not self._quiet:
             self.controller.set_volume(self.channel.id, value / 100)
+            if self.twin is not None:
+                self.twin.show_status(value / 100, self.mute.isChecked())
 
     def _on_mute(self, muted: bool) -> None:
         self._paint_mute()
         if not self._quiet:
             self.controller.context.config.sonar.channel(self.channel.id).muted = muted
             self.controller.set_muted(self.channel.id, muted)
+            if self.twin is not None:
+                self.twin.show_status(self.slider.value() / 100, muted)
 
     def _paint_mute(self) -> None:
         muted = self.mute.isChecked()
@@ -238,12 +256,81 @@ class MixerRow(QWidget):
                              f"Mute {self.channel.label}")
 
 
+class MixerFader(MixerRow):
+    """The same channel as a fader, for a tile with the height for it: badge
+    and name, what plays on it, the volume in the channel's colour, a tall
+    fader, and mute at its foot."""
+
+    ORIENTATION = Qt.Orientation.Vertical
+    BADGE = 28
+    MUTE = (34, 18)
+
+    def _arrange(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        top = QHBoxLayout()
+        top.setSpacing(8)
+        top.addWidget(self.badge)
+        top.addWidget(self.name, 1)
+        layout.addLayout(top)
+        self.apps.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.apps)
+        # Large text, so the channel's colour (3:1 or better) reads.
+        theme.style(self.value, lambda: f"color: {self.colour}; font-size: 18pt; "
+                                        f"font-weight: 700;")
+        layout.addWidget(self.value)
+        layout.addWidget(self.slider, 1, Qt.AlignmentFlag.AlignHCenter)
+        self.mute.setProperty("kind", "")
+        theme.style(self.mute, lambda: f"QToolButton {{ background: {theme.CONTROL_BG}; "
+                                       f"border: 1px solid {theme.LINE}; border-radius: 10px; "
+                                       f"padding: 0; }}"
+                                       f"QToolButton:hover {{ background: {theme.CARD_HOVER}; }}")
+        layout.addWidget(self.mute, 0, Qt.AlignmentFlag.AlignHCenter)
+
+    def _slider_style(self) -> str:
+        return (f"QSlider::groove:vertical {{ width: 8px; background: {theme.SEAM}; "
+                f"border-radius: 4px; }}"
+                f"QSlider::add-page:vertical {{ background: {self.colour}; border-radius: 4px; }}"
+                f"QSlider::sub-page:vertical {{ background: {theme.SEAM}; border-radius: 4px; }}"
+                f"QSlider::handle:vertical {{ background: white; width: 20px; height: 20px; "
+                f"margin: 0 -6px; border-radius: 10px; }}")
+
+
+class MixerArea(QWidget):
+    """The quick mixer: rows while the tile is short, faders once it is tall
+    enough for them. It asks only for the rows' room, so which one shows
+    never changes how tall the tile is."""
+
+    def __init__(self, rows: QWidget, faders: QWidget, parent=None):
+        super().__init__(parent)
+        self.rows, self.faders = rows, faders
+        for part in (rows, faders):
+            part.setParent(self)
+        self.faders.hide()
+
+    def sizeHint(self):
+        return self.rows.sizeHint()
+
+    def minimumSizeHint(self):
+        return self.rows.minimumSizeHint()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        tall = self.height() >= FADERS_FROM
+        for part in (self.rows, self.faders):
+            part.setGeometry(self.rect())
+        self.rows.setVisible(not tall)
+        self.faders.setVisible(tall)
+
+
 class RankList(QWidget):
     """Names with their counts as bars, the biggest first, as many as fit;
     a click picks one."""
 
     picked = Signal(str)
     ROW = 28
+    ROW_MOST = 56         # with room to spare and few names, rows open up to this
 
     def __init__(self, empty: str, parent=None):
         super().__init__(parent)
@@ -268,8 +355,16 @@ class RankList(QWidget):
     def shown(self) -> list[tuple[str, int]]:
         return self.entries[:max(1, self.height() // self.ROW)]
 
+    def pitch(self) -> float:
+        """How tall a row is: as many as fit at ROW; when they all fit with room
+        over, they share it, up to ROW_MOST."""
+        shown = len(self.shown())
+        if not shown or shown < len(self.entries):
+            return float(self.ROW)
+        return max(float(self.ROW), min(float(self.ROW_MOST), self.height() / shown))
+
     def _row_at(self, y: float) -> int:
-        row = int(y // self.ROW)
+        row = int(y // self.pitch())
         return row if 0 <= row < len(self.shown()) else -1
 
     def mouseMoveEvent(self, event):
@@ -299,41 +394,47 @@ class RankList(QWidget):
         top = max(count for _name, count in self.entries)
         metrics = QFontMetrics(self.font())
         width = float(self.width())
+        pitch = self.pitch()
+        bar = 4.0 + (pitch - self.ROW) / 7           # 4 px, thickening to 8 as rows open up
         for row, (name, count) in enumerate(self.shown()):
-            y = row * self.ROW
+            y = row * pitch
             if row == self._hover:
                 p.setPen(Qt.PenStyle.NoPen)
                 p.setBrush(QColor(theme.CARD_HOVER))
-                p.drawRoundedRect(QRectF(-6, y, width + 12, self.ROW), 6, 6)
+                p.drawRoundedRect(QRectF(-6, y, width + 12, pitch), 6, 6)
             text = str(count)
             count_w = metrics.horizontalAdvance(text)
             p.setPen(QColor(theme.TEXT_MUTED))
-            p.drawText(QRectF(0, y, width, self.ROW - 8),
+            p.drawText(QRectF(0, y, width, pitch - 4 - bar),
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
             p.setPen(QColor(theme.TEXT))
-            p.drawText(QRectF(0, y, width - count_w - 12, self.ROW - 8),
+            p.drawText(QRectF(0, y, width - count_w - 12, pitch - 4 - bar),
                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                        metrics.elidedText(name, Qt.TextElideMode.ElideRight,
                                           int(width - count_w - 12)))
-            track = QRectF(0, y + self.ROW - 7, width, 4)
+            track = QRectF(0, y + pitch - 3 - bar, width, bar)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(theme.SEAM))
-            p.drawRoundedRect(track, 2, 2)
+            p.drawRoundedRect(track, bar / 2, bar / 2)
             fill = QLinearGradient(track.topLeft(), track.topRight())
             fill.setColorAt(0, QColor(theme.ACCENT))
             fill.setColorAt(1, QColor(theme.SECOND))
             p.setBrush(QBrush(fill))
             p.drawRoundedRect(QRectF(track.left(), track.top(),
-                                     max(4.0, track.width() * count / top), 4), 2, 2)
+                                     max(bar, track.width() * count / top), bar),
+                              bar / 2, bar / 2)
 
 
 class PeopleRow(QWidget):
-    """The people tagged most, side by side: an initial, the name, how many
-    clips. As many as fit; a click picks one."""
+    """The people tagged most: an initial, the name, how many clips. As many
+    as fit, in as many rows as the tile has room for; tall tiles stand the
+    name under a bigger initial. A click picks one."""
 
     picked = Signal(str)
-    HEIGHT = 50
+    HEIGHT = 50           # a tile at its smallest
+    TALLEST = 260
     MIN_WIDTH = 104
+    GAP = 8
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -341,18 +442,28 @@ class PeopleRow(QWidget):
         self._hover = -1
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(self.HEIGHT)
+        self.setMinimumHeight(self.HEIGHT)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def sizeHint(self):
+        return QSize(3 * self.MIN_WIDTH, self.HEIGHT)
 
     def set_people(self, people: list[tuple[str, int]]) -> None:
         self.people = people
         self.update()
 
     def _tiles(self) -> list[QRectF]:
-        count = min(len(self.people), max(1, (self.width() + 8) // (self.MIN_WIDTH + 8)))
+        count = len(self.people)
         if not count:
             return []
-        width = (self.width() - 8 * (count - 1)) / count
-        return [QRectF(i * (width + 8), 0, width, self.HEIGHT) for i in range(count)]
+        gap, width, height = self.GAP, self.width(), self.height()
+        columns = min(count, max(1, (width + gap) // (self.MIN_WIDTH + gap)))
+        rows = min(-(-count // columns), max(1, (height + gap) // (self.HEIGHT + gap)))
+        tile_w = (width - gap * (columns - 1)) / columns
+        tile_h = min(float(self.TALLEST), (height - gap * (rows - 1)) / rows)
+        top = (height - (rows * tile_h + gap * (rows - 1))) / 2
+        return [QRectF(c * (tile_w + gap), top + r * (tile_h + gap), tile_w, tile_h)
+                for r in range(rows) for c in range(columns)][:count]
 
     def _at(self, point: QPointF) -> int:
         return next((i for i, tile in enumerate(self._tiles()) if tile.contains(point)), -1)
@@ -385,23 +496,153 @@ class PeopleRow(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(theme.CARD_HOVER if index == self._hover else theme.CONTROL_BG))
             p.drawRoundedRect(tile, 12, 12)
-            avatar = QRectF(tile.left() + 10, tile.center().y() - 15, 30, 30)
+            tall = tile.height() >= 92
+            side = max(44.0, min(88.0, tile.height() * 0.38)) if tall else 30.0
+            if tall:
+                avatar = QRectF(tile.center().x() - side / 2, tile.top() + (tile.height() - side
+                                                                           - 42) / 2, side, side)
+            else:
+                avatar = QRectF(tile.left() + 10, tile.center().y() - side / 2, side, side)
             p.setBrush(QColor(theme.game_colour(name)))
             p.drawEllipse(avatar)
-            p.setFont(bold)
+            initial = QFont(bold)
+            initial.setPointSizeF(bold.pointSizeF() * (1.4 if tall else 1.0))
+            p.setFont(initial)
             p.setPen(QColor(theme.INK))
             p.drawText(avatar, Qt.AlignmentFlag.AlignCenter, (name[:1] or "?").upper())
-            x = avatar.right() + 9
-            room = int(tile.right() - x - 8)
+            if tall:
+                text = QRectF(tile.left() + 8, avatar.bottom() + 6, tile.width() - 16, 18)
+                align = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+            else:
+                x = avatar.right() + 9
+                text = QRectF(x, tile.center().y() - 18, tile.right() - x - 8, 18)
+                align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            p.setFont(bold)
             p.setPen(QColor(theme.TEXT))
-            p.drawText(QRectF(x, tile.top() + 7, room, 18),
-                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                       QFontMetrics(bold).elidedText(name, Qt.TextElideMode.ElideRight, room))
+            p.drawText(text, align, QFontMetrics(bold).elidedText(
+                name, Qt.TextElideMode.ElideRight, int(text.width())))
             p.setFont(small)
             p.setPen(QColor(theme.TEXT_MUTED))
-            p.drawText(QRectF(x, tile.top() + 25, room, 18),
-                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                       fmt.plural(count, "clip"))
+            p.drawText(text.translated(0, 18), align, fmt.plural(count, "clip"))
+
+
+class DiskBar(QWidget):
+    """The disk as one bar: the clips, everything else on it, and what is free."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parts = (0.0, 0.0)
+        self.setFixedHeight(8)
+
+    def set_stats(self, stats) -> None:
+        self.parts = (stats.fraction(stats.clips_bytes), stats.fraction(stats.other_used))
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect())
+        shape = QPainterPath()
+        shape.addRoundedRect(rect, 4, 4)
+        p.setClipPath(shape)
+        p.fillRect(rect, QColor(theme.SEAM))
+        x = 0.0
+        for fraction, colour in zip(self.parts, ("ACCENT", "SECOND"), strict=True):
+            width = rect.width() * fraction
+            p.fillRect(QRectF(x, 0, width, rect.height()), QColor(theme.colour(colour)))
+            x += width
+
+
+class StorageArea(QWidget):
+    """The disk: the clips' size and what is free, over a bar of it; with
+    room to spare, what the bar is made of. It asks only for the first
+    part's room, so the breakdown never makes the tile taller."""
+
+    PARTS = (("Clips", "ACCENT"), ("Everything else", "SECOND"), ("Free", "SEAM"),
+             ("Disk", ""))
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.summary = QWidget(self)
+        column = QVBoxLayout(self.summary)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(10)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.clips_size = label("")
+        self.clips_size.setStyleSheet("font-size: 17pt; font-weight: 700;")
+        row.addWidget(self.clips_size, 0, Qt.AlignmentFlag.AlignBaseline)
+        row.addWidget(label("of clips", "Muted"), 0, Qt.AlignmentFlag.AlignBaseline)
+        row.addStretch(1)
+        self.free = label("", "Muted")
+        row.addWidget(self.free, 0, Qt.AlignmentFlag.AlignBaseline)
+        column.addLayout(row)
+        self.bar = DiskBar()
+        column.addWidget(self.bar)
+        self.legend = QWidget(self)
+        grid = QGridLayout(self.legend)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(6)
+        self.values: dict[str, QLabel] = {}
+        for index, (name, colour) in enumerate(self.PARTS):
+            dot = QLabel()
+            dot.setFixedSize(10, 10)
+            if colour:
+                theme.style(dot, lambda c=colour: f"background: {theme.colour(c)}; "
+                                                  f"border-radius: 3px;")
+            grid.addWidget(dot, index, 0, Qt.AlignmentFlag.AlignVCenter)
+            grid.addWidget(label(name, "Muted"), index, 1)
+            value = label("")
+            value.setStyleSheet("font-weight: 600;")
+            value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            grid.addWidget(value, index, 2)
+            self.values[name] = value
+        grid.setColumnStretch(1, 1)
+        self.legend.hide()
+
+    def sizeHint(self):
+        return self.summary.sizeHint()
+
+    def minimumSizeHint(self):
+        return self.summary.minimumSizeHint()
+
+    def set_stats(self, stats) -> None:
+        self.clips_size.setText(stats.clips_human)
+        self.free.setText(f"{stats.free_human} free")
+        self.bar.set_stats(stats)
+        for name, text in (("Clips", stats.clips_human), ("Everything else", stats.other_human),
+                           ("Free", stats.free_human), ("Disk", stats.total_human)):
+            self.values[name].setText(text)
+        self._place()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._place()
+
+    def _place(self) -> None:
+        """The summary, and the breakdown under it if it fits, as one block in
+        the middle of the room. Room over first opens the breakdown's rows up
+        (to a row's height again), then is shared above and below."""
+        width, height = self.width(), self.height()
+        summary = self.summary.sizeHint().height()
+        grid = self.legend.layout()
+        grid.setVerticalSpacing(6)
+        legend = self.legend.sizeHint().height()
+        gap = 16
+        shown = height >= summary + gap + legend
+        if shown:
+            rows = len(self.PARTS)
+            grow = min((height - summary - gap - legend) // rows, legend // rows)
+            grid.setVerticalSpacing(6 + grow)
+            gap += grow
+            legend += grow * (rows - 1)
+        block = summary + (gap + legend if shown else 0)
+        top = max(0, (height - block) // 2)
+        self.summary.setGeometry(0, top, width, summary)
+        self.legend.setVisible(shown)
+        if shown:
+            self.legend.setGeometry(0, top + summary + gap, width, legend)
 
 
 class HomeView(QWidget):
@@ -514,46 +755,15 @@ class HomeView(QWidget):
         newest = clips_mod.sort_clips(self.state.all_clips, "date", True)
         self.latest = newest[:self.grid.columns * self.grid.rows]
 
-    def _bottom_height(self) -> int:
-        """How tall the tiles under the newest clips need to be."""
-        column = self.storage_tile.sizeHint().height()
-        if not self.people_tile.isHidden():
-            column += SPACING + self.people_tile.sizeHint().height()
-        return max(self.sonar_tile.sizeHint().height(),
-                   self.games_tile.minimumSizeHint().height(), column)
-
     def _fit(self) -> None:
-        """Give the newest clips the room the window has: two to five rows of
-        four to ten, whichever leaves the tiles below nearest their own height.
-        A big screen shows more clips rather than stretched tiles."""
+        """Two rows of newest clips, four to six to a row as the width allows;
+        one row while that holds them all. The tiles under them take the rest
+        of the height and make use of it."""
         width = self.grid.layout_width()
-        if width <= 0 or not self.grid.isVisibleTo(self):
+        if width <= 0:
             return
-        tile = self.latest_tile.layout()
-        margins, page = tile.contentsMargins(), self.page_layout.contentsMargins()
-        chrome = (margins.top() + margins.bottom() + tile.spacing() +
-                  self.latest_tile.header.sizeHint().height())
-        room = (self.scroll.viewport().height() - page.top() - page.bottom() - SPACING -
-                self._bottom_height() - chrome)
-        fewest = max(COLUMNS[0], -(-width // CARD_MAX))
-        most = max(fewest, min(COLUMNS[1], width // CARD_MIN))
-        clips = len(self.state.all_clips)
-        best = None
-        for columns in range(fewest, most + 1):
-            height = self.grid.row_height(columns)
-            # Never a row more than there are clips to fill.
-            for rows in [r for r in ROWS if r <= -(-clips // columns)] or [1]:
-                left = room - rows * height
-                if left < 0:
-                    break
-                # Within a band of leftover room, bigger cards win.
-                key = (left // 48, columns)
-                if best is None or key < best[0]:
-                    best = (key, columns, rows)
-        if best is None:
-            columns = max(fewest, min(most, width // 240))
-            best = (None, columns, max(1, min(ROWS[0], -(-clips // columns))))
-        _key, columns, rows = best
+        columns = max(COLUMNS[0], min(COLUMNS[1], width // CARD_MIN))
+        rows = ROWS if len(self.state.all_clips) > columns else 1
         if self.grid.set_shape(columns, rows):
             self._find_latest()
             self.model.relist()
@@ -575,16 +785,24 @@ class HomeView(QWidget):
         self.sonar_on.setStyleSheet("QPushButton { padding: 3px 10px; }")
         tile.header.addWidget(self.sonar_on)
         tile.add_link("Open", lambda: self.navigate.emit("sonar"))
-        self.mixer = QWidget()
-        rows = QVBoxLayout(self.mixer)
+        rows_host, faders_host = QWidget(), QWidget()
+        rows = QVBoxLayout(rows_host)
         rows.setContentsMargins(0, 0, 0, 0)
         rows.setSpacing(4)
+        faders = QHBoxLayout(faders_host)
+        faders.setContentsMargins(0, 4, 0, 0)
+        faders.setSpacing(16)
         self.channels: dict[str, MixerRow] = {}
+        self.faders: dict[str, MixerFader] = {}
         for index, channel in enumerate(channels.ALL):
             if index:
-                rows.addStretch(1)       # a taller tile spreads the channels out
-            self.channels[channel.id] = MixerRow(self.controller, channel)
-            rows.addWidget(self.channels[channel.id])
+                rows.addStretch(1)
+            row = self.channels[channel.id] = MixerRow(self.controller, channel)
+            fader = self.faders[channel.id] = MixerFader(self.controller, channel)
+            row.twin, fader.twin = fader, row
+            rows.addWidget(row)
+            faders.addWidget(fader, 1)
+        self.mixer = MixerArea(rows_host, faders_host)
         tile.body.addWidget(self.mixer, 1)
         self.controller.status_changed.connect(self._show_sonar)
         self.controller.streams_changed.connect(self._show_streams)
@@ -613,6 +831,7 @@ class HomeView(QWidget):
         for channel_id, entry in status.channels.items():
             if entry.present and channel_id in self.channels:
                 self.channels[channel_id].show_status(entry.volume, entry.muted)
+                self.faders[channel_id].show_status(entry.volume, entry.muted)
 
     def _show_streams(self, streams) -> None:
         names: dict[str, list[str]] = {channel.id: [] for channel in channels.OUTPUTS}
@@ -620,12 +839,14 @@ class HomeView(QWidget):
             if stream.channel in names and stream.name not in names[stream.channel]:
                 names[stream.channel].append(stream.name)
         for channel_id, apps in names.items():
-            self.channels[channel_id].set_apps(", ".join(apps) or "Nothing playing")
+            for mixer in (self.channels, self.faders):
+                mixer[channel_id].set_apps(", ".join(apps) or "Nothing playing")
 
     def _show_recorders(self, recorders) -> None:
         apps = list(dict.fromkeys(capture.name for capture in recorders))
-        self.channels[channels.MIC.id].set_apps(
-            f"Recording from it: {', '.join(apps)}" if apps else "Nothing recording it")
+        for mixer in (self.channels, self.faders):
+            mixer[channels.MIC.id].set_apps(
+                f"Recording from it: {', '.join(apps)}" if apps else "Nothing recording it")
 
     # --- Games, the disk, people ---------------------------------------------------
 
@@ -642,20 +863,8 @@ class HomeView(QWidget):
 
     def _build_storage(self) -> Tile:
         tile = Tile("Storage", "storage")
-        tile.body.addStretch(1)          # alone in its column, it sits in the middle
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        self.clips_size = label("")
-        self.clips_size.setStyleSheet("font-size: 17pt; font-weight: 700;")
-        row.addWidget(self.clips_size, 0, Qt.AlignmentFlag.AlignBaseline)
-        row.addWidget(label("of clips", "Muted"), 0, Qt.AlignmentFlag.AlignBaseline)
-        row.addStretch(1)
-        self.free = label("", "Muted")
-        row.addWidget(self.free, 0, Qt.AlignmentFlag.AlignBaseline)
-        tile.body.addLayout(row)
-        self.disk = Meter()
-        tile.body.addWidget(self.disk)
-        tile.body.addStretch(1)
+        self.storage = StorageArea()
+        tile.body.addWidget(self.storage, 1)
         self.storage_tile = tile
         return tile
 
@@ -666,9 +875,7 @@ class HomeView(QWidget):
         tile.add_link("All people", self._all_people)
         self.people = PeopleRow()
         self.people.picked.connect(lambda name: self.show_in_library(Facet("person", name)))
-        tile.body.addStretch(1)          # a taller tile keeps them in the middle
-        tile.body.addWidget(self.people)
-        tile.body.addStretch(1)
+        tile.body.addWidget(self.people, 1)
         self.people_tile = tile
         return tile
 
@@ -701,15 +908,13 @@ class HomeView(QWidget):
         self.people.set_people(people)
         # No one tagged: no tile kept for them; the disk takes the column.
         self.people_tile.setVisible(bool(people))
-        self.column.setStretchFactor(self.storage_tile, 0 if people else 1)
+        self.column.setStretchFactor(self.storage_tile, 1)
         self._fit_timer.start()
 
     def _show_storage(self, stats) -> None:
         if stats is None:
             return
-        self.clips_size.setText(stats.clips_human)
-        self.free.setText(f"{stats.free_human} free")
-        self.disk.set_fraction(1 - stats.fraction(stats.disk_free))
+        self.storage.set_stats(stats)
         self.storage_tile.setToolTip(f"Clips {stats.clips_human} · everything else "
                                      f"{stats.other_human} · free {stats.free_human} of "
                                      f"{stats.total_human}")
