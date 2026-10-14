@@ -126,9 +126,9 @@ class EditorView(QWidget):
         header.addWidget(meta)
         self.tags_button = QPushButton(self._tag_text())
         self.tags_button.setObjectName("Chip")
-        self.tags_button.setStyleSheet(
+        theme.style(self.tags_button, lambda: (
             f"QPushButton {{ background: {theme.CARD_BG}; border-radius: 8px; padding: 5px 12px;"
-            f" color: {theme.TEXT_MUTED}; }} QPushButton:hover {{ color: {theme.TEXT}; }}")
+            f" color: {theme.TEXT_MUTED}; }} QPushButton:hover {{ color: {theme.TEXT}; }}"))
         self.tags_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.tags_button.clicked.connect(self._edit_tags)
         header.addWidget(self.tags_button)
@@ -148,12 +148,12 @@ class EditorView(QWidget):
         self.in_button = IconButton("mark-in", "Set In at the playhead (I)", 20)
         self.in_button.clicked.connect(self.set_in)
         transport.addWidget(self.in_button)
-        self.play_button = IconButton("pause", "Play / pause (Space)", 22, theme.ON_ACCENT,
+        self.play_button = IconButton("pause", "Play / pause (Space)", 22, "ON_ACCENT",
                                       kind="")
-        self.play_button.setStyleSheet(
+        theme.style(self.play_button, lambda: (
             f"QToolButton {{ background: {theme.ACCENT}; border-radius: 10px; padding: 7px; "
             f"border: 1px solid {theme.ACCENT_EDGE}; }}"
-            f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}")
+            f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}"))
         self.play_button.clicked.connect(self.toggle_play)
         transport.addWidget(self.play_button)
         self.out_button = IconButton("mark-out", "Set Out at the playhead (O)", 20)
@@ -269,7 +269,7 @@ class EditorView(QWidget):
         except Exception:
             return
         if paused is not None:
-            self.play_button.set_icon("play" if paused else "pause", theme.ON_ACCENT)
+            self.play_button.set_icon("play" if paused else "pause", "ON_ACCENT")
         if duration and not self.duration:
             # ffprobe could not say how long the clip is; mpv can.
             self.duration = duration
@@ -294,7 +294,7 @@ class EditorView(QWidget):
         if paused and not (self.trim_start <= self.position <= self.trim_end - 0.05):
             self.seek(self.trim_start)
         player.pause = not paused
-        self.play_button.set_icon("pause" if paused else "play", theme.ON_ACCENT)
+        self.play_button.set_icon("pause" if paused else "play", "ON_ACCENT")
 
     def seek(self, seconds: float) -> None:
         player = self.player_widget.player if self.player_widget else None
@@ -372,7 +372,7 @@ class EditorView(QWidget):
         if estimate:
             parts.append(f"≈{fmt.size(estimate, 0)}")
         self.status.setText("  ·  ".join(parts))
-        self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+        theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
 
     # --- Waveforms -------------------------------------------------------------
 
@@ -474,7 +474,7 @@ class EditorView(QWidget):
             self.context.library.copy_edits(self.clip.name, os.path.basename(target),
                                             title_suffix=" (trimmed)")
             self.status.setText(f"Saved {os.path.basename(target)} · {fmt.size(size)}")
-            self.status.setStyleSheet(f"color: {theme.OK};")
+            theme.style(self.status, lambda: f"color: {theme.OK};")
         self.trimmed.emit(self.clip, mode, target)
 
     def _trim_failed(self, exc: BaseException) -> None:
@@ -486,7 +486,7 @@ class EditorView(QWidget):
         self.trim_button.setEnabled(True)
         self.export_button.setEnabled(True)
         self.status.setText(str(exc))
-        self.status.setStyleSheet(f"color: {theme.DANGER};")
+        theme.style(self.status, lambda: f"color: {theme.DANGER};")
 
     # --- Keyboard -----------------------------------------------------------------
 

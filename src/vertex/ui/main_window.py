@@ -30,7 +30,7 @@ from vertex.ui.library.view import LibraryView
 from vertex.ui.rail import Rail
 from vertex.ui.settings.view import SettingsView
 from vertex.ui.sonar_view import SonarView
-from vertex.ui.widgets import Banner, ChoiceDialog
+from vertex.ui.widgets import Banner, ChoiceDialog, GlowArea
 
 
 class MainWindow(QMainWindow):
@@ -58,7 +58,7 @@ class MainWindow(QMainWindow):
         self.rail = Rail(context, self.state)
         self.rail.navigate.connect(self.navigate)
         row.addWidget(self.rail)
-        self.page_area = QWidget()
+        self.page_area = GlowArea()
         column = QVBoxLayout(self.page_area)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)

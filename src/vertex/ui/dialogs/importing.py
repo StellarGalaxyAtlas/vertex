@@ -78,9 +78,10 @@ class CopyClipsDialog(QDialog):
             self.source.setText(paths.tilde(chosen))
             self._scan()
 
-    def _say(self, text: str, colour: str = theme.TEXT_MUTED) -> None:
+    def _say(self, text: str, colour: str = "TEXT_MUTED") -> None:
+        """`colour`: a token of the scheme in use."""
         self.summary.setText(text)
-        self.summary.setStyleSheet(f"color: {colour};")
+        theme.style(self.summary, lambda: f"color: {theme.colour(colour)};")
 
     def _scan(self) -> None:
         source = paths.normalize(self.source.text())
@@ -89,15 +90,15 @@ class CopyClipsDialog(QDialog):
         if not source:
             return
         if not os.path.isdir(source):
-            self._say("That folder does not exist.", theme.WARN)
+            self._say("That folder does not exist.", "WARN")
             return
         if os.path.realpath(source) == os.path.realpath(self.target):
-            self._say("That is the clips folder itself.", theme.WARN)
+            self._say("That is the clips folder itself.", "WARN")
             return
         try:
             plan = importing.plan_copy(source, self.target)
         except OSError as exc:
-            self._say(f"Could not read the folder: {exc}", theme.DANGER)
+            self._say(f"Could not read the folder: {exc}", "DANGER")
             return
         present = f" {fmt.plural(len(plan.present), 'clip')} already there will be skipped." \
             if plan.present else ""
@@ -141,7 +142,7 @@ class CopyClipsDialog(QDialog):
         text = f"Copied {fmt.plural(len(self.copied), 'clip')}."
         if failed:
             text += f" {len(failed)} failed — first: {failed[0][0]}: {failed[0][1]}"
-        self._say(text, theme.WARN if failed else theme.OK)
+        self._say(text, "WARN" if failed else "OK")
         self.close_button.setText("Done")
 
     def _close(self) -> None:

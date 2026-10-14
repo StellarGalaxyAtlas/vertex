@@ -27,7 +27,7 @@ class TypeToConfirm(TextDialog):
         layout.setContentsMargins(24, 22, 24, 20)
         layout.setSpacing(12)
         heading = label(message, "Subheading", wrap=True)
-        heading.setStyleSheet(f"color: {theme.DANGER};")
+        theme.style(heading, lambda: f"color: {theme.DANGER};")
         layout.addWidget(heading)
         layout.addWidget(label("This can't be undone from Vertex:", "Muted"))
         for line in goes:

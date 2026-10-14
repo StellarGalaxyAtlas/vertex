@@ -24,7 +24,9 @@ from vertex.ui import icons, theme
 from vertex.ui.library.state import Facet, LibraryState
 from vertex.ui.widgets import IconButton, StorageGauge, label
 
-ROW_STYLE = f"""
+
+def row_style() -> str:
+    return f"""
 QPushButton {{
     background: transparent; border: none; border-radius: 8px; padding: 6px 10px;
     text-align: left; color: {theme.TEXT_MUTED};
@@ -164,7 +166,7 @@ class RecorderCard(QFrame):
         super().__init__(parent)
         self.context = context
         self.setObjectName("Card")
-        self.setStyleSheet(f"#Card {{ background: {theme.CARD_BG}; border-radius: 12px; }}")
+        theme.style(self, lambda: f"#Card {{ background: {theme.CARD_BG}; border-radius: 12px; }}")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 10, 10)
         layout.setSpacing(8)
@@ -185,13 +187,13 @@ class RecorderCard(QFrame):
         actions = QHBoxLayout()
         actions.setSpacing(6)
         self.save = QPushButton(" Save clip")
-        self.save.setIcon(icons.icon("save-clip", theme.TEXT, 16))
+        theme.themed(self.save, lambda: self.save.setIcon(icons.icon("save-clip", "TEXT", 16)),
+                     "icon")
         self.save.setToolTip("Save the replay buffer as a clip")
         self.save.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save.setStyleSheet("QPushButton { padding: 6px 10px; font-weight: 600; }")
         self.save.clicked.connect(self._save)
-        self.toggle = IconButton("record", "Start the replay buffer", 16, theme.TEXT_MUTED,
-                                 kind="")
+        self.toggle = IconButton("record", "Start the replay buffer", 16, "TEXT_MUTED", kind="")
         self.toggle.setStyleSheet("QToolButton { padding: 7px; }")
         self.toggle.clicked.connect(context.recorder.toggle)
         actions.addWidget(self.save, 1)
@@ -211,9 +213,9 @@ class RecorderCard(QFrame):
     def update_state(self, state: str, error: str) -> None:
         seconds = self.context.config.recorder.replay_seconds
         running = state == "running"
-        colour = {"running": theme.RECORDING, "starting": theme.WARN, "restarting": theme.WARN,
-                  "failed": theme.DANGER}.get(state, theme.TEXT_DIM)
-        self.dot.setStyleSheet(f"background: {colour}; border-radius: 4px;")
+        colour = {"running": "RECORDING", "starting": "WARN", "restarting": "WARN",
+                  "failed": "DANGER"}.get(state, "TEXT_DIM")
+        theme.style(self.dot, lambda: f"background: {theme.colour(colour)}; border-radius: 4px;")
         self.detail.setText({
             "running": f"On · last {fmt.duration(seconds)}",
             "starting": "Starting…",
@@ -224,7 +226,7 @@ class RecorderCard(QFrame):
                                          "empty." if state == "restarting" else ""))
         self.save.setEnabled(running)
         busy = running or state in ("starting", "restarting")
-        self.toggle.set_icon("stop" if busy else "record", theme.TEXT if busy else theme.TEXT_MUTED)
+        self.toggle.set_icon("stop" if busy else "record", "TEXT" if busy else "TEXT_MUTED")
         self.toggle.setToolTip("Stop the replay buffer" if running else
                                "Start the replay buffer")
 
@@ -253,10 +255,12 @@ class Rail(QFrame):
 
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search clips")
-        self.search.addAction(icons.icon("search", theme.TEXT_DIM, 16),
-                              QLineEdit.ActionPosition.LeadingPosition)
+        find = self.search.addAction(icons.icon("search", "TEXT_DIM", 16),
+                                     QLineEdit.ActionPosition.LeadingPosition)
+        theme.themed(self.search, lambda: find.setIcon(icons.icon("search", "TEXT_DIM", 16)),
+                     "icon")
         self.search.setClearButtonEnabled(True)
-        self.search.setStyleSheet(f"background: {theme.FIELD_BG}; border-radius: 10px;")
+        theme.style(self.search, lambda: f"background: {theme.FIELD_BG}; border-radius: 10px;")
         self._search_timer = QTimer(self, singleShot=True, interval=150)
         self._search_timer.timeout.connect(lambda: state.set_query(self.search.text()))
         self.search.textChanged.connect(lambda _t: self._search_timer.start())
@@ -268,10 +272,11 @@ class Rail(QFrame):
                                      ("sonar", "Sonar", "sonar"),
                                      ("settings", "Settings", "settings")):
             row = QPushButton(f"  {text}")
-            row.setIcon(icons.icon(icon_name, theme.TEXT_MUTED))
+            theme.themed(row, lambda r=row, i=icon_name: r.setIcon(icons.icon(i, "TEXT_MUTED")),
+                         "icon")
             row.setIconSize(QSize(18, 18))
             row.setCheckable(True)
-            row.setStyleSheet(ROW_STYLE + "QPushButton { padding: 8px 10px; }")
+            theme.style(row, lambda: row_style() + "QPushButton { padding: 8px 10px; }")
             row.setCursor(Qt.CursorShape.PointingHandCursor)
             row.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             row.clicked.connect(lambda _c=False, k=key: self.navigate.emit(k))

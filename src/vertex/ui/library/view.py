@@ -199,8 +199,10 @@ class LibraryView(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
         small, large = QLabel(), QLabel()
-        small.setPixmap(icons.pixmap("library", theme.TEXT_DIM, 12))
-        large.setPixmap(icons.pixmap("library", theme.TEXT_DIM, 18))
+        theme.themed(small, lambda: small.setPixmap(icons.pixmap("library", "TEXT_DIM", 12)),
+                     "icon")
+        theme.themed(large, lambda: large.setPixmap(icons.pixmap("library", "TEXT_DIM", 18)),
+                     "icon")
         self.card_size = QSlider(Qt.Orientation.Horizontal)
         self.card_size.setRange(*CARD_WIDTH_RANGE)
         self.card_size.setSingleStep(CARD_STEP)

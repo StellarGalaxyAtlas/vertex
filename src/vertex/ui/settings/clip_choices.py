@@ -114,7 +114,7 @@ class ClipChoices(QObject):
                    f"is back. Click a monitor to record that one instead.")
         self.capture_note.setText(text)
         self.capture_note.setToolTip(tip)
-        self.capture_note.setStyleSheet(f"color: {theme.WARN};" if warn else "")
+        theme.style(self.capture_note, lambda: f"color: {theme.WARN};" if warn else "")
 
     def pick_monitor(self, name: str) -> None:
         self.capture = name

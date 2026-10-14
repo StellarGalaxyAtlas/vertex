@@ -51,7 +51,7 @@ behind:
 - The screenshots in `docs/` (first-run.png shows the old step 1). Since
   item 24 every one of them shows the old colours and layout.
 
-**29.** Waiting on the maintainer's approval
+**29.** Approved 2026-10-14
 **Design round 3: the picks put together**
 The maintainer's picks from round 2: Shelves' plum colours and gradients and
 its top bar; the top bar's tabs are Home, Library, Sonar, Settings, then the
@@ -64,17 +64,9 @@ Storage and People), Library (with the games drop-down open, searchable, with
 counts), Sonar, and Settings › General › Appearance with the eight schemes
 previewed in their own colours (a pick shows at once; Save keeps it, Revert
 goes back). Planned at the 980 px minimum: the tabs drop their icons, the
-replay pill drops "keeps the last 1:00", Home shows 4 clips a row. Building
-starts once the maintainer approves it: 30 to 34, in that order.
-
-**30.**
-**Colour schemes**
-Settings › General gets a colour scheme choice that changes the whole app at
-once: Plum (the default, Shelves' palette), Ember, Midnight blue, Deep sea,
-Coral, Aurora and Forest from round 2, and today's Navy. Daylight (light) was
-not taken. Each scheme brings its own gradients and its own channel colours,
-so the accent never matches a channel. Every scheme meets the design rules
-(text at 4.5:1, edges and fills at 3:1, red only for recording).
+replay pill drops "keeps the last 1:00", Home shows 4 clips a row. The
+maintainer approved it; 30 is built, 31 to 34 follow in that order. This
+item closes with 34.
 
 **31.**
 **Top bar instead of the rail**
@@ -118,6 +110,9 @@ Built and tested in the container; only their system can confirm:
   desktop would get the dark ink).
 - 22: "How to install it" opens GPU Screen Recorder's page in their browser;
   the wording of every step reads right to them.
+- 30: the schemes on their desktop: each one picked in Settings shows at
+  once everywhere (rail, Library, Sonar, Settings, the editor), and the saved
+  one is there after a restart.
 - 24, 25: the new look on their desktop, in their font and display scale:
   toasts appear bottom-right and go after a few seconds; at 980 px wide the
   Sonar page doesn't scroll sideways.
@@ -296,6 +291,19 @@ sliders already set what is heard, so the Output devices and Microphones
 panels show the device in use by name and format only. The second output
 ("Also play through") keeps its own volume.
 
+**30. Colour schemes.** Settings › General › Appearance offers eight, each
+drawn as a small picture of the app in its colours: Plum (the default,
+Shelves' palette), Ember, Midnight blue, Deep sea, Coral, Aurora, Forest and
+Navy (the colours before; its hint text one step lighter to pass on a
+hovered card). A pick shows across the whole app at once; Save keeps it
+(`colour_scheme` in the config), Revert or leaving without saving goes
+back, a settings reset returns to Plum. Each scheme brings its own channel
+colours, kept clear of its accent, and a second colour for gradients (the
+page's corner glows, gauges). `theme.py` builds a scheme from its key
+colours; whatever a widget takes from the scheme when it is built goes
+through `theme.style`/`theme.themed`, icons by token name.
+`tests/test_theme.py` measures the contrast rules for every scheme.
+
 ---
 
 ## Notes
@@ -305,12 +313,12 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20 and 22–28, including the bugs
-14, 16, 18 and 26.
-Open: 9 (on hold), 21 (documentation, at the end) and 29 to 34 (the new
-look: round 3's mockup waits on approval, then schemes, top bar, Home, Library,
-Sonar). Waiting on the maintainer: the checks listed above, and switching to
-one installation.
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–28 and 30, including the
+bugs 14, 16, 18 and 26.
+Open: 9 (on hold), 21 (documentation, at the end) and 29, 31 to 34 (the new
+look: round 3 approved and the schemes built; next the top bar, then Home,
+Library and Sonar). Waiting on the maintainer: the checks listed above, and
+switching to one installation.
 
 **Reference screenshots.** Five of SteelSeries Sonar on Windows (the mixer;
 a channel's gear with its shortcut fields; a channel's device list; the

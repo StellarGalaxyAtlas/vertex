@@ -69,7 +69,7 @@ class ExportDialog(QDialog):
         self.preview = QLabel("…")
         self.preview.setFixedSize(PREVIEW_W, PREVIEW_W * 9 // 16)
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview.setStyleSheet(f"background: {theme.VIDEO_BG}; border-radius: 10px;")
+        theme.style(self.preview, lambda: f"background: {theme.VIDEO_BG}; border-radius: 10px;")
         layout.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(label(f"{fmt.duration(end - start)} selected", "Muted"))
 
@@ -141,7 +141,7 @@ class ExportDialog(QDialog):
             except MediaError as exc:
                 text, possible = str(exc), False
         self.detail.setText(text)
-        self.detail.setStyleSheet(f"color: {theme.TEXT_MUTED if possible else theme.WARN};")
+        theme.style(self.detail, lambda: f"color: {theme.TEXT_MUTED if possible else theme.WARN};")
         if not self._running:
             self.export_button.setEnabled(possible)
 
@@ -182,7 +182,7 @@ class ExportDialog(QDialog):
         self.close_button.setText("Cancel")
         verb = "Copying" if self.limit is None else "Converting"
         self.status.setText(f"{verb}…")
-        self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+        theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
         args = (self.clip.path, self.clip.name, self.folder, self.start, self.end,
                 self.tracks, self.info, self.limit)
 
@@ -206,7 +206,7 @@ class ExportDialog(QDialog):
         over = "  —  over the size limit" if result.over_limit else ""
         self.status.setText(f"Saved {os.path.basename(result.path)} · "
                             f"{fmt.size(result.size)}{over}")
-        self.status.setStyleSheet(f"color: {theme.WARN if over else theme.OK};")
+        theme.style(self.status, lambda: f"color: {theme.WARN if over else theme.OK};")
         self.copy_button.show()
         self.folder_button.show()
 
@@ -216,10 +216,10 @@ class ExportDialog(QDialog):
         self._release()
         if isinstance(exc, Cancelled):
             self.status.setText("Export cancelled.")
-            self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+            theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
         else:
             self.status.setText(str(exc))
-            self.status.setStyleSheet(f"color: {theme.DANGER};")
+            theme.style(self.status, lambda: f"color: {theme.DANGER};")
 
     def _release(self) -> None:
         self.sizes.setEnabled(True)
@@ -232,7 +232,7 @@ class ExportDialog(QDialog):
         if self.out_path:
             copy_file_to_clipboard(self.out_path)
             self.status.setText("Copied — paste it into a chat or an upload field.")
-            self.status.setStyleSheet(f"color: {theme.OK};")
+            theme.style(self.status, lambda: f"color: {theme.OK};")
 
     def _open_folder(self) -> None:
         QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(self.out_path)

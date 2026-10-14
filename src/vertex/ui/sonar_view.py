@@ -55,8 +55,8 @@ def app_icon(icon_name: str, key: str, name: str, size: int = 22) -> QLabel:
             badge.setPixmap(icon.pixmap(size, size))
             return badge
     badge.setText((name[:1] or "?").upper())
-    badge.setStyleSheet(f"background: {theme.game_colour(key)}; border-radius: 6px; "
-                        f"color: {theme.INK}; font-weight: 700; font-size: 8pt;")
+    theme.style(badge, lambda: f"background: {theme.game_colour(key)}; border-radius: 6px; "
+                               f"color: {theme.INK}; font-weight: 700; font-size: 8pt;")
     return badge
 
 
@@ -75,9 +75,8 @@ class AppChip(QFrame):
         self.draggable = draggable
         self._press = None
         self.setObjectName("AppChip")
-        self.setStyleSheet(
-            f"#AppChip {{ background: {theme.CARD_BG}; border-radius: 8px; }}"
-            f"#AppChip:hover {{ background: {theme.CARD_HOVER}; }}")
+        theme.style(self, lambda: f"#AppChip {{ background: {theme.CARD_BG}; border-radius: 8px; }}"
+                                  f"#AppChip:hover {{ background: {theme.CARD_HOVER}; }}")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 5, 8, 5)
         layout.setSpacing(8)
@@ -86,13 +85,13 @@ class AppChip(QFrame):
         text.setSpacing(0)
         title = ElidedLabel(name)
         if dim:
-            title.setStyleSheet(f"color: {theme.TEXT_DIM};")
+            theme.style(title, lambda: f"color: {theme.TEXT_DIM};")
         text.addWidget(title)
         if note:
             detail = ElidedLabel(note)
             detail.setObjectName("Dim")
             if warn:
-                detail.setStyleSheet(f"color: {theme.WARN};")
+                theme.style(detail, lambda: f"color: {theme.WARN};")
             text.addWidget(detail)
         layout.addLayout(text, 1)
         if draggable:
@@ -179,7 +178,7 @@ class DeviceButton(QAbstractButton):
                    QFontMetrics(self.font()).elidedText(self.text(), Qt.TextElideMode.ElideRight,
                                                         text_rect.width()))
         p.drawPixmap(self.width() - chevron - 8, (self.height() - chevron) // 2,
-                     icons.pixmap("chevron-down", theme.TEXT_MUTED, chevron))
+                     icons.pixmap("chevron-down", "TEXT_MUTED", chevron))
 
 
 class DeviceList(QFrame):
@@ -268,15 +267,16 @@ class DeviceOrder(QListWidget):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
-        self.setStyleSheet(
+        theme.style(self, lambda: (
             f"QListWidget {{ background: {theme.FIELD_BG}; border-radius: 8px; padding: 4px; }}"
             f"QListWidget::item {{ padding: 6px 6px; border-radius: 6px; }}"
             f"QListWidget::item:hover {{ background: {theme.CARD_HOVER}; }}"
             f"QListWidget::item:selected {{ background: {theme.ACCENT_SOFT}; "
-            f"color: {theme.TEXT}; }}")
+            f"color: {theme.TEXT}; }}"))
         self._quiet = False
         self._dragging = False
         self._pending: list | None = None
+        self._rows: list[tuple[str, str, bool, bool]] = []
         # A move between lists is a removal here and an insertion there:
         # report once both have happened.
         self._timer = QTimer(self, singleShot=True, interval=0)
@@ -285,6 +285,8 @@ class DeviceOrder(QListWidget):
         for signal in (model.rowsInserted, model.rowsRemoved, model.rowsMoved):
             signal.connect(self._touched)
         self.fill([])
+        # Its rows' ticks and text take their colours from the scheme.
+        theme.themed(self, lambda: self.fill(self._rows), "rows")
 
     def _touched(self, *_args) -> None:
         if not self._quiet:
@@ -296,6 +298,7 @@ class DeviceOrder(QListWidget):
             # Rebuilding now would delete the item being dragged.
             self._pending = rows
             return
+        self._rows = rows
         self._quiet = True
         self.clear()
         for name, text, connected, current in rows:
@@ -337,8 +340,9 @@ class DeviceOrder(QListWidget):
                        Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self.placeholder)
 
 
-NEUTRAL_SLIDER = (f"QSlider::sub-page:horizontal {{ background: {theme.TEXT_MUTED}; "
-                  f"border-radius: 2px; }}")
+def neutral_slider() -> str:
+    """A device's volume: neutral, since the accent never marks an audio control."""
+    return f"QSlider::sub-page:horizontal {{ background: {theme.TEXT_MUTED}; border-radius: 2px; }}"
 
 
 class DevicePanel(QFrame):
@@ -351,7 +355,8 @@ class DevicePanel(QFrame):
         self.kind = kind                 # "output" or "mic", as in SonarConfig
         self.current = ""
         self.setObjectName("DevicePanel")
-        self.setStyleSheet(f"#DevicePanel {{ background: {theme.CARD_BG}; border-radius: 12px; }}")
+        theme.style(self, lambda: f"#DevicePanel {{ background: {theme.CARD_BG}; "
+                                  f"border-radius: 12px; }}")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 16)
         layout.setSpacing(8)
@@ -361,8 +366,9 @@ class DevicePanel(QFrame):
         badge = QLabel()
         badge.setFixedSize(30, 30)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setPixmap(icons.pixmap(icon_name, colour, 18))
-        badge.setStyleSheet(f"background: {theme.shade(colour, 0.25)}; border-radius: 9px;")
+        theme.themed(badge, lambda: badge.setPixmap(icons.pixmap(icon_name, colour, 18)), "icon")
+        theme.style(badge, lambda: f"background: {theme.shade(theme.colour(colour), 0.25)}; "
+                                   f"border-radius: 9px;")
         header.addWidget(badge)
         name = label(title)
         name.setStyleSheet("font-weight: 600;")
@@ -403,7 +409,7 @@ class DevicePanel(QFrame):
             self.second_volume.setRange(0, 100)
             self.second_volume.setFixedWidth(96)
             self.second_volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            self.second_volume.setStyleSheet(NEUTRAL_SLIDER)
+            theme.style(self.second_volume, neutral_slider)
             self.second_volume.setToolTip("The second device's own volume")
             self.second_volume.valueChanged.connect(self._on_second_volume)
             row.addWidget(self.second_volume)
@@ -495,7 +501,6 @@ class ChannelColumn(QFrame):
         self.view = view
         self.controller = controller
         self.channel = channel
-        self.colour = theme.channel_colour(channel.id)
         self.setObjectName("Strip")
         self._paint_frame(False)
         self.setMinimumWidth(150)
@@ -509,8 +514,10 @@ class ChannelColumn(QFrame):
         badge = QLabel()
         badge.setFixedSize(34, 34)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setPixmap(icons.pixmap(icons.channel_icon_name(channel.id), self.colour, 20))
-        badge.setStyleSheet(f"background: {theme.shade(self.colour, 0.25)}; border-radius: 10px;")
+        theme.themed(badge, lambda: badge.setPixmap(
+            icons.pixmap(icons.channel_icon_name(channel.id), self.colour, 20)), "icon")
+        theme.style(badge, lambda: f"background: {theme.shade(self.colour, 0.25)}; "
+                                   f"border-radius: 10px;")
         header.addWidget(badge)
         names = QVBoxLayout()
         names.setSpacing(0)
@@ -529,7 +536,7 @@ class ChannelColumn(QFrame):
         row.setSpacing(4)
         self.link = None
         if channel.is_output:
-            self.link = IconButton("link", "", 16, theme.ACCENT_EDGE)
+            self.link = IconButton("link", "", 16, "ACCENT_EDGE")
             self.link.clicked.connect(lambda: view.toggle_link(channel.id))
             row.addWidget(self.link)
         self.device = DeviceButton()
@@ -555,15 +562,15 @@ class ChannelColumn(QFrame):
 
         volume = QHBoxLayout()
         volume.setSpacing(6)
-        self.mute = IconButton("volume", "Mute", 16, theme.TEXT_MUTED)
+        self.mute = IconButton("volume", "Mute", 16, "TEXT_MUTED")
         self.mute.setCheckable(True)
         self.mute.toggled.connect(self._on_mute)
         volume.addWidget(self.mute)
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(0, 100)
         self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.slider.setStyleSheet(
-            f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 2px; }}")
+        theme.style(self.slider, lambda: f"QSlider::sub-page:horizontal {{ background: "
+                                         f"{self.colour}; border-radius: 2px; }}")
         self.slider.valueChanged.connect(self._on_slider)
         volume.addWidget(self.slider, 1)
         self.readout = label("100%", "Muted")
@@ -588,6 +595,10 @@ class ChannelColumn(QFrame):
         self._paint_mute()
         self.set_apps([])
 
+    @property
+    def colour(self) -> str:
+        return theme.channel_colour(self.channel.id)
+
     def show_also(self, device_text: str, on: bool, shown: bool) -> None:
         self.also_row.setVisible(shown and self.channel.is_output)
         self.also_label.setText(f"Also on {device_text}")
@@ -609,7 +620,7 @@ class ChannelColumn(QFrame):
                                f"Vertex Mic is fed by {text}. Click to pick another mic.")
         if self.link is not None:
             self.link.set_icon("link" if linked else "unlink",
-                               theme.ACCENT_EDGE if linked else theme.TEXT_DIM)
+                               "ACCENT_EDGE" if linked else "TEXT_DIM")
             self.link.setToolTip(
                 "Every output channel plays through the same device. Click to give "
                 "each its own." if linked else
@@ -642,7 +653,7 @@ class ChannelColumn(QFrame):
     def _paint_mute(self) -> None:
         muted = self.mute.isChecked()
         self.mute.set_icon("mute" if muted else "volume",
-                           theme.DANGER if muted else theme.TEXT_MUTED)
+                           "DANGER" if muted else "TEXT_MUTED")
         self.mute.setToolTip("Unmute" if muted else "Mute")
 
     # --- Apps ------------------------------------------------------------------
@@ -660,14 +671,14 @@ class ChannelColumn(QFrame):
             hint = label(empty, "Dim", wrap=True)
             hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
             hint.setMinimumHeight(36)
-            hint.setStyleSheet(f"color: {theme.TEXT_DIM}; border: 1px dashed {theme.SEAM}; "
-                               f"border-radius: 8px;")
+            theme.style(hint, lambda: f"color: {theme.TEXT_DIM}; border: 1px dashed "
+                                      f"{theme.SEAM}; border-radius: 8px;")
             self.apps.addWidget(hint)
 
     def _paint_frame(self, highlight: bool) -> None:
-        border = self.colour if highlight else "transparent"
-        self.setStyleSheet(f"#Strip {{ background: {theme.SECTION_BG}; border-radius: 14px; "
-                           f"border: 2px solid {border}; }}")
+        theme.style(self, lambda: f"#Strip {{ background: {theme.SECTION_BG}; border-radius: "
+                                  f"14px; border: 2px solid "
+                                  f"{self.colour if highlight else 'transparent'}; }}")
 
     def dragEnterEvent(self, event):
         if self.channel.is_output and event.mimeData().hasFormat(APP_MIME):
@@ -713,9 +724,12 @@ class DeviceField(QWidget):
         layout.addWidget(combo)
 
     def set_colour(self, icon_name: str, colour: str) -> None:
+        """`colour`: a token of the scheme in use ("MIC") or a colour of its own."""
         self.colour = colour
-        self.badge.setPixmap(icons.pixmap(icon_name, colour, 16))
-        self.badge.setStyleSheet(f"background: {theme.shade(colour, 0.25)}; border-radius: 8px;")
+        theme.themed(self.badge, lambda: self.badge.setPixmap(
+            icons.pixmap(icon_name, colour, 16)), "icon")
+        theme.style(self.badge, lambda: f"background: {theme.shade(theme.colour(colour), 0.25)}; "
+                                        f"border-radius: 8px;")
 
 
 class ColumnGrid(QWidget):
@@ -790,9 +804,8 @@ class SonarView(QWidget):
         self.default_channel.setToolTip("Apps play on this channel until you drag them to "
                                         "another one.")
         for output in channels.OUTPUTS:
-            self.default_channel.addItem(
-                icons.icon(icons.channel_icon_name(output.id), theme.channel_colour(output.id), 16),
-                output.label, output.id)
+            self.default_channel.addItem(output.label, output.id)
+        theme.themed(self.default_channel, self._paint_default_channel, "icon")
         self.default_channel.setCurrentIndex(
             max(0, self.default_channel.findData(context.config.sonar.default_channel)))
         self.default_channel.setMinimumWidth(120)
@@ -832,9 +845,9 @@ class SonarView(QWidget):
                              "Ones Vertex has seen before, so they can be placed in the "
                              "list before they are plugged in.")
         self.output_panel = DevicePanel(self, "output", "Output devices", "headphones",
-                                        theme.ACCENT_EDGE)
+                                        "ACCENT_EDGE")
         self.mic_panel = DevicePanel(self, "mic", "Microphones",
-                                     icons.channel_icon_name("mic"), theme.channel_colour("mic"))
+                                     icons.channel_icon_name("mic"), "MIC")
         self.panels_host = ColumnGrid([self.output_panel, self.mic_panel], spacing=16)
         self.manager.body.addWidget(self.panels_host)
         layout.addWidget(self.manager)
@@ -995,6 +1008,12 @@ class SonarView(QWidget):
 
     def toggle_link(self, channel_id: str) -> None:
         self.controller.set_linked(not self.context.config.sonar.linked, channel_id)
+
+    def _paint_default_channel(self) -> None:
+        for index in range(self.default_channel.count()):
+            channel = self.default_channel.itemData(index)
+            self.default_channel.setItemIcon(index, icons.icon(
+                icons.channel_icon_name(channel), theme.channel_colour(channel), 16))
 
     def _on_default_channel(self, _index: int) -> None:
         self.controller.set_default_channel(self.default_channel.currentData())

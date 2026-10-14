@@ -408,22 +408,31 @@ def _menu(p, c):
         p.drawEllipse(QPointF(12, y), 1.7, 1.7)
 
 
-def pixmap(name: str, colour: str = theme.TEXT, size: int = 18, ratio: float = 2.0) -> QPixmap:
+def pixmap(name: str, colour: str = "TEXT", size: int = 18, ratio: float = 2.0) -> QPixmap:
+    """Icon `name` drawn in `colour`: a token of the scheme in use ("TEXT") or a
+    colour of its own."""
     side = int(size * ratio)
     image = QPixmap(side, side)
     image.fill(Qt.GlobalColor.transparent)
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.scale(side / 24, side / 24)
-    _DRAW[name](painter, QColor(colour))
+    _DRAW[name](painter, QColor(theme.colour(colour)))
     painter.end()
     image.setDevicePixelRatio(ratio)
     return image
 
 
+def icon(name: str, colour: str = "TEXT", size: int = 18, disabled: str = "TEXT_DIM") -> QIcon:
+    """Icon `name` for a button, in `colour` and greyed to `disabled`: tokens of
+    the scheme in use, or colours of their own. A button keeps the icon it was
+    given, so one whose colour comes from the scheme sets it through
+    `theme.themed`."""
+    return _icon(name, theme.colour(colour), size, theme.colour(disabled))
+
+
 @lru_cache(maxsize=256)
-def icon(name: str, colour: str = theme.TEXT, size: int = 18,
-         disabled: str = theme.TEXT_DIM) -> QIcon:
+def _icon(name: str, colour: str, size: int, disabled: str) -> QIcon:
     result = QIcon()
     result.addPixmap(pixmap(name, colour, size), QIcon.Mode.Normal)
     result.addPixmap(pixmap(name, colour, size), QIcon.Mode.Active)

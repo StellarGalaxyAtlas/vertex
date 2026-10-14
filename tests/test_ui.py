@@ -258,6 +258,38 @@ def test_pages_and_settings_save(qapp, window):
     assert Config.load().cache_path.endswith("-2")
 
 
+def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
+    from vertex.ui import theme
+
+    plum, ember = theme.SCHEMES["plum"][2], theme.SCHEMES["ember"][2]
+    window.navigate("settings")
+    settings = window.settings_view
+    settings.show_page("general")
+    assert settings.schemes.value() == "plum" == theme.scheme
+    rail_card = window.rail.recorder_card
+    assert plum["CARD_BG"] in rail_card.styleSheet()
+    try:
+        # Picking one restyles everything already built, before any Save.
+        settings.schemes.cards["ember"].click()
+        assert theme.scheme == "ember"
+        assert ember["ACCENT"] in qapp.styleSheet()
+        assert ember["CARD_BG"] in rail_card.styleSheet()
+        strip = window.sonar_view.strips["media"]
+        assert ember["MEDIA"] in strip.slider.styleSheet()
+        assert settings.is_dirty()
+        # Leaving without saving puts the saved one back.
+        settings.load()
+        assert theme.scheme == "plum" and settings.schemes.value() == "plum"
+        assert plum["CARD_BG"] in rail_card.styleSheet()
+        # Saved, it is the scheme the next start opens with.
+        settings.schemes.cards["ember"].click()
+        assert settings.save()
+        assert Config.load().colour_scheme == "ember"
+        assert not settings.is_dirty()
+    finally:
+        theme.use(theme.DEFAULT_SCHEME)
+
+
 def test_shortcuts_tab_lists_commands_the_cli_takes(qapp, window):
     import shlex
 

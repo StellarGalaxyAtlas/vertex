@@ -215,7 +215,7 @@ class FirstRunView(QWidget):
             warning = label(f"Some folders in your settings are missing — renamed, moved, or "
                             f"on a drive that isn't mounted. Nothing has been deleted.\n\n"
                             f"{named}", wrap=True)
-            warning.setStyleSheet(f"color: {theme.WARN};")
+            theme.style(warning, lambda: f"color: {theme.WARN};")
             section.add(warning)
         self.clip_path = PathField(self.config.clip_path)
         self.export_path = PathField(self.config.export_path)
@@ -256,10 +256,10 @@ class FirstRunView(QWidget):
             combo.addItem("System default", "")
         output = DeviceField("Output device", "Your headset or speakers. Every channel "
                                               "plays through it.", self.output)
-        output.set_colour("headphones", theme.TEXT_MUTED)
+        output.set_colour("headphones", "TEXT_MUTED")
         mic = DeviceField("Input device", "Your microphone. In Discord and other chat apps, "
                                           "choose Vertex Mic to use it.", self.mic)
-        mic.set_colour(icons.channel_icon_name("mic"), theme.channel_colour("mic"))
+        mic.set_colour(icons.channel_icon_name("mic"), "MIC")
         row = QHBoxLayout()
         row.setSpacing(16)
         for device_field in (output, mic):
@@ -271,7 +271,7 @@ class FirstRunView(QWidget):
         self.sonar_enabled.toggled.connect(self.output.setEnabled)
         self.sonar_enabled.toggled.connect(self.mic.setEnabled)
         self.sonar_note = label("", wrap=True)
-        self.sonar_note.setStyleSheet(f"color: {theme.WARN};")
+        theme.style(self.sonar_note, lambda: f"color: {theme.WARN};")
         self.sonar_note.hide()
         section.add(self.sonar_note)
         clips = label("Saving clips with Vertex Moments? Your game, chat and voice are each "
@@ -340,7 +340,7 @@ class FirstRunView(QWidget):
         # Settings' clip size, which follows the choices above.
         self.clip_size = section.add(ClipSize())
         self.moments_error = label("", wrap=True)
-        self.moments_error.setStyleSheet(f"color: {theme.DANGER};")
+        theme.style(self.moments_error, lambda: f"color: {theme.DANGER};")
         self.moments_error.hide()
         section.add(self.moments_error)
         self.choices.show_capture()
@@ -382,7 +382,7 @@ class FirstRunView(QWidget):
         self._choices_changed()
         if usable:
             self.gsr_status.setText(f"Recording with GPU Screen Recorder {info.version_text}.")
-            self.gsr_status.setStyleSheet(f"color: {theme.OK};")
+            theme.style(self.gsr_status, lambda: f"color: {theme.OK};")
             if not self._autostart_touched:
                 self.rec_autostart.setChecked(True)
             return
@@ -510,23 +510,23 @@ class FirstRunView(QWidget):
 
         def failed(exc):
             if token == self._scan_token:
-                self._say(self.source_summary, f"Couldn't read that folder: {exc}", theme.DANGER)
+                self._say(self.source_summary, f"Couldn't read that folder: {exc}", "DANGER")
 
         workers.run(scan, done, failed)
 
     def _scanned(self, plan: importing.CopyPlan | None) -> None:
         self.copy_summary.setText("")
         if plan is None:
-            self._say(self.source_summary, "That folder doesn't exist.", theme.WARN)
+            self._say(self.source_summary, "That folder doesn't exist.", "WARN")
             self._refresh_buttons()
             return
         found = len(plan.files) + len(plan.present)
         if not found:
-            self._say(self.source_summary, "There are no clips in this folder.", theme.WARN)
+            self._say(self.source_summary, "There are no clips in this folder.", "WARN")
             self._refresh_buttons()
             return
         self.copy_plan = plan
-        self._say(self.source_summary, f"Found {fmt.plural(found, 'clip')}.", theme.OK)
+        self._say(self.source_summary, f"Found {fmt.plural(found, 'clip')}.", "OK")
         if not plan.files:
             self._say(self.copy_summary, "They're all in your clips folder already, so there's "
                                          "nothing to copy.")
@@ -541,14 +541,15 @@ class FirstRunView(QWidget):
                                          f"there.{present}")
         if self._stopped_note:
             self._say(self.copy_summary, f"{self._stopped_note} {self.copy_summary.text()}",
-                      theme.WARN)
+                      "WARN")
             self._stopped_note = ""
         self._refresh_buttons()
 
     @staticmethod
     def _say(widget: QLabel, text: str, colour: str = "") -> None:
+        """`colour`: a token of the scheme in use ("WARN"), or none."""
         widget.setText(text)
-        widget.setStyleSheet(f"color: {colour};" if colour else "")
+        theme.style(widget, lambda: f"color: {theme.colour(colour)};" if colour else "")
 
     def _library_ready(self) -> bool:
         if not self._bringing_clips():

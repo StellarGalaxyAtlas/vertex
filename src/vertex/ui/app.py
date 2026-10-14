@@ -35,6 +35,7 @@ def _create_app() -> QApplication:
 def run(background: bool = False) -> int:
     app = _create_app()
     config = Config.load_or_default()
+    theme.use(config.colour_scheme)
     app.setWindowIcon(icons.app_icon(icons.desktop_ink()))
     context = Context(config)
     window = MainWindow(context)

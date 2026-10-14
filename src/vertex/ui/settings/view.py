@@ -42,6 +42,7 @@ from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize, fill
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
+from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
 from vertex.ui.widgets import (
     Banner,
@@ -155,6 +156,12 @@ class SettingsView(QWidget):
     # --- Pages ----------------------------------------------------------------
 
     def _build_general(self) -> None:
+        appearance = Section("Appearance", "Colours for the whole app. A scheme shows as soon "
+                                           "as you pick it; Save keeps it.")
+        self.schemes = SchemePicker()
+        self.schemes.picked.connect(theme.use)
+        appearance.add(self.schemes)
+
         folders = Section("Folders", "Where clips are recorded and scanned from, and where "
                                      "exports go. Your recordings are never modified.")
         self.clip_path = PathField(placeholder="~/Videos/Game Recordings")
@@ -186,7 +193,7 @@ class SettingsView(QWidget):
         self.autostart = Toggle()
         behaviour.add_row("Start Vertex when you log in", self.autostart,
                           "Starts hidden in the tray.")
-        self.pages["general"] = scroll_page(folders, behaviour)
+        self.pages["general"] = scroll_page(appearance, folders, behaviour)
         self.stack.addWidget(self.pages["general"])
 
     def _build_recording(self) -> None:
@@ -333,7 +340,7 @@ class SettingsView(QWidget):
         right.addStretch(1)
         divider = QFrame()
         divider.setFixedWidth(1)
-        divider.setStyleSheet(f"background: {theme.LINE};")
+        theme.style(divider, lambda: f"background: {theme.LINE};")
         row.addWidget(divider)
         row.addLayout(right, 1)
         return box
@@ -366,6 +373,9 @@ class SettingsView(QWidget):
         self.state_path.set_value(config.state_path)
         self.cache_path.set_value(config.cache_path)
         self.close_to_tray.setChecked(config.close_to_tray)
+        self.schemes.set_value(config.colour_scheme)
+        if self.schemes.value() != theme.scheme:      # back from a scheme picked, not saved
+            theme.use(self.schemes.value())
         self.autostart.setChecked(desktop.autostart_enabled())
         self.notifications.load(config.notifications)
 
@@ -402,6 +412,7 @@ class SettingsView(QWidget):
         config.state_path = self.state_path.value()
         config.cache_path = self.cache_path.value()
         config.close_to_tray = self.close_to_tray.isChecked()
+        config.colour_scheme = self.schemes.value()
         config.notifications = self.notifications.choices()
         rec = config.recorder
         rec.command = self.command.text().strip() or "gpu-screen-recorder"
@@ -451,7 +462,7 @@ class SettingsView(QWidget):
                               ("clip_path", "data_path", "cache_path", "state_path"))
         recorder_changed = new.recorder != old.recorder
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
-                    "close_to_tray", "notifications"):
+                    "close_to_tray", "colour_scheme", "notifications"):
             setattr(old, key, getattr(new, key))
         old.recorder = new.recorder
         old.ensure_dirs()
@@ -487,10 +498,10 @@ class SettingsView(QWidget):
             note = "" if info.supports_track_names else \
                 " — update to 5.15+ so clip tracks are named Game, Chat and Microphone"
             self.gsr_status.setText(f"Found GPU Screen Recorder {info.version_text}{note}.")
-            self.gsr_status.setStyleSheet(f"color: {theme.OK if not note else theme.WARN};")
+            theme.style(self.gsr_status, lambda: f"color: {theme.OK if not note else theme.WARN};")
         else:
             self.gsr_status.setText(info.error)
-            self.gsr_status.setStyleSheet(f"color: {theme.WARN};")
+            theme.style(self.gsr_status, lambda: f"color: {theme.WARN};")
         self._audio_devices = devices
         self.choices.set_capture_options(captures)
         self._clip_settings_changed()

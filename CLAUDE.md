@@ -72,12 +72,15 @@ where the work stands. New requests and bugs get the next free number in
 
 ## The design
 
-`temp/design/` holds the look the maintainer chose (TODO items 24 and 25):
-Vertex's navy and periwinkle at AA contrast, with a tightened layout. Read
-its README before UI work. New UI follows its rules: every text colour at AA
+`temp/design/` holds the look the maintainer chose (TODO items 24, 25 and
+27 to 34): eight colour schemes, Plum the default, at AA contrast. Read its
+README before UI work. New UI follows its rules: every text colour at AA
 contrast, the accent never on an audio control, red only for recording, no
 dead space. A grey palette was tried and rejected. The colours live in
-`ui/theme.py`; use the tokens there, never a new hex value in a widget.
+`ui/theme.py`; use the tokens there, never a new hex value in a widget. A
+colour set when a widget is built goes through `theme.style` or
+`theme.themed` (icons take a token name), or it stays in the old scheme when
+the maintainer picks another.
 
 ## Reference screenshots
 

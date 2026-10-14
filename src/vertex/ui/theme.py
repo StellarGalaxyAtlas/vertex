@@ -1,82 +1,166 @@
-"""The palette, the channel colours and the application stylesheet.
+"""The colour schemes, the channel colours and the application stylesheet.
 
-The palette is the one Vertex 1.x called "Anneal", sharpened: a deep navy
-page with the rail, the cards and the controls each lifted a step off it,
-and a periwinkle accent. Every text colour reads at 4.5:1 or better on every
-ground it sits on, and a field's edge at 3:1. The accent never colours an
-audio control: a channel's slider takes the channel's colour, a device's
-slider is neutral. The design and its rules are in temp/design/.
-Every colour the UI uses is defined here, once.
+Vertex has eight colour schemes (TODO item 30), picked in Settings › General.
+Plum, the default, is the "Shelves" design of round 2: a deep plum page, a hot
+magenta accent and a periwinkle second colour for gradients. Navy is the look
+Vertex had before. Each scheme gives every token below a value; the UI reads
+them as `theme.ACCENT` and so on when it paints, and anything set once when a
+widget is built (a stylesheet, an icon) goes through `themed`, so the whole
+app changes the moment a scheme is picked (`use`).
+
+Every scheme keeps the rules in temp/design/: every text colour reads at
+4.5:1 or better on every ground it sits on, a field's edge at 3:1; the accent
+never colours an audio control (a channel's slider takes the channel's
+colour, a device's slider is neutral); red only means recording. The tests
+measure all of it, for every scheme. Every colour the UI uses is defined
+here, once.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtWidgets import QApplication, QWidget
 
-# --- Accent -----------------------------------------------------------------
-ACCENT = "#4a62ec"
-ACCENT_HOVER = "#3d55dd"
-ACCENT_EDGE = "#9aabff"     # the accent as a line or an icon on a dark ground
-ACCENT_SOFT = "#27336a"     # the selected row, tab or menu item
-ON_ACCENT = "#ffffff"       # text and icons on ACCENT
-INK = "#0b0e14"             # text on a bright colour: an app's badge, a red button
 
-# Selected and focused: the keyboard focus, the trim handles, links.
-SELECT = "#9aabff"
-SELECTION = ACCENT          # selected text
+def _mix(a: str, b: str, amount: float) -> str:
+    """`a` moved `amount` of the way towards `b`."""
+    one = [int(a[i:i + 2], 16) for i in (1, 3, 5)]
+    two = [int(b[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * amount):02x}"
+                         for x, y in zip(one, two, strict=True))
 
-# --- Grounds, darkest first -------------------------------------------------
-MAIN_BG = "#0b0e14"         # the page behind everything
-SECTION_BG = "#161b26"      # panels: above the page, under the cards
-SIDEBAR_BG = "#10141c"      # the rail
-CARD_BG = "#1f2533"         # cards, and the controls that sit on one
-CARD_HOVER = "#29303f"
-FIELD_BG = "#0d1017"        # text fields, recessed
-CONTROL_BG = "#262d3c"      # buttons and empty thumbnails
-LINE = "#2a3141"            # dividers
-SEAM = "#343c4e"            # the edge of a menu or tooltip
-EDGE = "#66718a"            # the edge of a field: 3:1 on a panel or card
-PAGE_GLOW = "#151a26"       # the lit band across the top of a page
 
-CARD_TOP = "#212734"
-CARD_BOTTOM = "#191d27"
-CARD_HOVER_TOP = "#2a3040"
-CARD_HOVER_BOTTOM = "#1f2431"
+def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: str,
+            on_accent: str, edge: str, second: str, select: str, recording: str,
+            channels: tuple[str, str, str, str, str]) -> dict[str, str]:
+    """A scheme from its key colours; the steps between them are worked out.
 
-BADGE_BG = "#06070a"
+    `ground` is the page, `panel` the sections on it; cards and controls are
+    lifted off the panel towards the text colour. `channels` are Game, Chat,
+    Media, Mic and the desktop's own track."""
+    dark_label = sum(int(on_accent[i:i + 2], 16) for i in (1, 3, 5)) < 300
+    game, chat, media, mic, desktop = channels
+    return {
+        "MAIN_BG": ground, "SIDEBAR_BG": _mix(ground, "#000000", 0.25), "SECTION_BG": panel,
+        "CARD_BG": _mix(panel, text, 0.04), "CARD_HOVER": _mix(panel, text, 0.09),
+        "CONTROL_BG": _mix(panel, text, 0.07), "FIELD_BG": _mix(ground, "#000000", 0.2),
+        "LINE": _mix(panel, text, 0.08), "SEAM": _mix(panel, text, 0.14), "EDGE": edge,
+        "TEXT": text, "TEXT_MUTED": muted, "TEXT_DIM": dim,
+        "ACCENT": accent,
+        "ACCENT_HOVER": (_mix(accent, "#ffffff", 0.18) if dark_label
+                         else _mix(accent, "#000000", 0.1)),
+        "ACCENT_EDGE": _mix(accent, "#ffffff", 0.3), "ACCENT_SOFT": _mix(ground, accent, 0.25),
+        "ON_ACCENT": on_accent, "INK": _mix(ground, "#000000", 0.3),
+        "SELECT": select, "SECOND": second, "RECORDING": recording,
+        "GAME": game, "CHAT": chat, "MEDIA": media, "MIC": mic, "DESKTOP": desktop,
+    }
 
-# --- Text -------------------------------------------------------------------
-TEXT = "#eef0f3"
-TEXT_MUTED = "#aab2bf"
-TEXT_DIM = "#8c95a5"
 
-# --- Meaning ----------------------------------------------------------------
+# name: (label in Settings, what it looks like, its colours)
+SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
+    "plum": ("Plum", "Magenta and periwinkle", _scheme(
+        "#150a1f", "#1d0d2b", "#f8f0ff", "#d2bfe6", "#b39dcc", "#ff3ea5", "#1c0517", "#8d6fae",
+        "#7d8bff", "#a9b4ff", "#ff4d6a", ("#2fd39b", "#4cb0ff", "#b4e04a", "#ffad33", "#c08cff"))),
+    "ember": ("Ember", "Orange and gold on charcoal", _scheme(
+        "#16110e", "#221a15", "#f7eee6", "#cbbcad", "#a99785", "#ff9a3e", "#1f1206", "#86705f",
+        "#ffcf5c", "#ffcf5c", "#ff4d61", ("#33c4a3", "#4f97ff", "#ec7598", "#ad8cff", "#9ccc65"))),
+    "midnight": ("Midnight blue", "Amber and cyan", _scheme(
+        "#0a1020", "#1c2640", "#ecf1f9", "#aab6cb", "#99a5bc", "#f6b03e", "#0a1020", "#6c7b9a",
+        "#3dd6f0", "#3dd6f0", "#ff5d62", ("#4fcb72", "#4a8ff7", "#e0709a", "#a88bfa", "#b8d860"))),
+    "deep_sea": ("Deep sea", "Mint and sky on teal", _scheme(
+        "#061a1d", "#0f2c2f", "#e4f5f1", "#9cc3bc", "#86afa8", "#5eead4", "#042a26", "#5d8f8b",
+        "#60c5fa", "#7fd8ff", "#ff4d5e", ("#c08cff", "#5ea8ff", "#f2799f", "#f5a742", "#d6e36a"))),
+    "coral": ("Coral", "Coral and periwinkle on ink", _scheme(
+        "#0d1117", "#1a2230", "#eef2f7", "#aeb8c8", "#97a2b5", "#ff8a66", "#1a0f0b", "#6a7690",
+        "#8c9eff", "#8c9eff", "#f04a5a", ("#2ec4a6", "#4ea8f5", "#c084fc", "#e9b949", "#f07fb0"))),
+    "aurora": ("Aurora", "Cyan and violet", _scheme(
+        "#0f0b24", "#1a1538", "#f3f0ff", "#c2bae6", "#a39bcf", "#52e0f0", "#0f0b24", "#6e64a6",
+        "#a68bff", "#b9a6ff", "#ff5470", ("#3cc78a", "#5b97ff", "#ee72c0", "#eba23e", "#d4e157"))),
+    "forest": ("Forest", "Honey and moss", _scheme(
+        "#0b1410", "#1a2c22", "#f3ecd8", "#c9c4a8", "#9aac94", "#e9b440", "#1a1406", "#6e8a78",
+        "#9fd36a", "#f2cf7a", "#ff6b5e", ("#3fc7c1", "#6b9cf7", "#e5729f", "#b393f5", "#8fd18a"))),
+    # Vertex's colours until round 3, as they were (the hint text one step
+    # lighter, to pass on a hovered card).
+    "navy": ("Navy", "Vertex's colours until now", {
+        "MAIN_BG": "#0b0e14", "SIDEBAR_BG": "#10141c", "SECTION_BG": "#161b26",
+        "CARD_BG": "#1f2533", "CARD_HOVER": "#29303f", "CONTROL_BG": "#262d3c",
+        "FIELD_BG": "#0d1017", "LINE": "#2a3141", "SEAM": "#343c4e", "EDGE": "#66718a",
+        "TEXT": "#eef0f3", "TEXT_MUTED": "#aab2bf", "TEXT_DIM": "#9099a9",
+        "ACCENT": "#4a62ec", "ACCENT_HOVER": "#3d55dd", "ACCENT_EDGE": "#9aabff",
+        "ACCENT_SOFT": "#27336a", "ON_ACCENT": "#ffffff", "INK": "#0b0e14",
+        "SELECT": "#9aabff", "SECOND": "#9aabff", "RECORDING": "#ff5c6c",
+        "GAME": "#2fb39b", "CHAT": "#3b82f6", "MEDIA": "#c25d7b", "MIC": "#d98d2b",
+        "DESKTOP": "#9b6bd6"}),
+}
+DEFAULT_SCHEME = "plum"
+
+# --- The tokens, set from the scheme in use by `select` ------------------------
+# Accent
+ACCENT = ""
+ACCENT_HOVER = ""
+ACCENT_EDGE = ""            # the accent as a line or an icon on a dark ground
+ACCENT_SOFT = ""            # the selected row, tab or menu item
+ON_ACCENT = ""              # text and icons on ACCENT
+SECOND = ""                 # the accent's partner in a gradient
+INK = ""                    # text on a bright colour: an app's badge, a red button
+SELECT = ""                 # the keyboard focus, the trim handles, links
+SELECTION = ""              # selected text
+
+# Grounds, darkest first
+MAIN_BG = ""                # the page behind everything
+SIDEBAR_BG = ""             # the rail
+SECTION_BG = ""             # panels: above the page, under the cards
+CARD_BG = ""                # cards, and the controls that sit on one
+CARD_HOVER = ""
+FIELD_BG = ""               # text fields, recessed
+CONTROL_BG = ""             # buttons and empty thumbnails
+LINE = ""                   # dividers
+SEAM = ""                   # the edge of a menu or tooltip
+EDGE = ""                   # the edge of a field: 3:1 on a panel or card
+CARD_TOP = ""               # a clip card's gradient, and while hovered
+CARD_BOTTOM = ""
+CARD_HOVER_TOP = ""
+CARD_HOVER_BOTTOM = ""
+BADGE_BG = ""
+
+# Text
+TEXT = ""
+TEXT_MUTED = ""
+TEXT_DIM = ""
+
+# Meaning: the same in every scheme, except the recording light
 DANGER = "#ff6b70"
 DANGER_HOVER = "#e85a5f"
 OK = "#3fb950"
 WARN = "#e6b422"
-RECORDING = "#ff5c6c"
+RECORDING = ""
 
-# --- Editor -----------------------------------------------------------------
+# Editor
 VIDEO_BG = "#000000"
-TRIM_SHADE = "#06080c"
 PLAYHEAD = "#ffffff"
 VIDEO_LANE = "#1f6f66"
-LANE_BG = CARD_BG
-WAVE_MUTED = "#3d4454"
 WAVE_SHADE = 0.40
+TRIM_SHADE = ""
+LANE_BG = ""
+WAVE_MUTED = ""
+
+# The channels: Game, Chat, Media, Mic and the desktop's own track
+GAME = ""
+CHAT = ""
+MEDIA = ""
+MIC = ""
+DESKTOP = ""
 
 # A lane the mixer could name keeps its channel's colour however many tracks
 # the clip has, so the mic is the same colour on a two-track clip as on a
-# five-track one. Unnamed tracks take these in order instead.
-CHANNEL_COLOURS = {
-    "game": "#2fb39b",
-    "desktop": "#9b6bd6",
-    "chat": "#3b82f6",
-    "media": "#c25d7b",
-    "mic": "#d98d2b",
-}
-AUDIO_LANES = ("#2fb39b", "#3b82f6", "#d98d2b", "#9b6bd6", "#c25d7b", "#8a93a6")
+# five-track one. Unnamed tracks take AUDIO_LANES in order instead.
+CHANNEL_COLOURS: dict[str, str] = {}
+AUDIO_LANES: tuple[str, ...] = ()
+
+STYLESHEET = ""
+scheme = DEFAULT_SCHEME     # the one in use
 
 # --- Geometry ---------------------------------------------------------------
 RADIUS_CARD = 14
@@ -85,6 +169,78 @@ RADIUS_SMALL = 8
 RAIL_WIDTH = 216            # the rail grows from here to fit its filters
 RAIL_MAX_WIDTH = 320
 CONTENT_MARGIN = 24
+
+TOKENS = frozenset(SCHEMES["navy"][2]) | {
+    "SELECTION", "CARD_TOP", "CARD_BOTTOM", "CARD_HOVER_TOP", "CARD_HOVER_BOTTOM",
+    "BADGE_BG", "TRIM_SHADE", "LANE_BG", "WAVE_MUTED", "DANGER", "DANGER_HOVER", "OK",
+    "WARN", "VIDEO_BG", "PLAYHEAD", "VIDEO_LANE"}
+
+
+def colour(value: str) -> str:
+    """A colour named by its token ("TEXT_MUTED") in the scheme in use, or a
+    colour given as itself ("#2fb39b")."""
+    return globals()[value] if value in TOKENS else value
+
+
+def select(name: str) -> str:
+    """Make `name` the scheme every token reads from (an unknown name gets the
+    default), and return the name used. Restyling a running app is `use`."""
+    global scheme
+    if name not in SCHEMES:
+        name = DEFAULT_SCHEME
+    scheme = name
+    values = SCHEMES[name][2]
+    tokens = dict(values)
+    ground, card, text = values["MAIN_BG"], values["CARD_BG"], values["TEXT"]
+    tokens.update(
+        SELECTION=values["ACCENT"],
+        CARD_TOP=_mix(card, text, 0.012), CARD_BOTTOM=_mix(card, ground, 0.35),
+        CARD_HOVER_TOP=_mix(card, text, 0.06), CARD_HOVER_BOTTOM=card,
+        BADGE_BG=_mix(ground, "#000000", 0.5), TRIM_SHADE=_mix(ground, "#000000", 0.45),
+        LANE_BG=card, WAVE_MUTED=_mix(card, text, 0.13),
+        CHANNEL_COLOURS={"game": values["GAME"], "desktop": values["DESKTOP"],
+                         "chat": values["CHAT"], "media": values["MEDIA"], "mic": values["MIC"]},
+        AUDIO_LANES=(values["GAME"], values["CHAT"], values["MIC"], values["DESKTOP"],
+                     values["MEDIA"], values["TEXT_DIM"]),
+    )
+    globals().update(tokens)
+    globals()["STYLESHEET"] = _stylesheet()
+    return name
+
+
+def use(name: str) -> None:
+    """Switch the running app to scheme `name`: the stylesheet, the palette,
+    everything set up through `themed`, and a repaint of every widget."""
+    select(name)
+    app = QApplication.instance()
+    if app is None:
+        return
+    app.setPalette(palette())
+    app.setStyleSheet(STYLESHEET)
+    for widget in app.allWidgets():
+        for apply in list(getattr(widget, "_theme_hooks", {}).values()):
+            apply()
+        widget.update()
+
+
+def themed(widget: QWidget, apply: Callable[[], object], key: str = "style") -> None:
+    """Run `apply` now, and again whenever the scheme changes.
+
+    For what a widget takes from the scheme once, when it is set up, rather
+    than when it paints: its stylesheet, its icon, a pixmap. `apply` reads the
+    tokens each time it runs. A later `apply` for the same key replaces the
+    earlier one, so a label whose colour follows its state keeps one."""
+    hooks = getattr(widget, "_theme_hooks", None)
+    if hooks is None:
+        hooks = {}
+        widget._theme_hooks = hooks
+    hooks[key] = apply
+    apply()
+
+
+def style(widget: QWidget, build: Callable[[], str]) -> None:
+    """Give `widget` the stylesheet `build` returns, now and in every scheme."""
+    themed(widget, lambda: widget.setStyleSheet(build()))
 
 
 def channel_colour(channel: str, position: int = 0) -> str:
@@ -146,7 +302,8 @@ def font(size: float = 10, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
     return result
 
 
-STYLESHEET = f"""
+def _stylesheet() -> str:
+    return f"""
 QWidget {{
     color: {TEXT};
     font-size: 10pt;
@@ -240,7 +397,10 @@ QProgressBar {{
     background: {CONTROL_BG}; border: none; border-radius: 4px; height: 8px;
     text-align: center; color: transparent;
 }}
-QProgressBar::chunk {{ background: {ACCENT}; border-radius: 4px; }}
+QProgressBar::chunk {{
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 {ACCENT}, stop: 1 {SECOND});
+    border-radius: 4px;
+}}
 QDialog {{ background: {SECTION_BG}; }}
 
 /* --- Named surfaces -------------------------------------------------------- */
@@ -257,3 +417,6 @@ QDialog {{ background: {SECTION_BG}; }}
 }}
 #Chip:hover {{ background: {CARD_HOVER}; color: {TEXT}; }}
 """
+
+
+select(DEFAULT_SCHEME)

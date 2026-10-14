@@ -17,7 +17,16 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath, QPen
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFontMetrics,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractSpinBox,
@@ -61,9 +70,8 @@ def button(text: str, kind: str = "", icon: str = "", on_click=None,
     if kind:
         widget.setProperty("kind", kind)
     if icon:
-        colour = theme.ON_ACCENT if kind == "primary" else (theme.DANGER if kind == "danger"
-                                                      else theme.TEXT)
-        widget.setIcon(icons.icon(icon, colour))
+        colour = {"primary": "ON_ACCENT", "danger": "DANGER"}.get(kind, "TEXT")
+        theme.themed(widget, lambda: widget.setIcon(icons.icon(icon, colour)), "icon")
     if on_click is not None:
         widget.clicked.connect(on_click)
     if tooltip:
@@ -73,8 +81,11 @@ def button(text: str, kind: str = "", icon: str = "", on_click=None,
 
 
 class IconButton(QToolButton):
+    """A button that is only an icon. `colour` is a token of the scheme in use
+    ("TEXT_MUTED") or a colour of its own."""
+
     def __init__(self, icon_name: str, tooltip: str = "", size: int = 18,
-                 colour: str = theme.TEXT, parent=None, kind: str = "ghost"):
+                 colour: str = "TEXT", parent=None, kind: str = "ghost"):
         super().__init__(parent)
         self._size = size
         self.setProperty("kind", kind)
@@ -85,14 +96,15 @@ class IconButton(QToolButton):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setAutoRaise(True)
 
-    def set_icon(self, icon_name: str, colour: str = theme.TEXT) -> None:
-        self.setIcon(icons.icon(icon_name, colour, self._size))
+    def set_icon(self, icon_name: str, colour: str = "TEXT") -> None:
+        theme.themed(self, lambda: self.setIcon(icons.icon(icon_name, colour, self._size)),
+                     "icon")
 
 
 def hline() -> QFrame:
     line = QFrame()
     line.setFixedHeight(1)
-    line.setStyleSheet(f"background: {theme.LINE};")
+    theme.style(line, lambda: f"background: {theme.LINE};")
     return line
 
 
@@ -252,7 +264,7 @@ class Segmented(QWidget):
         layout.setSpacing(2)
         self.setObjectName("Segmented")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)     # its recessed track
-        self.setStyleSheet(f"""
+        theme.style(self, lambda: f"""
             #Segmented {{ background: {theme.FIELD_BG}; border-radius: {theme.RADIUS_CONTROL}px; }}
             #Segmented QPushButton {{ background: transparent; padding: 5px 12px;
                                       border-radius: 7px; color: {theme.TEXT_MUTED}; }}
@@ -524,17 +536,39 @@ class Disclosure(QWidget):
         if self.toggle.isChecked() != expanded:
             self.toggle.setChecked(expanded)     # comes back here
             return
-        self.toggle.setIcon(icons.icon("chevron-down" if expanded else "chevron-right",
-                                       theme.TEXT))
+        name = "chevron-down" if expanded else "chevron-right"
+        theme.themed(self.toggle, lambda: self.toggle.setIcon(icons.icon(name)), "icon")
         self.body.setVisible(expanded)
 
 
-class Meter(QWidget):
-    """A thin bar filled to a fraction, in one colour."""
+class GlowArea(QWidget):
+    """Where the pages sit: the scheme's second colour glows faintly from the
+    top right and its accent from the bottom left, over the page's ground."""
 
-    def __init__(self, colour: str = theme.ACCENT, parent=None):
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        rect = QRectF(self.rect())
+        reach = max(rect.width(), rect.height()) * 0.7
+        for centre, colour, alpha in ((rect.topRight(), theme.SECOND, 0.08),
+                                      (rect.bottomLeft(), theme.ACCENT, 0.06)):
+            glow = QRadialGradient(centre, reach)
+            inner = QColor(colour)
+            inner.setAlphaF(alpha)
+            outer = QColor(colour)
+            outer.setAlphaF(0)
+            glow.setColorAt(0, inner)
+            glow.setColorAt(1, outer)
+            p.fillRect(rect, QBrush(glow))
+
+
+class Meter(QWidget):
+    """A thin bar filled to a fraction: from `colour` to `second`, tokens of the
+    scheme in use ("ACCENT") or colours of their own."""
+
+    def __init__(self, colour: str = "ACCENT", second: str = "SECOND", parent=None):
         super().__init__(parent)
         self.colour = colour
+        self.second = second
         self.fraction = 0.0
         self.setFixedHeight(8)
 
@@ -550,8 +584,10 @@ class Meter(QWidget):
         path.addRoundedRect(bar, 4, 4)
         p.setClipPath(path)
         p.fillRect(bar, QColor(theme.CONTROL_BG))
-        p.fillRect(QRectF(0, 0, bar.width() * self.fraction, bar.height()),
-                   QColor(self.colour))
+        fill = QLinearGradient(0, 0, bar.width(), 0)
+        fill.setColorAt(0, QColor(theme.colour(self.colour)))
+        fill.setColorAt(1, QColor(theme.colour(self.second)))
+        p.fillRect(QRectF(0, 0, bar.width() * self.fraction, bar.height()), QBrush(fill))
 
 
 class ChoiceCard(QFrame):
@@ -595,11 +631,14 @@ class ChoiceCard(QFrame):
             card._paint()
 
     def _paint(self) -> None:
+        theme.style(self, self._sheet)
+
+    def _sheet(self) -> str:
         edge = theme.ACCENT if self._checked else theme.LINE
         ground = theme.ACCENT_SOFT if self._checked else theme.CARD_BG
-        self.setStyleSheet(f"#ChoiceCard {{ background: {ground}; border: 1px solid {edge};"
-                           f" border-radius: {theme.RADIUS_CONTROL}px; }}"
-                           f"#ChoiceCard:focus {{ border-color: {theme.SELECT}; }}")
+        return (f"#ChoiceCard {{ background: {ground}; border: 1px solid {edge};"
+                f" border-radius: {theme.RADIUS_CONTROL}px; }}"
+                f"#ChoiceCard:focus {{ border-color: {theme.SELECT}; }}")
 
     def choose(self) -> None:
         if not self._checked:
@@ -653,15 +692,15 @@ class Banner(QFrame):
     free for it while there is nothing to say. A click dismisses it."""
 
     COLOURS: ClassVar[dict[str, str]] = {
-        "info": theme.TEXT_MUTED, "ok": theme.OK, "warn": theme.WARN, "error": theme.DANGER}
+        "info": "TEXT_MUTED", "ok": "OK", "warn": "WARN", "error": "DANGER"}
     MARGIN = 20
     MAX_WIDTH = 440
 
     def __init__(self, host: QWidget):
         super().__init__(host)
         self.setObjectName("Toast")
-        self.setStyleSheet(f"#Toast {{ background: {theme.CARD_BG}; border: 1px solid "
-                           f"{theme.SEAM}; border-radius: {theme.RADIUS_CONTROL}px; }}")
+        theme.style(self, lambda: f"#Toast {{ background: {theme.CARD_BG}; border: 1px solid "
+                                  f"{theme.SEAM}; border-radius: {theme.RADIUS_CONTROL}px; }}")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
@@ -684,8 +723,8 @@ class Banner(QFrame):
         if not text:
             self.clear()
             return
-        colour = self.COLOURS.get(level, theme.TEXT_MUTED)
-        self.dot.setStyleSheet(f"background: {colour}; border-radius: 4px;")
+        colour = self.COLOURS.get(level, "TEXT_MUTED")
+        theme.style(self.dot, lambda: f"background: {theme.colour(colour)}; border-radius: 4px;")
         self.label.setText(text)
         self._place()
         self.show()

@@ -147,6 +147,7 @@ class Config:
     cache_path: str = ""
 
     close_to_tray: bool = True
+    colour_scheme: str = "plum"                                # a key of ui/theme.SCHEMES
     rail_collapsed: list[str] = field(default_factory=list)   # folded groups: games, people
     card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
     # Desktop pop-ups switched away from their default, by kind (see notifications).

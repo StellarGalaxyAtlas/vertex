@@ -26,8 +26,9 @@ def _completer(words: list[str], parent) -> QCompleter:
     completer.setModel(QStringListModel(words, completer))
     completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
     completer.setFilterMode(Qt.MatchFlag.MatchContains)
-    completer.popup().setStyleSheet(
-        f"background: {theme.CARD_BG}; border: 1px solid {theme.SEAM}; padding: 4px;")
+    popup = completer.popup()
+    theme.style(popup, lambda: f"background: {theme.CARD_BG}; border: 1px solid {theme.SEAM}; "
+                               f"padding: 4px;")
     return completer
 
 
@@ -35,12 +36,12 @@ class Chip(QFrame):
     def __init__(self, text: str, on_remove, parent=None):
         super().__init__(parent)
         self.text = text
-        self.setStyleSheet(f"background: {theme.CARD_BG}; border-radius: 8px;")
+        theme.style(self, lambda: f"background: {theme.CARD_BG}; border-radius: 8px;")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 3, 3, 3)
         layout.setSpacing(2)
         layout.addWidget(QLabel(text))
-        remove = IconButton("close", f"Remove {text}", 12, theme.TEXT_MUTED)
+        remove = IconButton("close", f"Remove {text}", 12, "TEXT_MUTED")
         remove.clicked.connect(lambda: on_remove(self))
         layout.addWidget(remove)
 

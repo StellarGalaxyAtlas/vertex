@@ -26,13 +26,14 @@ class TrackRow(QWidget):
         layout.setSpacing(6)
         bar = QFrame()
         bar.setFixedSize(3, LANE_H - 6)
-        bar.setStyleSheet(f"background: {colour}; border-radius: 1px;")
+        theme.style(bar, lambda: f"background: {theme.colour(colour)}; border-radius: 1px;")
         layout.addWidget(bar)
-        self.mute = IconButton("volume", "Mute", 16, theme.TEXT_MUTED)
+        self.mute = IconButton("volume", "Mute", 16, "TEXT_MUTED")
         self.mute.clicked.connect(self.toggle_mute)
         layout.addWidget(self.mute)
         icon = QLabel()
-        icon.setPixmap(icons.pixmap(icons.channel_icon_name(track.channel), colour, 14))
+        theme.themed(icon, lambda: icon.setPixmap(
+            icons.pixmap(icons.channel_icon_name(track.channel), colour, 14)), "icon")
         layout.addWidget(icon)
         name = label(track.label, "Muted")
         name.setToolTip(track.name)
@@ -42,8 +43,8 @@ class TrackRow(QWidget):
         self.slider.setFixedWidth(130)
         self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.slider.setValue(round(track.volume * 100))
-        self.slider.setStyleSheet(
-            f"QSlider::sub-page:horizontal {{ background: {colour}; border-radius: 2px; }}")
+        theme.style(self.slider, lambda: f"QSlider::sub-page:horizontal {{ background: "
+                                         f"{theme.colour(colour)}; border-radius: 2px; }}")
         self.slider.valueChanged.connect(self._on_slider)
         self.slider.setToolTip("Double-click to reset to 100%")
         self.slider.mouseDoubleClickEvent = lambda _e: self.slider.setValue(100)
@@ -57,7 +58,7 @@ class TrackRow(QWidget):
     def _refresh(self) -> None:
         muted = self.track.muted
         self.mute.set_icon("mute" if muted else "volume",
-                           theme.DANGER if muted else theme.TEXT_MUTED)
+                           "DANGER" if muted else "TEXT_MUTED")
         self.mute.setToolTip("Unmute" if muted else "Mute")
         self.readout.setText("muted" if muted else f"{round(self.track.volume * 100)}%")
 
