@@ -44,39 +44,6 @@ keybinds were left out for now.
   unlinked, every one or the one named. Volume and mute are per channel, in
   5% steps. Cycling devices picks for now and keeps the list's order (53).
 
-**21.**
-**Documentation**
-Written at the end, when the maintainer says so (see Notes). What has fallen
-behind:
-- README: still says to set *Capture* to *Portal* if recording a monitor
-  fails; shows the old Recording page; has people run `vertex
-  install-desktop` (works, but no longer needed); points to *Settings → Older
-  clips*; lists Aux; has an "Upgrading from Vertex 1.x" section; mentions
-  picking the logo ink; its list of `vertex` commands lacks volume, mute,
-  device, state and watch. Keep the human-written intro and "Thanks" word for
-  word (CLAUDE.md).
-- `docs/ARCHITECTURE.md`: doesn't describe the monitor map and the
-  primary-monitor fallback, the "Restarting…" state, `recorder/presets.py`,
-  tracks no longer depending on Sonar (it says channels are ticked "In
-  clips"), the start-menu marker, notifications, the control API or
-  subscriptions; still describes 1.x configs and their keys (`logo_variant`
-  among them), the 1.x library upgrade, *Settings → Older clips* and an Aux
-  lane.
-- `docs/CONTROL.md`: new, written from `vertex/control.py`'s docstring
-  (since item 59 it also has `devices` and `device set`).
-- README's "Settings and first run": first-run setup now has the Vertex
-  Sonar and Vertex Moments steps and brings an existing library along
-  (item 22); the import tools are no longer where setup points.
-- The screenshots in `docs/` (first-run.png shows the old step 1). Since
-  item 24 every one of them shows the old colours and layout.
-- Round 3 and after (items 29 to 45), in README and `docs/ARCHITECTURE.md`:
-  the rail is gone for a top bar (Home, Library, Sonar, Settings, search,
-  the replay pill; 31); Vertex opens on Home (32, 35, 37); the Library's
-  filter row (33); the Sonar page as on Shelves' board, with a panel per
-  kind of device (34, 36); nine colour schemes picked in Settings › General,
-  two of them light (30, 38 to 42, 44), and how `ui/theme.py` works them
-  out (`_scheme`, the light path, `ACCENT_FILL`, `ON_CHANNEL`, `ON_VIDEO`).
-
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
@@ -134,6 +101,17 @@ Built and tested in the container; only their system can confirm:
 ---
 
 ## Done
+
+**21.** Done (2026-10-15)
+**Documentation**
+README rewritten as an overview (the maintainer's intro and "Thanks" kept
+word for word, apart from the closing note about real game titles, since the
+screenshots now use made-up games), with a "written by AI, not verified"
+warning on the install steps. New `docs/GUIDE.md` (every page, briefly) and
+`docs/CONTROL.md` (the control API); `docs/ARCHITECTURE.md` brought up to
+date. Fresh screenshots from `tools/docs_screenshots.py` (made-up demo
+library, Navy). The StreamController plugin's docs live in its own
+repository.
 
 **1. Settings › Recording › Capture.** The monitor to record is picked on a
 map laid out as the desktop arranges the monitors (a vertical one stands
@@ -702,16 +680,15 @@ page is as before, with the meter under each fader.
 
 ## Notes
 
-**Documentation.** Don't touch the repo's documentation (README, `docs/`,
-the screenshots in it) until the maintainer says so; it is written at the
-end (item 21). Screenshots taken to check UI work are fine, and never
-committed.
+**Documentation.** Written in item 21 (2026-10-15), when the maintainer
+asked: not too detailed, but showing everything Vertex offers; their own
+words in the README stay as they are; the install steps keep a big "written
+by AI, not verified" warning.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 43 to 47, 50, 51, 53 to 64, 70 to 79, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–42, 43 to 47, 50, 51, 53 to 64, 70 to 79, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: the maintainer tries 74 to 79 (pushed 2026-10-15 to
-`claude/project-thread-788h94`, not yet on loving-curie); then 9 (on hold) and
-21 (documentation, when the maintainer says). Waiting on the maintainer: the checks listed above. The session that
+`claude/project-thread-788h94`, not yet on loving-curie); then 9 (on hold). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 
 **Colour schemes.** Decided along the way (items 30, 38 to 45): the picker

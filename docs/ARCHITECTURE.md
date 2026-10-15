@@ -8,9 +8,14 @@ tested on its own.
 src/vertex/
 ├── __init__.py        version, APP_NAME, APP_ID
 ├── cli.py             the `vertex` command
-├── ipc.py             control socket: single instance + `vertex save-clip` & co.
+├── ipc.py             control socket: single instance, requests and subscriptions
+├── control.py         the control API: commands, arguments, state, events
+├── notifications.py   every kind of notification, in one list
+├── logs.py            the four rotating log files
 ├── desktop.py         .desktop entry, icons, autostart
+├── kwin.py            raising the window on KDE Plasma under Wayland
 ├── doctor.py          `vertex doctor`
+├── reset.py           resetting settings, the library and the cache
 ├── config.py          config.json: paths, RecorderConfig, SonarConfig
 ├── paths.py           XDG directories and bundled assets
 ├── fmt.py, proc.py    formatting and subprocess helpers
@@ -20,11 +25,11 @@ src/vertex/
 │   ├── importing.py   copy plans and tag-import plans
 │   └── storage.py     disk usage, delete-to-Trash
 ├── library/
-│   └── database.py    SQLite library with versioned migrations
+│   └── database.py    SQLite library with a versioned schema
 ├── media/             ffmpeg/ffprobe
 │   ├── probe.py       MediaInfo, AudioTrack
 │   ├── mp4meta.py     MP4 track titles read from the file's own boxes
-│   ├── tracks.py      which track is Game/Chat/Media/Aux/Mic
+│   ├── tracks.py      which track is Game/Chat/Media/Mic
 │   ├── mixing.py      mpv and ffmpeg mix graphs
 │   ├── waveform.py    peak levels per lane
 │   ├── trim.py        lossless trims, keyframe search
@@ -33,21 +38,28 @@ src/vertex/
 ├── audio/             Sonar
 │   ├── channels.py    the channel definitions (pure data)
 │   ├── pulse.py       typed pactl wrapper + event watcher
+│   ├── devices.py     the device priority and excluded lists
+│   ├── levels.py      live channel levels for the meters (parec)
 │   └── sonar.py       device lifecycle, routing rules, reconciliation
 ├── recorder/          GPU Screen Recorder
 │   ├── gsr.py         detection, capability listing, argv builder, validation
+│   ├── presets.py     length, quality, resolution, frame rate → GSR's options; size estimate
 │   ├── monitors.py    GSR's monitors placed where the desktop has them
+│   ├── notifier.py    gsr-notify, for notifications over games
 │   └── replay.py      the replay-buffer child process
 └── ui/                PySide6
-    ├── app.py         QApplication, control commands, startup
+    ├── app.py         QApplication, startup
+    ├── control.py     control commands run against the live app
     ├── services.py    Context + controllers (thumbnails, Sonar, recorder)
     ├── workers.py     run blocking work off the UI thread
-    ├── main_window.py, rail.py, tray.py, first_run.py, sonar_view.py
-    ├── library/       state (filter/sort/edits), model, delegate, view
+    ├── main_window.py, topbar.py, home.py, sonar_view.py, tray.py, first_run.py
+    ├── screens.py     the desktop's monitors, from Qt
+    ├── library/       state (filter/sort/edits), model, delegate, filters, view
     ├── editor/        mpv render widget, timeline, mixer rows, editor view
     ├── dialogs/       tags, export, import
-    ├── settings/      the Settings page and its monitor map
-    ├── theme.py, icons.py, widgets.py
+    ├── settings/      the Settings pages: monitor map, clip choices, schemes,
+    │                  notifications, shortcuts, reset
+    └── theme.py, icons.py, widgets.py
 ```
 
 ## Threading
@@ -81,7 +93,7 @@ PipeWire's pulse server:
 
 | Module | Creates |
 |---|---|
-| `module-null-sink` | one virtual output per channel: `vertex_game`, `vertex_chat`, `vertex_media`, `vertex_aux` |
+| `module-null-sink` | one virtual output per channel: `vertex_game`, `vertex_chat`, `vertex_media` |
 | `module-loopback` | plays each channel's `.monitor` into the real output device |
 | `module-remap-source` | `vertex_mic`, a virtual input fed by the real microphone |
 
@@ -118,6 +130,16 @@ Points worth knowing:
   existing streams when set and to new streams as `sink-input` events arrive.
   Vertex's own loopback streams carry a `vertex.loopback` property and are
   never routed.
+- **Which real device.** `audio/devices.py` keeps one priority list and one
+  excluded list for outputs and one for microphones. The highest connected,
+  non-excluded device is used. A device picked by hand (on the Sonar page,
+  `vertex device next`) wins until a device is plugged in or out, and never
+  survives a restart; only reordering the list is lasting. Unlinked output
+  channels each get their own loopback to their own device, and a second
+  output adds a loopback per channel to that device too.
+- **Meters.** `audio/levels.py` runs one low-rate `parec` per channel, only
+  while a page with meters is shown. Its streams are named "Peak detect" so
+  they are never routed or listed as apps.
 - **Event handling** ignores `change` events for repairs (setting a volume or
   a default emits them; reacting would chase its own tail) and debounces
   device add/remove events.
@@ -125,8 +147,12 @@ Points worth knowing:
 ## Recording
 
 `recorder/gsr.py` turns `RecorderConfig` into a GPU Screen Recorder command
-line as a pure function, validated beforehand (`gsr.validate`). With Sonar on,
-`audio_tracks()` yields one `-a` per recorded channel. GSR 5.15+ accepts
+line as a pure function, validated beforehand (`gsr.validate`). Settings
+offers plain choices (length, quality, resolution, frame rate) that
+`recorder/presets.py` turns into GSR's options for the monitor recorded, and
+into the size estimate. The Game, Chat and Microphone tracks are each a
+device (`device:vertex_game.monitor` by default); while one is missing
+(Sonar off) its track records the default output or input instead. GSR 5.15+ accepts
 `name:<title>|device:<node>`, which titles the track "Vertex Game"; older
 versions title it "Devices: Monitor of Vertex Game". `media/tracks.py`
 recognises both, so labelling never depends on the recorder version.
@@ -137,14 +163,37 @@ portal, region, cameras and so on. GSR doesn't say where a monitor sits, so
 `recorder/monitors.py` places GSR's monitors where the desktop has them, matched
 by name; the UI passes the desktop's arrangement in as plain `Screen`s read from
 Qt. Settings draws the result as a map to click, a vertical monitor standing
-up. GSR decides what is listed; the desktop only says where.
+up. GSR decides what is listed; the desktop only says where. A recording
+always captures one monitor: the one picked, or the primary one when the
+picked monitor isn't connected.
 
 `recorder/replay.py` runs GSR in its own session (signals reach a wrapper's
 children too) with `PR_SET_PDEATHSIG`, so it never outlives Vertex. It saves
 with `SIGUSR1` (whole buffer) or `SIGRTMIN+n` (last 10 s … 30 min), stops with
 `SIGINT`, reads saved paths from stdout and reports the last stderr lines when
 GSR exits unexpectedly. "Running" means the process stayed up past a short
-settle period — GSR exits within a fraction of a second on bad settings.
+settle period — GSR exits within a fraction of a second on bad settings. If GSR crashes, the
+recorder controller restarts it once and shows "Restarting…"; a second crash
+within a minute leaves it stopped. Changed recording settings restart a
+running buffer the same way.
+
+## Notifications, control and logs
+
+`notifications.py` lists every kind of notification with its category,
+level and default. Everything that notifies goes through `Context.notify`,
+which shows a toast in the window and, when the window isn't in front and
+the kind is on, a pop-up: through `gsr-notify` over games
+(`recorder/notifier.py`) when installed and switched on, else the tray.
+
+`ipc.py` serves the control socket on a background thread; `control.py`
+defines the API (documented in [CONTROL.md](CONTROL.md)) without Qt, and
+`ui/control.py` runs each command on the UI thread. `subscribe` connections
+get a state event on every change and every notice. The CLI is a client of
+the same socket, except `sonar up|down`, which also works with Vertex closed.
+
+`logs.py` writes four plain-text logs (vertex, recorder, sonar, clips) with
+rotation at 2 MB and two backups. Only actions are logged, one line each (a
+fader logs once it is let go), to keep disk writes light.
 
 ## Track names in clips
 
@@ -156,17 +205,16 @@ when ffprobe comes back empty. The library keys each track's saved volume by
 this name, so its precedence must not change.
 
 `media/tracks.py` labels tracks all-or-nothing: Vertex devices are matched
-exactly; older clips by the capture devices named in Settings, then by device
-name heuristics (inherited from 1.x); a mixed-down "game + chat" track is
-*Desktop*. If any track can't be named, or two would share a name, they are
+exactly; other clips by device name heuristics; a mixed-down "game + chat"
+track is *Desktop*. If any track can't be named, or two would share a name, they are
 all numbered instead.
 
 ## Data formats
 
-**config.json** — `Config.to_dict()`. The 1.x keys (`clip_path`, `data_path`,
-`state_path`, `export_path`, `cache_path`, `game_device`, `chat_device`,
-`mic_device`, `logo_variant`) are unchanged; `recorder` and `sonar` are
-nested objects. Unknown or mistyped values fall back to defaults instead of
+**config.json** — `Config.to_dict()`: folders, the color scheme, card size,
+notification switches and logs at the top level; `recorder` and `sonar` are
+nested objects (Sonar's holds the channels' volumes, app rules and device
+lists). Unknown or mistyped values fall back to defaults instead of
 failing. Written atomically.
 
 **library.db** — table `clips`, keyed by file name:
@@ -182,9 +230,9 @@ failing. Written atomically.
 | `duration`, `recorded` | cached probe result; recording date |
 | `tag`, `updated` | legacy column; last write time |
 
-`PRAGMA user_version` tracks the schema. Version 1 makes sure every column 1.x
-added ad hoc exists; version 2 adds indexes. New migrations go at the end of
-`MIGRATIONS` in `library/database.py`.
+`PRAGMA user_version` tracks the schema, which is at version 2 (with indexes
+on game and favorite). A change to the schema bumps it; see
+`library/database.py`.
 
 ## Testing
 

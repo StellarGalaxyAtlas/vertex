@@ -25,10 +25,13 @@ where the work stands. New requests and bugs get the next free number in
 - Keep the human-written intro and the "Thanks" paragraph in `README.md` word
   for word.
 - Don't open pull requests unless asked.
-- Don't touch the repo's documentation (README, `docs/`, the screenshots in
-  it) until the maintainer says so (since 2026-10-13). `TODO.md` and this file
-  are kept up to date; the Notes in `TODO.md` list what the docs have fallen
-  behind on.
+- The documentation (README, `docs/GUIDE.md`, `docs/CONTROL.md`,
+  `docs/ARCHITECTURE.md`) was rewritten in item 21. Keep it short and in step
+  when a change alters what a user sees; the install steps carry the
+  maintainer's "written by AI, not verified" warning. Retake the screenshots
+  with `xvfb-run -a python tools/docs_screenshots.py docs/screenshots`
+  (a made-up demo library; then copy first-run.png from
+  `tools/first_run_screenshot.py`'s moments step).
 - No code for upgrades nobody went through: 2.0 isn't released and nobody
   upgraded from 1.x, so settings, data and devices from 1.x or earlier 2.0
   builds aren't carried over. Their library database (version 2) must keep
@@ -71,7 +74,7 @@ where the work stands. New requests and bugs get the next free number in
   Settings › Recording, with a fake recorder and three fake monitors (one
   standing up). `xvfb-run -a python tools/first_run_screenshot.py /tmp/shot`
   shoots every step of first-run setup, with and without a recorder.
-  The tools shoot Plum, the default. A colour change is checked in a dark
+  The tools shoot Navy, the default. A colour change is checked in a dark
   and a light scheme: for another one, add `"colour_scheme": "polar"` to
   the config a tool writes (and don't commit that).
 - Workflow agents with `isolation: "worktree"` get a worktree made from the
