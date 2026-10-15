@@ -215,12 +215,8 @@ def main(out: str, size: tuple[int, int]) -> int:
         window.navigate("library")
         window.state.set_facet(Facet("game", "Starfall Arena"))
 
-    def library_search():
-        window.state.set_facet(Facet())
-        window.state.set_query("neon")
-
     def editor():
-        window.state.set_query("")
+        window.state.set_facet(Facet())
         clip = next(c for c in window.state.visible if "Hollow" in c.path)
         window.open_clip(clip)
 
@@ -243,7 +239,6 @@ def main(out: str, size: tuple[int, int]) -> int:
         (lambda: window.navigate("home"), "home"),
         (lambda: window.navigate("library"), "library"),
         (library_game, "library-game"),
-        (library_search, "library-search"),
         (editor, "editor"),
         (export, None),
         (lambda: window.navigate("sonar"), "sonar"),

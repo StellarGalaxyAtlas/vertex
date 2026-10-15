@@ -210,7 +210,7 @@ start or stop the replay buffer, save a clip or the last 30 seconds, switch
 the output device or microphone, and quit.
 
 For a Stream Deck there is a
-[StreamController plugin](STREAMCONTROLLER_URL); scripts can use the
+[StreamController plugin](https://github.com/StellarGalaxyAtlas/vertex-streamcontroller); scripts can use the
 [control API](CONTROL.md).
 
 ## Settings

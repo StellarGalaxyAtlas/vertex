@@ -281,7 +281,7 @@ vertex install-desktop | uninstall-desktop
 talk to a running Vertex over its control socket: see
 [docs/CONTROL.md](docs/CONTROL.md).
 
-**Stream Deck:** the [Vertex plugin for StreamController](STREAMCONTROLLER_URL)
+**Stream Deck:** the [Vertex plugin for StreamController](https://github.com/StellarGalaxyAtlas/vertex-streamcontroller)
 has keys and dials for volumes, mutes, devices, the replay buffer and saving
 clips, with icons for every theme. It lives in its own repository.
 
