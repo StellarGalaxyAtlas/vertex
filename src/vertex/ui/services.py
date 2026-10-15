@@ -7,13 +7,15 @@ through Qt signals on the UI thread.
 
 from __future__ import annotations
 
+import logging
 import os
+import shlex
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from vertex import fmt, notifications
+from vertex import fmt, logs, notifications
 from vertex.audio import channels, devices
 from vertex.audio.pulse import AudioError, Pactl
 from vertex.audio.sonar import Sonar, SonarStatus
@@ -119,6 +121,11 @@ class SonarController(QObject):
         self._reconcile_timer.timeout.connect(self._reconcile)
         self._streams_timer = QTimer(self, singleShot=True, interval=250)
         self._streams_timer.timeout.connect(self.refresh_streams)
+        # Volumes are logged once they settle, not for every step of a drag.
+        self._volumes_to_log: dict[str, float] = {}
+        self._volume_log_timer = QTimer(self, singleShot=True, interval=1500)
+        self._volume_log_timer.timeout.connect(self._log_volumes)
+        self._last_failure = ""
 
     def _state_file(self) -> str:
         return os.path.join(self.context.config.resolved_state_dir(), "sonar.json")
@@ -144,6 +151,11 @@ class SonarController(QObject):
             finish(None)
             if not quiet:
                 self.context.notify("sonar_problem", "Sonar", str(exc))
+            elif str(exc) != self._last_failure:
+                # Background refreshes fail in a row while the server is away:
+                # once in the log is enough.
+                logs.SONAR.warning("%s", exc)
+            self._last_failure = str(exc)
 
         return workers.run(fn, finish, failed, executor=self._executor)
 
@@ -167,8 +179,10 @@ class SonarController(QObject):
         except AudioError:
             self._watcher = None
 
-    def _on_watch_lost(self, _reason: str) -> None:
+    def _on_watch_lost(self, reason: str) -> None:
         # The audio server restarted; watch again shortly, then repair.
+        logs.SONAR.warning("Lost the audio server (%s); connecting again",
+                           reason or "no reason given")
         QTimer.singleShot(2000, self._watch)
         self._reconcile_timer.start()
 
@@ -270,6 +284,18 @@ class SonarController(QObject):
         if not pair:
             return
         outputs, inputs = pair
+        for kind, before, now in (("output", self.outputs, outputs),
+                                  ("microphone", self.inputs, inputs)):
+            if not before:
+                continue      # the first look: nothing came or went
+            seen = {device.name for device in before}
+            names = {device.name for device in now}
+            for device in now:
+                if device.name not in seen:
+                    logs.SONAR.info("Connected %s: %s", kind, device.label)
+            for device in before:
+                if device.name not in names:
+                    logs.SONAR.info("Disconnected %s: %s", kind, device.label)
         self.outputs, self.inputs = list(outputs), list(inputs)
         # New devices join the device manager's lists, at the bottom.
         if self.sonar.learn_devices(outputs, inputs):
@@ -283,6 +309,11 @@ class SonarController(QObject):
         sonar = self.context.config.sonar
         setattr(sonar, f"{kind}_priority", list(priority))
         setattr(sonar, f"{kind}_excluded", list(excluded))
+        names = sonar.device_names
+        logs.SONAR.info("New %s order: %s%s", "output" if kind == "output" else "microphone",
+                        ", ".join(names.get(name, name) for name in priority) or "none",
+                        f" (never picked: {', '.join(names.get(n, n) for n in excluded)})"
+                        if excluded else "")
         self._device_settings_changed()
 
     def set_show_disconnected(self, shown: bool) -> None:
@@ -290,6 +321,7 @@ class SonarController(QObject):
         self.context.save_config()
 
     def set_device_volume(self, kind: str, name: str, volume: float) -> None:
+        self._log_volume(self.context.config.sonar.device_names.get(name, name), volume)
         self._job(lambda: self.sonar.set_device_volume(kind, name, volume), quiet=True)
         QTimer.singleShot(200, self.refresh_devices)
 
@@ -306,6 +338,7 @@ class SonarController(QObject):
         first = channel_id not in self._pending_volume
         self._pending_volume[channel_id] = volume
         self.context.config.sonar.channel(channel_id).volume = volume
+        self._log_volume(channels.BY_ID[channel_id].label, volume)
         if first:
             def work():
                 value = self._pending_volume.pop(channel_id)
@@ -313,7 +346,17 @@ class SonarController(QObject):
             self._job(work, quiet=True)
         self.context.save_config_later()
 
+    def _log_volume(self, what: str, volume: float) -> None:
+        self._volumes_to_log[what] = volume
+        self._volume_log_timer.start()
+
+    def _log_volumes(self) -> None:
+        for what, volume in self._volumes_to_log.items():
+            logs.SONAR.info("%s volume %d%%", what, round(volume * 100))
+        self._volumes_to_log.clear()
+
     def set_muted(self, channel_id: str, muted: bool) -> None:
+        logs.SONAR.info("%s %s", channels.BY_ID[channel_id].label, "muted" if muted else "unmuted")
         self._job(lambda: self.sonar.set_muted(channel_id, muted), quiet=True)
         self.context.save_config_later()
 
@@ -399,17 +442,24 @@ class SonarController(QObject):
 
     def set_default_channel(self, channel_id: str) -> None:
         self.context.config.sonar.default_channel = channel_id
+        logs.SONAR.info("Default output channel: %s", channels.BY_ID[channel_id].label)
         self.context.save_config()
         if self.enabled:
             self._job(lambda: self.sonar.up(take_defaults=True), self._after_change)
 
     def route(self, app_key: str, channel_id: str | None) -> None:
+        if channel_id is None:
+            logs.SONAR.info("%s goes back to the default channel", app_key)
+        else:
+            logs.SONAR.info("%s plays on %s from now on", app_key, channels.BY_ID[channel_id].label)
+
         def work():
             return self.sonar.route(app_key, channel_id)
         self._job(work, lambda _n: (self.context.save_config(), self.refresh_streams()))
 
     def forget_rule(self, app_key: str) -> None:
-        self.context.config.sonar.app_rules.pop(app_key, None)
+        if self.context.config.sonar.app_rules.pop(app_key, None):
+            logs.SONAR.info("Forgot where %s plays", app_key)
         self.context.save_config()
         self.refresh_streams()
 
@@ -419,6 +469,8 @@ class SonarController(QObject):
 
     def shutdown(self, take_down: bool = True) -> None:
         self._closed = True
+        if self._volume_log_timer.isActive():
+            self._log_volumes()
         self._reconcile_timer.stop()
         self._streams_timer.stop()
         if self._watcher is not None:
@@ -453,6 +505,8 @@ class RecorderController(QObject):
         self._wanted = False
         # Whether Sonar's devices were all there when last seen.
         self._sonar_active: bool | None = None
+        # The state last passed on, so a stop isn't announced twice.
+        self._reported = State.STOPPED
         context.sonar.status_changed.connect(self._sonar_status)
         # What GSR said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
@@ -479,7 +533,14 @@ class RecorderController(QObject):
             return info, gsr.list_capture_options(command) if info.available else []
 
         def done(result):
-            self.info, self.capture_options = result
+            info, self.capture_options = result
+            if info != self.info:
+                if info.available:
+                    logs.RECORDER.info("Found GPU Screen Recorder %s (%s)", info.version_text,
+                                       command)
+                else:
+                    logs.RECORDER.warning("GPU Screen Recorder: %s", info.error or "not found")
+            self.info = info
             self.info_changed.emit(self.info)
             if then is not None:
                 then(self.info)
@@ -551,14 +612,17 @@ class RecorderController(QObject):
             self.context.notify(
                 "track_missing", f"{role} audio: {device} isn't available",
                 f"Recording {what} instead" if what else "Recording without it")
+        argv = gsr.build_argv(self._as_recorded(), tracks, config.resolved_recording_dir(),
+                              self.info)
+        logs.RECORDER.info("Starting the replay buffer: %s", shlex.join(argv))
         try:
-            self.recorder.start(gsr.build_argv(self._as_recorded(), tracks,
-                                               config.resolved_recording_dir(), self.info),
-                                config.resolved_recording_dir())
+            self.recorder.start(argv, config.resolved_recording_dir())
         except RecorderError as exc:
             self._on_state((State.FAILED, str(exc)))
 
     def stop(self) -> None:
+        if self.running or self._restarting:
+            logs.RECORDER.info("Stopping the replay buffer")
         self._wanted = False
         self._restart_pending = False
         self._restarting = False
@@ -592,6 +656,7 @@ class RecorderController(QObject):
         past as "Off" and "Starting…" too quickly to notice."""
         if not self.running:
             return
+        logs.RECORDER.info("Restarting the replay buffer for new settings or audio tracks")
         self._restart_pending = True
         self._restarting = True
         self.state_changed.emit("restarting", "")
@@ -613,6 +678,8 @@ class RecorderController(QObject):
             # Saving from a shortcut or the tray shows nothing else of it.
             self.context.notify("clip_not_saved", "Clip not saved", problem)
             raise RecorderError(problem)
+        logs.RECORDER.info("Saving %s",
+                           f"the last {seconds} seconds" if seconds else "the replay buffer")
         # Finding GSR to signal reads /proc: off the UI thread.
         workers.run(lambda: self.recorder.save(seconds), None,
                     lambda exc: self.context.notify("clip_not_saved", "Clip not saved",
@@ -636,6 +703,9 @@ class RecorderController(QObject):
                 return
             self._restarting = False
             restarted = state == State.RUNNING
+        if state == State.STOPPED and self._reported == State.STOPPED:
+            return      # a stop reports itself, and so does GSR exiting
+        self._reported = state
         if restarted:
             self.context.notify("replay_restarted", "Replay buffer restarted")
         elif state == State.RUNNING:
@@ -651,15 +721,25 @@ class RecorderController(QObject):
     def _on_saved(self, path: str) -> None:
         when, game = self._game_hint
         library = self.context.library
-        if game and time.monotonic() - when < 60 and library is not None:
-            library.tag_if_untagged(os.path.basename(path), game)
+        logs.RECORDER.info("Saved %s", path)
+        if game and time.monotonic() - when < 60 and library is not None and \
+                library.tag_if_untagged(os.path.basename(path), game):
+            logs.CLIPS.info("Tagged %s with %s (playing on the Game channel)",
+                            os.path.basename(path), game)
         self._game_hint = (0.0, "")
         self.saved.emit(path)
 
     def shutdown(self) -> None:
         self._restart_pending = False
         if self.running:
+            logs.RECORDER.info("Stopping the replay buffer (quitting)")
             self.recorder.stop(timeout=3)
+
+
+# Every notice goes in the log of the part it is about, as serious as it looks.
+_NOTICE_LOGS = {"clips": logs.RECORDER, "sonar": logs.SONAR, "vertex": logs.APP}
+_NOTICE_LEVELS = {"info": logging.INFO, "ok": logging.INFO, "warn": logging.WARNING,
+                  "error": logging.ERROR}
 
 
 class Context(QObject):
@@ -689,6 +769,7 @@ class Context(QObject):
         self.config.ensure_dirs()
         try:
             self.library = Library(self.config.resolved_data_dir())
+            logs.CLIPS.info("Library: %s", self.library.path)
         except Exception as exc:     # run without a library rather than not at all
             self.notify("vertex_problem", "Couldn't open the library", str(exc))
             self.library = Library.in_memory()
@@ -702,13 +783,18 @@ class Context(QObject):
         except OSError as exc:
             self.notify("vertex_problem", "Couldn't save settings", str(exc))
             return
+        # Follows logging switched on or off, or a moved log folder.
+        logs.apply(self.config.keep_logs, self.config.resolved_log_dir())
         self.config_changed.emit()
 
     def notify(self, kind: str, title: str, body: str = "") -> None:
         """Tell the user something; `kind` is one of notifications.KINDS."""
         if kind not in notifications.BY_ID:
             raise KeyError(f"Unknown notification kind: {kind}")
-        self.notified.emit(notifications.Notice(kind, title, body))
+        notice = notifications.Notice(kind, title, body)
+        _NOTICE_LOGS[notifications.BY_ID[kind].category].log(
+            _NOTICE_LEVELS[notifications.BY_ID[kind].level], notice.line)
+        self.notified.emit(notice)
 
     def save_config_later(self) -> None:
         self._save_timer.start()

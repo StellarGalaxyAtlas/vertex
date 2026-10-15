@@ -18,6 +18,7 @@ from vertex import fmt
 from vertex.core import clips as clips_mod
 from vertex.core import storage
 from vertex.core.clips import Clip
+from vertex.logs import CLIPS as log
 
 # A file modified this recently may still be being written by a recorder:
 # probing it now would store a truncated duration for good.
@@ -59,6 +60,7 @@ class LibraryState(QObject):
         self.sort_key = "date"
         self.descending = True
         self.error = ""
+        self._last_scan: tuple[str, int] = ("", -1)   # what the log last said was there
         self._settle_timer = QTimer(self, singleShot=True)
         self._settle_timer.timeout.connect(self.reload)
 
@@ -77,6 +79,10 @@ class LibraryState(QObject):
         except OSError as exc:
             scan = clips_mod.ClipScan()
             self.error = f"Couldn't read {folder}: {exc}"
+            log.error("%s", self.error)
+        if (folder, len(scan.clips)) != self._last_scan:
+            log.info("%s in %s", fmt.plural(len(scan.clips), "clip"), folder or "no folder")
+            self._last_scan = (folder, len(scan.clips))
         self.all_clips = scan.clips
         tagged = self._index()
         self._load_metadata()
@@ -99,8 +105,11 @@ class LibraryState(QObject):
             self.library.store_recorded(
                 {clip.name: clip.recorded or clip.created for clip in self.all_clips})
             dates = self.library.recorded_dates()
-        except sqlite3.Error:
+        except sqlite3.Error as exc:
+            log.error("Couldn't update the library: %s", exc)
             return 0
+        for name, game in tagged.items():
+            log.info("Tagged %s with %s (from its file name)", name, game)
         for clip in self.all_clips:
             clip.recorded = dates.get(clip.name) or clip.recorded
         return len(tagged)
@@ -259,8 +268,10 @@ class LibraryState(QObject):
         try:
             trashed = storage.delete_file(clip.path)
         except OSError as exc:
+            log.error("Couldn't delete %s: %s", clip.path, exc)
             self.status.emit(f"Couldn't delete {clip.name}: {exc}", "error")
             return ""
+        log.info("%s %s", "Moved to the Trash:" if trashed else "Deleted", clip.path)
         if self.library is not None:
             self.library.forget(clip.name)
         self.all_clips = [c for c in self.all_clips if c.name != clip.name]
@@ -280,6 +291,7 @@ class LibraryState(QObject):
         try:
             trashed = storage.delete_file(clip.path)
         except OSError as exc:
+            log.error("Couldn't replace %s with its trim: %s", clip.path, exc)
             self.status.emit(f"Couldn't replace {clip.name}: {exc}", "error")
             return False
         try:
@@ -291,6 +303,8 @@ class LibraryState(QObject):
                 os.replace(trimmed_path, salvage)
             except OSError:
                 salvage = trimmed_path
+            log.error("Couldn't move the trim of %s into place (%s); it is %s", clip.path,
+                      exc, salvage)
             self.reload()
             self.status.emit(f"Trim saved as {os.path.basename(salvage)}. Couldn't replace "
                              f"the original: {exc}", "error")
@@ -299,5 +313,6 @@ class LibraryState(QObject):
             self.library.clear_trim(clip.name)
         self.reload()
         where = "moved to Trash" if trashed else "deleted"
+        log.info("Trimmed %s; original %s", clip.path, where)
         self.status.emit(f"Trimmed {clip.name} · original {where}", "ok")
         return True

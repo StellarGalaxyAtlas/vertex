@@ -4,6 +4,7 @@ and setup, reset."""
 from __future__ import annotations
 
 import copy
+import os
 import shlex
 
 from PySide6.QtCore import Qt, Signal
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import desktop, paths
+from vertex import desktop, logs, paths
 from vertex.audio import channels
 from vertex.config import (
     AUDIO_CODECS,
@@ -169,17 +170,23 @@ class SettingsView(QWidget):
         self.data_path = PathField(placeholder=str(paths.default_data_dir()))
         self.state_path = PathField(placeholder=str(paths.default_state_dir()))
         self.cache_path = PathField(placeholder=str(paths.default_cache_dir()))
+        self.keep_logs = Toggle()
+        self.log_path = PathField(placeholder=str(paths.default_log_dir()))
+        self.keep_logs.toggled.connect(self.log_path.setEnabled)
         # Vertex's own folders: set up once, and best left alone.
-        self.folders_advanced = Disclosure("Advanced", "Library, state and cache folders")
+        self.folders_advanced = Disclosure("Advanced", "Library, state, cache and log folders")
         self.folders_advanced.body_layout.setSpacing(12)
         for title, field, hint in (
                 ("Library", self.data_path, "Tags, titles, trims and mixes"),
                 ("State", self.state_path, ""),
                 ("Cache", self.cache_path, "Thumbnails")):
             self.folders_advanced.add(setting_row(title, field, hint))
+        self.folders_advanced.add(setting_row(
+            "Keep logs", self.keep_logs, "What Vertex did, for when something goes wrong"))
+        self.folders_advanced.add(setting_row("Logs", self.log_path, ""))
         folders.add(self.folders_advanced)
         for field in (self.clip_path, self.export_path, self.data_path, self.state_path,
-                      self.cache_path):
+                      self.cache_path, self.log_path):
             field.setMinimumWidth(420)
 
         behaviour = Section("Behavior")
@@ -352,6 +359,11 @@ class SettingsView(QWidget):
         self.data_path.set_value(config.data_path)
         self.state_path.set_value(config.state_path)
         self.cache_path.set_value(config.cache_path)
+        self.keep_logs.setChecked(config.keep_logs)
+        self.log_path.setEnabled(config.keep_logs)
+        self.log_path.set_value(config.log_path)
+        self.log_path.edit.setPlaceholderText(paths.tilde(
+            os.path.join(config.resolved_state_dir(), "logs")))
         self.close_to_tray.setChecked(config.close_to_tray)
         self.schemes.set_value(config.colour_scheme)
         if self.schemes.value() != theme.scheme:      # back from a scheme picked, not saved
@@ -391,6 +403,8 @@ class SettingsView(QWidget):
         config.data_path = self.data_path.value()
         config.state_path = self.state_path.value()
         config.cache_path = self.cache_path.value()
+        config.keep_logs = self.keep_logs.isChecked()
+        config.log_path = self.log_path.value()
         config.close_to_tray = self.close_to_tray.isChecked()
         config.colour_scheme = self.schemes.value()
         config.notifications = self.notifications.choices()
@@ -442,20 +456,28 @@ class SettingsView(QWidget):
         folders_changed = any(getattr(new, key) != getattr(old, key) for key in
                               ("clip_path", "data_path", "cache_path", "state_path"))
         recorder_changed = new.recorder != old.recorder
+        _log_changes(old, new)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
-                    "close_to_tray", "colour_scheme", "notifications", "notify_over_games"):
+                    "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
+                    "notify_over_games"):
             setattr(old, key, getattr(new, key))
         old.recorder = new.recorder
         old.ensure_dirs()
         self.context.save_config()
         if self.autostart.isChecked() != desktop.autostart_enabled():
+            logs.APP.info("Start with your computer: %s", "on" if self.autostart.isChecked()
+                          else "off")
             desktop.set_autostart(self.autostart.isChecked())
         restarting = recorder_changed and self.context.recorder.running
         if recorder_changed:
             self.context.recorder.detect()
             self.context.recorder.restart_if_running()
-        self.banner.show_message("Saved. Replay buffer restarting." if restarting else "Saved.",
-                                 "ok", 5000)
+        if old.keep_logs and logs.folder() != os.path.abspath(old.resolved_log_dir()):
+            self.banner.show_message(f"Saved, but logs can't be written to "
+                                     f"{paths.tilde(old.resolved_log_dir())}.", "warn", 10000)
+        else:
+            self.banner.show_message("Saved. Replay buffer restarting." if restarting
+                                     else "Saved.", "ok", 5000)
         self._refresh_storage()
         self.saved.emit(folders_changed)
         return True
@@ -605,6 +627,29 @@ class SettingsView(QWidget):
         if dialog.exec():
             self.imported.emit()
             self.banner.show_message(f"Tagged {dialog.written} clips.", "ok")
+
+
+def _log_changes(old: Config, new: Config) -> None:
+    """One line per setting saved with a new value, as the config file names it."""
+    before, after = _flat(old.to_dict()), _flat(new.to_dict())
+    for key, value in after.items():
+        if key.startswith("sonar.") or before.get(key) == value:
+            continue      # Sonar's settings are its page's, and log there
+        logs.APP.info("Setting %s: %s → %s", key, _shown(before.get(key)), _shown(value))
+
+
+def _flat(data: dict, prefix: str = "") -> dict:
+    flat = {}
+    for key, value in data.items():
+        if isinstance(value, dict) and key != "notifications":
+            flat.update(_flat(value, f"{prefix}{key}."))
+        else:
+            flat[f"{prefix}{key}"] = value
+    return flat
+
+
+def _shown(value) -> str:
+    return '""' if value == "" else str(value)
 
 
 def _set_combo(widget: QComboBox, value: str) -> None:

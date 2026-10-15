@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop, kwin, notifications, reset
+from vertex import APP_NAME, desktop, kwin, logs, notifications, reset
 from vertex.audio import channels
 from vertex.config import Config
 from vertex.media.thumbnails import ThumbnailCache
@@ -270,6 +270,7 @@ class MainWindow(QMainWindow):
             except OSError as exc:
                 context.notify("vertex_problem", "Couldn't reset settings", str(exc))
                 return
+            logs.APP.info("Settings reset%s", f"; the old ones are in {where}" if where else "")
             # In place: Sonar and the recorder hold on to the settings' parts.
             reset.reset_in_place(context.config, Config())
             self.settings_view.load()
@@ -292,6 +293,8 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             context.notify("vertex_problem", "Couldn't reset the library", str(exc))
             where = None
+        if where is not None:
+            logs.CLIPS.info("Library reset%s", f"; the old one is in {where}" if where else "")
         context.open_library()
         self.state.reload()
         if where is not None:
@@ -303,6 +306,7 @@ class MainWindow(QMainWindow):
         if context.thumbs is not None:
             context.thumbs.shutdown()
         ThumbnailCache(context.config.resolved_cache_dir()).clear()
+        logs.APP.info("Cache cleared")
         context.open_library()
         self.state.reload()
         self.settings_view.banner.show_message("Cache cleared", "ok")

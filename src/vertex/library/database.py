@@ -19,7 +19,9 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from vertex import fmt
 from vertex.core.naming import clean_tag, clean_tags, game_from_filename, game_key
+from vertex.logs import CLIPS as log
 
 DB_NAME = "library.db"
 
@@ -365,6 +367,7 @@ class Library:
         """
         rows = [(name, clean_tag(game), time.time())
                 for name, game in assignments.items() if clean_tag(game)]
+        log.info("Tagging %s from an import", fmt.plural(len(rows), "clip"))
         with self.conn:
             self.conn.executemany(
                 "INSERT INTO clips (filename, game, updated) VALUES (?, ?, ?)"

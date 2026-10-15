@@ -4,6 +4,8 @@ import subprocess
 
 import pytest
 
+from vertex import logs
+
 
 @pytest.fixture(autouse=True)
 def isolated_home(tmp_path, monkeypatch):
@@ -14,7 +16,10 @@ def isolated_home(tmp_path, monkeypatch):
     for var, sub in (("XDG_CONFIG_HOME", ".config"), ("XDG_DATA_HOME", ".local/share"),
                      ("XDG_STATE_HOME", ".local/state"), ("XDG_CACHE_HOME", ".cache")):
         monkeypatch.setenv(var, str(home / sub))
-    return home
+    yield home
+    # A test that saved settings switched the logs on, in its own home.
+    logs.shutdown()
+    monkeypatch.setattr(logs, "_enabled", None)
 
 
 def _have_ffmpeg():

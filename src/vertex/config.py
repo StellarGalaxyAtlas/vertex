@@ -142,6 +142,8 @@ class Config:
     state_path: str = ""
     export_path: str = ""
     cache_path: str = ""
+    keep_logs: bool = True      # write what Vertex does to the log folder (vertex.logs)
+    log_path: str = ""          # "" = a logs folder in the state folder
 
     close_to_tray: bool = True
     colour_scheme: str = "navy"                                # a key of ui/theme.SCHEMES
@@ -170,6 +172,9 @@ class Config:
 
     def resolved_cache_dir(self) -> str:
         return paths.normalize(self.cache_path) or str(paths.default_cache_dir())
+
+    def resolved_log_dir(self) -> str:
+        return paths.normalize(self.log_path) or os.path.join(self.resolved_state_dir(), "logs")
 
     def resolved_recording_dir(self) -> str:
         return paths.normalize(self.recorder.output_dir) or self.resolved_clip_dir()

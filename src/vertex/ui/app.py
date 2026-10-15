@@ -8,7 +8,7 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
-from vertex import APP_ID, APP_NAME, __version__, ipc
+from vertex import APP_ID, APP_NAME, __version__, ipc, logs
 from vertex.config import Config, needs_setup
 from vertex.ui import icons, theme
 from vertex.ui.control import Commands
@@ -49,6 +49,11 @@ def run(background: bool = False) -> int:
         except ipc.NotRunning:
             pass
         return 0
+    if logs.apply(config.keep_logs, config.resolved_log_dir()):
+        logs.started()
+        logs.APP.info("Logs in %s", logs.folder())
+    elif config.keep_logs:
+        context.notify("vertex_problem", "Couldn't write logs", config.resolved_log_dir())
 
     if QSystemTrayIcon.isSystemTrayAvailable():
         window.tray = Tray(window, context)
@@ -57,6 +62,9 @@ def run(background: bool = False) -> int:
     setup = needs_setup()
     missing = [] if setup else config.missing_dirs()
     if setup or missing:
+        if missing:
+            logs.APP.warning("Folders missing: %s", ", ".join(path for _key, path in missing))
+        logs.APP.info("Showing first-run setup")
         window.show_setup(config if missing else None, missing)
     else:
         window.start_services()
@@ -74,8 +82,12 @@ def run(background: bool = False) -> int:
     ticker.start(300)
 
     def shutdown():
+        logs.APP.info("Quitting")
         control.stop()
         context.shutdown()
 
     app.aboutToQuit.connect(shutdown)
-    return app.exec()
+    code = app.exec()
+    logs.APP.info("Stopped")
+    logs.shutdown()
+    return code

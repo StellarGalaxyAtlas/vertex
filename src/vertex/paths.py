@@ -66,6 +66,10 @@ def default_cache_dir() -> Path:
     return cache_home() / APP_ID
 
 
+def default_log_dir() -> Path:
+    return default_state_dir() / "logs"
+
+
 def control_socket() -> Path:
     """The Unix socket a running Vertex listens on for `vertex <command>`."""
     return runtime_dir() / "control.sock"

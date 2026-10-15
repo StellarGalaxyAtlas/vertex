@@ -41,6 +41,7 @@ from vertex.audio.pulse import (
     to_server,
 )
 from vertex.config import SonarConfig
+from vertex.logs import SONAR as log
 
 NULL_SINK = "module-null-sink"
 LOOPBACK = "module-loopback"
@@ -277,6 +278,10 @@ class Sonar:
         status.active = all(entry.present for entry in status.channels.values())
         return status
 
+    def _name(self, device: str) -> str:
+        """A device as people know it: its description, else its node name."""
+        return self.config.device_names.get(device, device)
+
     def is_active(self) -> bool:
         return self.status().active
 
@@ -317,6 +322,8 @@ class Sonar:
         else:
             warnings.append("No microphone was found, so Vertex Mic was not created.")
 
+        if output != self.state.output:
+            log.info("Channels play through %s", self._name(output) or "nothing")
         self.state.output, self.state.mic = output, mic
         self._save_state()
         if take_defaults or created:
@@ -338,6 +345,7 @@ class Sonar:
             self._unload(extra)
         if existing:
             return False
+        log.info("Creating %s", channel.description)
         self.pactl.load_module(NULL_SINK, {
             "sink_name": channel.node,
             "sink_properties": proplist({
@@ -360,9 +368,12 @@ class Sonar:
                     module.args.get("latency_msec") == latency:
                 kept.add(sink)
             else:
+                if sink not in targets:
+                    log.info("Disconnecting %s from %s", channel.description, self._name(sink))
                 self._unload(module)
         for target in targets:
             if target not in kept:
+                log.info("Connecting %s to %s", channel.description, self._name(target))
                 self._load_loopback(channel, target, latency)
 
     def _load_loopback(self, channel: Channel, output: str, latency: str) -> None:
@@ -393,6 +404,7 @@ class Sonar:
                 self._unload(module)
         if keep is not None:
             return False
+        log.info("Vertex Mic records %s", self._name(mic))
         self.pactl.load_module(REMAP_SOURCE, {
             "master": mic,
             "source_name": channels.MIC.node,
@@ -421,8 +433,9 @@ class Sonar:
             self.pactl.set_default_sink(target.node)
             if self.config.set_default_mic and mic_present:
                 self.pactl.set_default_source(channels.MIC.node)
-        except AudioError:
-            pass   # the devices exist; defaults are a convenience
+        except AudioError as exc:
+            # The devices exist; defaults are a convenience.
+            log.warning("Couldn't make %s the default: %s", target.description, exc)
 
     def _unload(self, module: Module) -> None:
         try:
@@ -443,13 +456,15 @@ class Sonar:
         source_names = {device.name for device in self.inputs()}
         restore_source = next((name for name in (self.state.previous_source, self.state.mic)
                                if name in source_names), "")
+        log.info("Taking the Vertex devices down; defaults back to %s and %s",
+                 self._name(restore_sink) or "unchanged", self._name(restore_source) or "unchanged")
         try:
             if restore_sink:
                 self.pactl.set_default_sink(restore_sink)
             if restore_source:
                 self.pactl.set_default_source(restore_source)
-        except AudioError:
-            pass
+        except AudioError as exc:
+            log.warning("Couldn't give the system its defaults back: %s", exc)
 
         # Move streams off the channels first, so they land on the restored
         # default rather than wherever the server would pick.
@@ -512,6 +527,9 @@ class Sonar:
     def _pick(self, kind: str, device: str, lasting: bool) -> None:
         """Use `device` for now, or (`lasting`, as setup does) put it on top
         of the device manager's list."""
+        what = "output" if kind == "output" else "microphone"
+        log.info("%s %s: %s", "Switching" if not lasting else "Setting up", what,
+                 self._name(device) or "none")
         if not lasting:
             self.picked[kind] = device
             self._connected[kind] = None     # what is plugged in now doesn't undo it
@@ -532,12 +550,16 @@ class Sonar:
         if self.config.linked:
             self._pick("output", device, lasting)
         else:
+            log.info("%s plays through %s", channels.BY_ID[channel_id].description,
+                     self._name(device))
             self.config.channel(channel_id).output_device = device
         return self.up() if self.config.enabled else []
 
     def set_linked(self, linked: bool, channel_id: str) -> list[str]:
         """Linking plays every output channel through `channel_id`'s device.
         Unlinking keeps each where it is, ready to be set apart."""
+        if linked != self.config.linked:
+            log.info("%s the output channels", "Linking" if linked else "Unlinking")
         if linked:
             if not self.config.linked:
                 own = self.config.channel(channel_id).output_device
@@ -557,11 +579,14 @@ class Sonar:
 
     def set_second_output(self, device: str) -> list[str]:
         """A device the output channels also play through ("" for none)."""
+        log.info("Second output: %s", self._name(device) or "none")
         self.config.second_output = device
         return self.up() if self.config.enabled else []
 
     def set_also_second(self, channel_id: str, also: bool) -> list[str]:
         """Whether a channel also plays through the second device."""
+        log.info("%s %s plays through the second output", channels.BY_ID[channel_id].description,
+                 "also" if also else "no longer")
         self.config.channel(channel_id).also_second = also
         return self.up() if self.config.enabled else []
 
@@ -670,6 +695,8 @@ class Sonar:
                 try:
                     self.pactl.move_sink_input(stream.index, target.node)
                     moved += 1
+                    log.info("Moved %s to %s, as its rule says", stream.app_name,
+                             target.description)
                 except AudioError:
                     # Ended in the meantime, or the server won't move it right
                     # now (a stream starting up or shutting down). It shows as

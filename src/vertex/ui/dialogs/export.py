@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import fmt, paths
+from vertex.logs import CLIPS as log
 from vertex.media import export
 from vertex.media.ffmpeg import Cancelled, MediaError
 from vertex.media.mixing import ffmpeg_graph
@@ -185,6 +186,8 @@ class ExportDialog(QDialog):
         theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
         args = (self.clip.path, self.clip.name, self.folder, self.start, self.end,
                 self.tracks, self.info, self.limit)
+        log.info("Exporting %s to %s (%s)", self.clip.path, self.folder,
+                 f"up to {fmt.size(self.limit)}" if self.limit else "original quality")
 
         def progress(fraction: float) -> None:
             workers.post(self._progress, fraction)
@@ -201,6 +204,8 @@ class ExportDialog(QDialog):
     def _done(self, result: export.ExportResult) -> None:
         self._running = False
         self.out_path = result.path
+        log.info("Exported %s, %s%s", result.path, fmt.size(result.size),
+                 " (over the size limit)" if result.over_limit else "")
         self.progress.setValue(1000)
         self._release()
         over = "  —  over the size limit" if result.over_limit else ""
@@ -215,9 +220,11 @@ class ExportDialog(QDialog):
         self.progress.setValue(0)
         self._release()
         if isinstance(exc, Cancelled):
+            log.info("Export of %s cancelled", self.clip.path)
             self.status.setText("Export cancelled.")
             theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
         else:
+            log.error("Couldn't export %s: %s", self.clip.path, exc)
             self.status.setText(str(exc))
             theme.style(self.status, lambda: f"color: {theme.DANGER};")
 

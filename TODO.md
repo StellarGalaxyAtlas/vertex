@@ -120,6 +120,8 @@ Built and tested in the container; only their system can confirm:
 - 30: the schemes on their desktop: each one picked in Settings shows at
   once everywhere (top bar, Home, Library, Sonar, Settings, the editor), and
   the saved one is there after a restart.
+- 61: the logs on their system: lines from a real GSR, Sonar with their
+  devices, the Stream Deck's commands; switching Keep logs off and on.
 - 24, 25: the new look on their desktop, in their font and display scale:
   toasts appear bottom-right and go after a few seconds; at 980 px wide the
   Sonar page doesn't scroll sideways.
@@ -568,6 +570,20 @@ blue, Coral, Polar, Glacier in Settings › General. Only the default changed:
 a saved pick (Plum included) is kept. Navy's blurb now reads "Vertex's
 original look" instead of "until now".
 
+**61. Log files.** Asked 2026-10-15: what Vertex does, written down for
+troubleshooting, "just enough to troubleshoot", not so much it wears an SSD.
+`vertex.logs`: one plain-text file per part in the log folder (`vertex.log`
+the app, settings and commands; `recorder.log`; `sonar.log`; `clips.log`),
+each line the time, the level and what happened. A file starts over at 2 MB,
+keeping two older ones (`.1`, `.2`). Only actions and errors are logged: a
+dragged fader or a turned Stream Deck dial is one line once it settles;
+`state`, `devices` and `status` commands aren't logged; GPU Screen
+Recorder's own output only when it exits on an error. Notices go in the log
+of their part too. Settings › General › Advanced: Keep logs (on by default,
+asked as a switch) and the Logs folder (default `logs` in the state folder,
+`~/.local/state/vertex/logs`). Uncaught errors land in `vertex.log`. Only
+the running app writes logs, not `vertex save-clip` and co.
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -575,7 +591,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 60, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 61, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

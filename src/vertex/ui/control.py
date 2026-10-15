@@ -3,9 +3,11 @@ subscribers. What the commands are and answer is in `vertex.control`."""
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
-from vertex import APP_NAME, __version__, control, fmt, ipc
+from vertex import APP_NAME, __version__, control, fmt, ipc, logs
 from vertex.audio import channels
 from vertex.recorder.replay import RecorderError
 
@@ -50,7 +52,9 @@ class Commands(QObject):
         except control.BadArgument as exc:
             box.append(control.error(control.BAD_ARGUMENT, str(exc)))
         except Exception as exc:     # reported to the caller
+            logs.APP.exception("Command %s failed", command)
             box.append(control.error(control.FAILED, str(exc)))
+        _log_command(command, args, box[-1])
 
     # --- State --------------------------------------------------------------------
 
@@ -195,3 +199,21 @@ class Commands(QObject):
                                             [d.name for d in sonar.outputs], names),
             mics=control.device_list(config.mic_priority, config.mic_excluded,
                                      [d.name for d in sonar.inputs], names))
+
+
+# Asked for all the time (a Stream Deck keeps its keys up to date): not worth a line.
+_QUIET_COMMANDS = {"ping", "state", "devices"}
+
+
+def _log_command(command: str, args: dict, reply: dict) -> None:
+    """A command that does something, from a shortcut, the Stream Deck or a
+    script, with what came of it."""
+    if command in _QUIET_COMMANDS or args.get("action") == "status":
+        return
+    if command == "volume" and reply.get("ok"):
+        return      # a turned dial is a burst of these; Sonar logs where it settles
+    given = " ".join(f"{key}={value}" for key, value in args.items() if value is not None)
+    said = reply.get("message") or reply.get("error") or ""
+    level = logging.INFO if reply.get("ok") else logging.WARNING
+    logs.APP.log(level, "Command %s%s: %s", command, f" {given}" if given else "",
+                 said or ("done" if reply.get("ok") else "failed"))

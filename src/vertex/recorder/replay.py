@@ -24,6 +24,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 
+from vertex.logs import RECORDER as log
 from vertex.proc import die_with_parent
 from vertex.recorder.gsr import SAVE_PRESETS
 
@@ -156,6 +157,7 @@ class ReplayRecorder:
         try:
             proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
+            log.warning("GPU Screen Recorder didn't stop within %g seconds; killing it", timeout)
             self._signal(proc, signal.SIGKILL)
             proc.wait(timeout=2)
         self._set(State.STOPPED)
@@ -223,6 +225,8 @@ class ReplayRecorder:
             self._set(State.STOPPED)
             return
         time.sleep(0.1)       # let the stderr reader catch the last lines
+        log.error("GPU Screen Recorder exited with code %d. Its last output:\n%s", code,
+                  "\n".join(self._stderr) or "(nothing)")
         detail = self.stderr_tail() or f"exit code {code}"
         self._set(State.FAILED, f"GPU Screen Recorder stopped: {detail}")
 

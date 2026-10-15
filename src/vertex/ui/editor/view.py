@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from vertex import fmt
 from vertex.core import clips as clips_mod
+from vertex.logs import CLIPS as log
 from vertex.media import mixing, probe, trim, waveform
 from vertex.media import tracks as track_labels
 from vertex.media.export import copy_estimate
@@ -494,6 +495,10 @@ class EditorView(QWidget):
         self.export_button.setEnabled(False)
         self.status.setText("Trimming…")
         start, end, source = self.trim_start, self.trim_end, self.clip.path
+        log.info("Trimming %s to %s–%s (%s)", source,
+                 f"{start:.1f} s" if start is not None else "start",
+                 f"{end:.1f} s" if end is not None else "end",
+                 "as a copy" if mode == "copy" else "replacing it")
         self._trim_job = (mode, target)
         workers.run(lambda: trim.trim(source, target, start, end),
                     lambda size: self._trim_done(mode, target, size),
@@ -507,6 +512,8 @@ class EditorView(QWidget):
             return
         self.trim_button.setEnabled(True)
         self.export_button.setEnabled(True)
+        if mode == "copy":
+            log.info("Saved the trim as %s", target)
         if mode == "copy" and self.context.library is not None:
             self.context.library.copy_edits(self.clip.name, os.path.basename(target),
                                             title_suffix=" (trimmed)")
@@ -517,6 +524,7 @@ class EditorView(QWidget):
     def _trim_failed(self, exc: BaseException) -> None:
         _mode, target = self._trim_job or ("", "")
         self._trim_job = None
+        log.error("Couldn't trim %s: %s", self.clip.path, exc)
         _remove(target)
         if self._closing:
             return
