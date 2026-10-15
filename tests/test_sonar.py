@@ -87,10 +87,163 @@ class TestSonar:
     def test_output_change_moves_the_loopbacks(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         sonar.up()
-        sonar.set_output("hw_speakers")
+        sonar.set_channel_output("game", "hw_speakers")
         targets = {m.args["sink"] for m in fake.modules_ if m.name == "module-loopback"}
         assert targets == {"hw_speakers"}
-        assert len([m for m in fake.modules_ if m.name == "module-loopback"]) == 4
+        assert len([m for m in fake.modules_ if m.name == "module-loopback"]) == 3
+
+    def test_unlinked_channels_play_through_their_own_devices(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+
+        def targets():
+            return {name: entry.output for name, entry in sonar.status().channels.items()
+                    if entry.channel.is_output}
+
+        assert targets() == {"game": "hw_headset", "chat": "hw_headset",
+                             "media": "hw_headset"}
+        # Unlinked, each keeps the shared device until it is given its own.
+        sonar.set_linked(False, "game")
+        assert targets() == {"game": "hw_headset", "chat": "hw_headset",
+                             "media": "hw_headset"}
+        sonar.set_channel_output("media", "hw_speakers")
+        assert targets() == {"game": "hw_headset", "chat": "hw_headset",
+                             "media": "hw_speakers"}
+        # Its own device unplugged: the shared one meanwhile; back when it is.
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        assert targets()["media"] == "hw_headset"
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        assert targets()["media"] == "hw_speakers"
+        # Linking from Media plays everything through Media's device.
+        sonar.set_linked(True, "media")
+        assert set(targets().values()) == {"hw_speakers"}
+        assert sonar.status().output_picked                 # for now, as any pick
+        # Linked, picking a device for one channel picks it for all.
+        sonar.set_channel_output("chat", "hw_headset")
+        assert set(targets().values()) == {"hw_headset"}
+
+    def test_device_manager_picks_by_priority(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        sonar.learn_devices(sonar.outputs(), sonar.inputs())
+        # The device in use goes on top the first time; the rest follow.
+        assert sonar.config.output_priority == ["hw_headset", "hw_speakers"]
+        assert sonar.config.mic_priority == ["hw_mic"]
+
+        # Auto: the highest connected device plays, and plugging a higher
+        # one back in switches to it.
+        sonar.config.output_priority = ["hw_speakers", "hw_headset"]
+        sonar.reconcile()
+        assert sonar.status().output == "hw_speakers"
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        assert sonar.status().output == "hw_headset"
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        assert sonar.status().output == "hw_speakers"
+        # Excluded devices are never picked automatically.
+        sonar.config.output_excluded = ["hw_speakers"]
+        sonar.reconcile()
+        assert sonar.status().output == "hw_headset"
+
+        # Picked by hand (even an excluded one): used for now, the lists as they were.
+        sonar.set_channel_output("game", "hw_speakers")
+        assert sonar.config.output_priority == ["hw_speakers", "hw_headset"]
+        assert sonar.config.output_excluded == ["hw_speakers"]
+        status = sonar.status()
+        assert status.output == "hw_speakers" and status.output_picked
+        # Until it is unplugged: back, the list decides again.
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        status = sonar.status()
+        assert status.output == "hw_headset" and not status.output_picked
+
+        # Setup's choice lasts: on top of the list, out of excluded.
+        sonar.set_channel_output("game", "hw_speakers", lasting=True)
+        assert sonar.config.output_priority[0] == "hw_speakers"
+        assert sonar.config.output_excluded == []
+        assert sonar.status().output == "hw_speakers" and not sonar.status().output_picked
+
+    def test_microphones_follow_the_list_and_a_pick_lasts_until_a_plug_in(self, tmp_path):
+        sonar, fake = _sonar(tmp_path, mic_priority=["hw_a", "hw_b"])
+        fake.add_source("hw_a")
+        fake.add_source("hw_b")
+        sonar.up()
+        assert sonar.status().mic == "hw_a"
+        # A unplugged: B. A back: A again.
+        fake.remove_device("hw_a")
+        sonar.reconcile()
+        assert sonar.status().mic == "hw_b"
+        fake.add_source("hw_a")
+        sonar.reconcile()
+        assert sonar.status().mic == "hw_a"
+        # Switched to B (`vertex device next mic`): B, the order kept, through
+        # repairs that plug nothing in.
+        sonar.set_mic("hw_b")
+        sonar.reconcile()
+        status = sonar.status()
+        assert status.mic == "hw_b" and status.mic_picked
+        assert sonar.config.mic_priority == ["hw_a", "hw_b"]
+        # Something unplugged that isn't B: still B. Anything plugged in: the list.
+        fake.remove_device("hw_mic")
+        sonar.reconcile()
+        assert sonar.status().mic == "hw_b"
+        fake.add_source("hw_usb")
+        sonar.reconcile()
+        status = sonar.status()
+        assert status.mic == "hw_a" and not status.mic_picked
+        # A pick doesn't outlast Sonar.
+        sonar.set_mic("hw_b")
+        sonar.down()
+        sonar.up()
+        assert sonar.status().mic == "hw_a"
+
+    def test_new_devices_go_to_the_bottom(self, tmp_path):
+        sonar, fake = _sonar(tmp_path, output_priority=["hw_speakers", "hw_headset"])
+        sonar.up()
+        fake.add_sink("hw_usb", props={"device.description": "USB Headset"})
+        assert sonar.learn_devices(sonar.outputs(), sonar.inputs())
+        assert sonar.config.output_priority == ["hw_speakers", "hw_headset", "hw_usb"]
+        assert sonar.config.device_names["hw_usb"] == "USB Headset"
+        assert not sonar.learn_devices(sonar.outputs(), sonar.inputs())
+        sonar.reconcile()
+        assert sonar.status().output == "hw_speakers"    # not switched to the new one
+
+    def test_channels_also_play_through_a_second_device(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+
+        def targets(channel_id):
+            return sorted(m.args["sink"] for m in fake.modules_ if m.name == "module-loopback"
+                          and m.args["source"] == f"vertex_{channel_id}.monitor")
+
+        sonar.set_second_output("hw_speakers")
+        assert all(targets(c) == ["hw_headset", "hw_speakers"]
+                   for c in ("game", "chat", "media"))
+        entry = sonar.status().channels["chat"]
+        assert entry.output == "hw_headset" and entry.also
+        # Chat kept private: headset only.
+        sonar.set_also_second("chat", False)
+        assert targets("chat") == ["hw_headset"]
+        assert targets("game") == ["hw_headset", "hw_speakers"]
+        assert not sonar.status().channels["chat"].also
+        # Second device unplugged: the first carries on alone; back, it joins in.
+        fake.remove_device("hw_speakers")
+        sonar.reconcile()
+        assert targets("game") == ["hw_headset"]
+        fake.add_sink("hw_speakers")
+        sonar.reconcile()
+        assert targets("game") == ["hw_headset", "hw_speakers"]
+        # The second device being the first one too: one loopback, not two.
+        sonar.set_channel_output("game", "hw_speakers")
+        assert targets("game") == ["hw_speakers"]
+        sonar.set_second_output("")
+        sonar.set_channel_output("game", "hw_headset")
+        assert all(targets(c) == ["hw_headset"] for c in ("game", "chat", "media"))
 
     def test_unplugged_output_falls_back_without_stealing_defaults(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
@@ -144,6 +297,32 @@ class TestSonar:
         assert sonar.game_apps() == ["Spotify", "Spotify"]   # both streams moved back
         assert discord.sink == fake._sink("vertex_chat").index
 
+    def test_a_stream_that_refuses_to_move_is_retried(self, tmp_path):
+        """Reported bug: after a drop the app showed on both channels. One of
+        its streams refused the move and stayed behind on the old channel."""
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        fake.play("Discord", binary="Discord")
+        notifications = fake.play("Discord", binary="Discord")
+        fake.refuse_moves[notifications.index] = 1        # refuses once, then moves
+        sonar.route("discord", "chat")
+        channels_now = {s.channel for s in sonar.streams() if s.key == "discord"}
+        assert channels_now == {"game", "chat"}           # the bug, reproduced
+        assert [s.stuck for s in sonar.streams() if s.channel == "game"] == [True]
+        assert sonar.apply_rules() == 1                   # the retry moves it
+        assert {s.channel for s in sonar.streams() if s.key == "discord"} == {"chat"}
+        assert not any(s.stuck for s in sonar.streams())
+
+    def test_a_stream_that_never_moves_is_marked_stuck(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        stubborn = fake.play("Game")
+        fake.refuse_moves[stubborn.index] = -1
+        sonar.route("game", "media")
+        assert sonar.apply_rules() == 0
+        (stream,) = sonar.streams()
+        assert stream.channel == "game" and stream.rule == "media" and stream.stuck
+
     def test_loopbacks_are_never_routed(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         sonar.config.app_rules[""] = "chat"
@@ -152,15 +331,59 @@ class TestSonar:
         loops = [s for s in fake.inputs_ if "vertex.loopback" in s.properties]
         assert {s.sink for s in loops} == {fake._sink("hw_headset").index}
 
+    def test_streams_report_their_device_and_skip_non_apps(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        fake.play("Game", sink="hw_headset")
+        meter = fake.play("pavucontrol")
+        meter.properties["stream.monitor"] = "true"
+        streams = {s.key: s for s in sonar.streams()}
+        assert set(streams) == {"game"}           # loopbacks and meters left out
+        assert streams["game"].channel is None    # playing past every channel
+        assert streams["game"].device == "hw_headset"
+
+    def test_recorders(self, tmp_path):
+        sonar, fake = _sonar(tmp_path)
+        sonar.up()
+        fake.record("Discord", "vertex_mic")
+        fake.record("OBS", "hw_mic")
+        fake.record("gpu-screen-recorder", "vertex_game.monitor")   # desktop audio
+        fake.record("pavucontrol", "hw_mic", props={"media.name": "Peak detect"})
+        found = {r.key: r for r in sonar.recorders()}
+        assert set(found) == {"discord", "obs"}
+        assert found["discord"].via_vertex and not found["obs"].via_vertex
+        assert found["obs"].device == "hw_mic"
+
     def test_volumes(self, tmp_path):
         sonar, fake = _sonar(tmp_path)
         sonar.config.channel("chat").volume = 0.25
         sonar.up()
-        assert fake._device("vertex_chat").volume == 0.25
+        # Settings hold slider levels; the server gets its own (cubic) scale.
+        assert fake._device("vertex_chat").volume == pytest.approx(0.25 ** (2 / 3))
+        assert sonar.status().channels["chat"].volume == pytest.approx(0.25)
         sonar.set_volume("mic", 1.7)
         assert fake._device("vertex_mic").volume == 1.0
-        sonar.set_muted("aux", True)
-        assert sonar.status().channels["aux"].muted
+        sonar.set_device_volume("sink", "hw_headset", 0.5)
+        assert fake._device("hw_headset").volume == pytest.approx(0.5 ** (2 / 3))
+        sonar.set_muted("media", True)
+        assert sonar.status().channels["media"].muted
+
+    def test_sliders_follow_loudness(self):
+        import math
+
+        from vertex.audio.pulse import from_server, to_server
+
+        def decibels(level):
+            # The server's volume v plays at v³ amplitude.
+            return 20 * math.log10(to_server(level) ** 3)
+
+        # 25% used to be about -36 dB, all but silent; now it is -24 dB.
+        assert decibels(0.25) == pytest.approx(-24.08, abs=0.01)
+        assert decibels(0.5) == pytest.approx(-12.04, abs=0.01)
+        assert to_server(1.0) == 1.0 and to_server(0) == 0 and to_server(2) == 1.0
+        for level in (0, 0.1, 0.25, 0.5, 0.9, 1.0):
+            assert from_server(to_server(level)) == pytest.approx(level)
+        assert from_server(1.5) == 1.0           # boosted past 100% elsewhere
 
     def test_down_restores_everything(self, tmp_path):
         sonar, fake = _sonar(tmp_path)

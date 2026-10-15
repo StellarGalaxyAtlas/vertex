@@ -70,6 +70,89 @@ def test_cli_forwards(server, capsys):
     assert "did replay" in capsys.readouterr().out
 
 
+def test_ping_reports_the_api(server):
+    from vertex import control
+
+    reply = ipc.send("ping")
+    assert reply["ok"] and reply["data"]["api"] == control.API_VERSION
+
+
+def test_subscribers_get_the_state_then_events(tmp_path):
+    sock = tmp_path / "control.sock"
+    subscribers = ipc.Subscribers()
+    state = {"api": 1, "replay": {"state": "stopped"}}
+    control = ipc.ControlServer(lambda command, args: {"ok": True, "data": state}, sock,
+                                subscribers=subscribers)
+    assert control.start()
+    try:
+        stream = ipc.follow(sock)
+        assert next(stream)["data"] == state
+        for _ in range(100):             # the server registers the subscriber
+            if len(subscribers):
+                break
+            threading.Event().wait(0.02)
+        subscribers.publish({"event": "notice", "data": {"kind": "clip_saved"}})
+        assert next(stream) == {"event": "notice", "data": {"kind": "clip_saved"}}
+        stream.close()                   # hanging up ends the subscription
+        for _ in range(100):
+            if not len(subscribers):
+                break
+            threading.Event().wait(0.05)
+        assert not len(subscribers)
+    finally:
+        control.stop()
+
+
+def test_cli_sonar_commands(server, capsys):
+    _control, received = server
+    assert cli.main(["volume", "chat", "up"]) == 0
+    assert cli.main(["volume", "game", "down", "--step", "10"]) == 0
+    assert cli.main(["volume", "media", "40"]) == 0
+    assert cli.main(["mute", "mic"]) == 0
+    assert cli.main(["device", "next"]) == 0
+    assert cli.main(["device", "previous", "chat"]) == 0
+    assert received == [
+        ("volume", {"channel": "chat", "action": "up", "step": 5}),
+        ("volume", {"channel": "game", "action": "down", "step": 10}),
+        ("volume", {"channel": "media", "action": "set", "value": 40}),
+        ("mute", {"channel": "mic", "action": "toggle"}),
+        ("device", {"action": "next", "channel": ""}),
+        ("device", {"action": "previous", "channel": "chat"}),
+    ]
+    assert cli.main(["volume", "chat", "loud"]) == 2
+    assert "0 to 100" in capsys.readouterr().err
+
+
+def test_cli_state(tmp_path, monkeypatch, capsys):
+    import json
+
+    from vertex import control
+    from vertex.audio import channels
+    from vertex.audio.sonar import ChannelStatus, SonarStatus
+    from vertex.config import Config
+
+    config = Config()
+    config.sonar.enabled = True
+    config.sonar.device_names = {"hw": "Headset"}
+    status = SonarStatus(active=True, output="hw", channels={
+        "chat": ChannelStatus(channels.CHAT, present=True, volume=0.55, muted=True)})
+    state = control.state(config, status, "running")
+    sock = tmp_path / "control.sock"
+    monkeypatch.setattr(paths, "control_socket", lambda: sock)
+    server = ipc.ControlServer(lambda command, args: control.ok("", **state), sock)
+    assert server.start()
+    try:
+        assert cli.main(["state"]) == 0
+        out = capsys.readouterr().out
+        assert "Replay buffer  running (last 60 s)" in out
+        assert "playing through Headset" in out
+        assert "Chat     55%  muted" in out
+        assert cli.main(["state", "--json"]) == 0
+        assert json.loads(capsys.readouterr().out) == state
+    finally:
+        server.stop()
+
+
 def test_cli_without_app(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(paths, "control_socket", lambda: tmp_path / "none.sock")
     assert cli.main(["save-clip"]) == 1
@@ -89,3 +172,21 @@ def test_desktop_install_and_uninstall(isolated_home):
     assert set(removed) >= {desktop.desktop_file(), desktop.autostart_file()}
     assert not desktop.desktop_file().exists()
     assert not os.listdir(desktop.applications_dir())
+
+
+def test_entry_is_added_once_and_stays_removed(isolated_home):
+    assert desktop.update_icons("dark") == []        # no entry, nothing to redraw
+    written = desktop.ensure("light")
+    assert desktop.desktop_file() in written and desktop.added_marker().exists()
+    entry = desktop.desktop_file().read_text()
+    # Just "Vertex" in every menu: no generic name for menus to show instead.
+    assert "\nName=Vertex\n" in entry and "GenericName" not in entry
+    assert desktop.ensure("light") == []
+    # The desktop turned light: the icon is redrawn in the dark ink, once.
+    assert desktop.icon_ink() == "light"
+    assert any(p.suffix == ".svg" for p in desktop.ensure("dark"))
+    assert desktop.icon_ink() == "dark"
+    assert desktop.ensure("dark") == []
+    desktop.uninstall()
+    assert desktop.ensure("light") == []
+    assert not desktop.desktop_file().exists()

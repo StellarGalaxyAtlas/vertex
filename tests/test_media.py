@@ -3,7 +3,6 @@ import threading
 
 import pytest
 
-from vertex.config import Config
 from vertex.media import export, mixing, probe, thumbnails, tracks, trim, waveform
 from vertex.media.ffmpeg import Cancelled, MediaError
 from vertex.media.probe import AudioTrack
@@ -36,13 +35,25 @@ class TestProbeParsing:
 
 
 class TestMixing:
-    def test_mpv_graph_keeps_muted_tracks_at_zero(self):
+    def test_mpv_graph_holds_no_gains(self):
+        a, b = _tracks("a", "b")
+        fmt = "aformat=sample_rates=48000:channel_layouts=stereo"
+        assert mixing.mpv_graph([a, b]) == (
+            f"[aid1]{fmt}[s0];[aid2]{fmt}[s1];[s0][s1]amerge=inputs=2[ao]")
+        b.volume = 0.3
+        assert mixing.mpv_graph([a, b]) == mixing.mpv_graph(_tracks("a", "b"))
+        assert mixing.mpv_graph([a]) == f"[aid1]{fmt}[ao]"
+        assert mixing.mpv_graph([]) is None
+
+    def test_mpv_mix_filter_keeps_muted_tracks_at_zero(self):
         a, b = _tracks("a", "b")
         b.muted = True
-        assert mixing.mpv_graph([a, b]) == (
-            "[aid1]volume=1.0[a0];[aid2]volume=0.0[a1];[a0][a1]amix=inputs=2:normalize=0[ao]")
-        assert mixing.mpv_graph([a]) == "[aid1]volume=1.0[ao]"
-        assert mixing.mpv_graph([]) is None
+        assert mixing.mpv_mix_filter([a, b]) == (
+            "@mix:lavfi=[asplit=2[i0][i1];"
+            "[i0]pan=stereo|c0=c0|c1=c1,volume@v0=1.0[t0];"
+            "[i1]pan=stereo|c0=c2|c1=c3,volume@v1=0.0[t1];"
+            "[t0][t1]amix=inputs=2:normalize=0]")
+        assert mixing.mpv_mix_filter([]) is None
 
     def test_ffmpeg_graph_drops_inaudible_tracks(self):
         a, b, c = _tracks("a", "b", "c")
@@ -62,6 +73,10 @@ class TestTrackLabels:
         assert [(t.label, t.channel) for t in labelled] == [
             ("Game", "game"), ("Chat", "chat"), ("Media", "media"), ("Microphone", "mic")]
 
+    def test_aux_tracks_are_numbered_not_called_the_mic(self):
+        labelled = tracks.label_tracks(_tracks("Vertex Game", "Devices: Monitor of Vertex Aux"))
+        assert [(t.label, t.channel) for t in labelled] == [("Audio 1", ""), ("Audio 2", "")]
+
     def test_merged_outputs_are_desktop(self):
         labelled = tracks.label_tracks(_tracks(
             "Devices: Monitor of Vertex Game, Monitor of Vertex Chat", "Vertex Mic"))
@@ -71,10 +86,9 @@ class TestTrackLabels:
         labelled = tracks.label_tracks(_tracks("device:a.monitor|device:my_mic", "Vertex Game"))
         assert [t.label for t in labelled] == ["Audio 1", "Audio 2"]
 
-    def test_legacy_configured_devices(self):
-        config = Config(game_device="Virtual_Game_Sink", mic_device="alsa_input.usb-Blue")
+    def test_devices_named_by_what_they_carry(self):
         labelled = tracks.label_tracks(_tracks(
-            "device:alsa_input.usb-Blue_Yeti", "device:Virtual_Game_Sink.monitor"), config)
+            "device:alsa_input.usb-Blue_Yeti", "device:Virtual_Game_Sink.monitor"))
         assert [t.label for t in labelled] == ["Game", "Microphone"]
 
     def test_moments_handlers(self):
@@ -193,3 +207,15 @@ class TestWithFfmpeg:
         assert len(frames) >= 10
         assert cache.prune([]) >= 2
         assert cache.cached_thumbnail(sample_clip) is None
+
+    def test_thumbnails_are_made_again_at_another_size(self, sample_clip, tmp_path,
+                                                         monkeypatch):
+        from PySide6.QtGui import QImage
+
+        cache = thumbnails.ThumbnailCache(str(tmp_path))
+        thumb = cache.thumbnail(sample_clip)
+        assert QImage(thumb).width() == thumbnails.THUMB_WIDTH
+        monkeypatch.setattr(thumbnails, "THUMB_WIDTH", 640)
+        assert cache.cached_thumbnail(sample_clip) is None     # another size: made again
+        assert QImage(cache.thumbnail(sample_clip)).width() == 640
+        assert cache.prune([sample_clip]) == 1                 # the old one goes

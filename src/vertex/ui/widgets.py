@@ -7,6 +7,7 @@ from typing import ClassVar
 from PySide6.QtCore import (
     Property,
     QEasingCurve,
+    QEvent,
     QPoint,
     QPropertyAnimation,
     QRect,
@@ -16,12 +17,25 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFontMetrics,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QAbstractSpinBox,
+    QBoxLayout,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLayout,
@@ -36,6 +50,10 @@ from PySide6.QtWidgets import (
 
 from vertex import paths
 from vertex.ui import icons, theme
+
+# The width of every drop-down, number and text field in a settings row, so
+# they line up and look alike on every page.
+CONTROL_WIDTH = 220
 
 
 def label(text: str = "", role: str = "", wrap: bool = False) -> QLabel:
@@ -53,9 +71,8 @@ def button(text: str, kind: str = "", icon: str = "", on_click=None,
     if kind:
         widget.setProperty("kind", kind)
     if icon:
-        colour = "#ffffff" if kind == "primary" else (theme.DANGER if kind == "danger"
-                                                      else theme.TEXT)
-        widget.setIcon(icons.icon(icon, colour))
+        colour = {"primary": "ON_ACCENT", "danger": "DANGER"}.get(kind, "TEXT")
+        theme.themed(widget, lambda: widget.setIcon(icons.icon(icon, colour)), "icon")
     if on_click is not None:
         widget.clicked.connect(on_click)
     if tooltip:
@@ -65,8 +82,11 @@ def button(text: str, kind: str = "", icon: str = "", on_click=None,
 
 
 class IconButton(QToolButton):
+    """A button that is only an icon. `colour` is a token of the scheme in use
+    ("TEXT_MUTED") or a colour of its own."""
+
     def __init__(self, icon_name: str, tooltip: str = "", size: int = 18,
-                 colour: str = theme.TEXT, parent=None, kind: str = "ghost"):
+                 colour: str = "TEXT", parent=None, kind: str = "ghost"):
         super().__init__(parent)
         self._size = size
         self.setProperty("kind", kind)
@@ -77,14 +97,23 @@ class IconButton(QToolButton):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setAutoRaise(True)
 
-    def set_icon(self, icon_name: str, colour: str = theme.TEXT) -> None:
-        self.setIcon(icons.icon(icon_name, colour, self._size))
+    def set_icon(self, icon_name: str, colour: str = "TEXT") -> None:
+        self._icon = (icon_name, colour)
+        theme.themed(self, lambda: self.setIcon(icons.icon(icon_name, colour, self._size)),
+                     "icon")
+
+    def set_size(self, size: int) -> None:
+        """Draw the icon at `size` px from now on."""
+        if size != self._size:
+            self._size = size
+            self.setIconSize(QSize(size, size))
+            self.set_icon(*self._icon)
 
 
 def hline() -> QFrame:
     line = QFrame()
     line.setFixedHeight(1)
-    line.setStyleSheet(f"background: {theme.LINE};")
+    theme.style(line, lambda: f"background: {theme.LINE};")
     return line
 
 
@@ -209,19 +238,182 @@ class Toggle(QAbstractButton):
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        track = QColor(theme.ACCENT) if self.isChecked() else QColor(theme.CONTROL_BG)
-        if not self.isEnabled():
-            track = QColor(theme.SECTION_BG)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(track)
-        p.drawRoundedRect(QRectF(0, 0, self.width(), self.height()), 11, 11)
+        on = self.isChecked() and self.isEnabled()
+        # Off, the track is outlined so the switch reads as one on any card;
+        # disabled, the knob dims and the track stays.
+        p.setPen(Qt.PenStyle.NoPen if on else QPen(QColor(theme.EDGE), 1))
+        p.setBrush(QColor(theme.ACCENT if on else theme.CONTROL_BG))
+        p.drawRoundedRect(QRectF(0.5, 0.5, self.width() - 1, self.height() - 1), 10.5, 10.5)
         knob = 16
         x = 3 + self._offset * (self.width() - knob - 6)
-        p.setBrush(QColor("#ffffff" if self.isEnabled() else theme.TEXT_DIM))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(theme.ON_ACCENT if on else
+                          theme.TEXT_MUTED if self.isEnabled() else theme.TEXT_DIM))
         p.drawEllipse(QRectF(x, 3, knob, knob))
 
     def sizeHint(self):
         return QSize(40, 22)
+
+
+class LevelMeter(QWidget):
+    """A channel's live level, next to its fader (item 78): a bar in the
+    channel's colour that falls back slowly, with the loudest of the last
+    second held as a tick. Its top, near full scale, is in the warning colour:
+    red is for recording, and the accent is never on an audio control."""
+
+    THICKNESS = 6
+    FALL = 0.04          # how far the bar falls per reading (25 a second)
+    HOLD = 25            # readings the held peak stays for
+    HOT = 0.95           # from here (about -3 dB) the bar is in the warning colour
+
+    def __init__(self, colour, orientation=Qt.Orientation.Horizontal, parent=None):
+        super().__init__(parent)
+        self._colour = colour            # a callable giving the channel's colour
+        self.level = 0.0
+        self.held = 0.0
+        self._held_for = 0
+        self.set_orientation(orientation)
+
+    def set_orientation(self, orientation) -> None:
+        self.orientation = orientation
+        if orientation == Qt.Orientation.Horizontal:
+            self.setFixedHeight(self.THICKNESS)
+            self.setMinimumWidth(0)
+            self.setMaximumWidth(16777215)
+            self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        else:
+            self.setFixedWidth(self.THICKNESS)
+            self.setMinimumHeight(0)
+            self.setMaximumHeight(16777215)
+            self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.update()
+
+    def set_level(self, fraction: float) -> None:
+        level = max(fraction, self.level - self.FALL)
+        if fraction >= self.held:
+            self.held, self._held_for = fraction, self.HOLD
+        elif self._held_for:
+            self._held_for -= 1
+        else:
+            self.held = max(fraction, self.held - self.FALL)
+        if level != self.level or self._held_for:
+            self.level = level
+            self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect())
+        across = min(rect.width(), rect.height())
+        radius = across / 2
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(theme.SEAM))
+        p.drawRoundedRect(rect, radius, radius)
+        if not self.isEnabled():
+            return
+        vertical = self.orientation == Qt.Orientation.Vertical
+        length = rect.height() if vertical else rect.width()
+
+        def span(start: float, end: float) -> QRectF:
+            if vertical:
+                return QRectF(rect.left(), rect.bottom() - end * length,
+                              rect.width(), (end - start) * length)
+            return QRectF(rect.left() + start * length, rect.top(),
+                          (end - start) * length, rect.height())
+
+        if self.level > 0.005:
+            p.setBrush(QColor(self._colour()))
+            p.drawRoundedRect(span(0, min(self.level, self.HOT)), radius, radius)
+            if self.level > self.HOT:
+                p.setBrush(QColor(theme.WARN))
+                p.drawRoundedRect(span(self.HOT, self.level), radius, radius)
+        if self.held > 0.02:
+            tick = 2.5 / max(1.0, length)
+            p.setBrush(QColor(theme.WARN if self.held > self.HOT else self._colour()))
+            p.drawRect(span(max(0.0, self.held - tick), self.held))
+
+
+class SideNav(QWidget):
+    """A column of pages to pick from, each with an icon: a page's tabs, on
+    the left of it. Takes (key, text, icon) options."""
+
+    changed = Signal(str, bool)       # key, and always True: as Segmented's
+
+    def __init__(self, options: list[tuple[str, str, str]], current: str = "", parent=None):
+        super().__init__(parent)
+        self._buttons: dict[str, QPushButton] = {}
+        self._icons = {key: name for key, _text, name in options}
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.setObjectName("SideNav")
+        theme.style(self, lambda: f"""
+            #SideNav QPushButton {{ background: transparent; text-align: left;
+                                    padding: 10px 14px; border-radius: {theme.RADIUS_CONTROL}px;
+                                    color: {theme.TEXT_MUTED}; font-size: 11pt; }}
+            #SideNav QPushButton:hover {{ color: {theme.TEXT}; background: {theme.CARD_BG}; }}
+            #SideNav QPushButton:checked {{ background: {theme.ACCENT_SOFT}; color: {theme.TEXT};
+                                            font-weight: 600; }}
+        """)
+        for key, text, _name in options:
+            option = QPushButton(text)
+            option.setCheckable(True)
+            option.setIconSize(QSize(20, 20))
+            option.setCursor(Qt.CursorShape.PointingHandCursor)
+            option.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            option.clicked.connect(lambda _c=False, k=key: self._pick(k))
+            layout.addWidget(option)
+            self._buttons[key] = option
+        layout.addStretch(1)
+        self._current = current or options[0][0]
+        self._paint()
+
+    @property
+    def current(self) -> str:
+        return self._current
+
+    def set_current(self, key: str) -> None:
+        self._current = key
+        self._paint()
+
+    def _pick(self, key: str) -> None:
+        self._current = key
+        self._paint()
+        self.changed.emit(key, True)
+
+    def _paint(self) -> None:
+        for key, option in self._buttons.items():
+            active = key == self._current
+            option.setChecked(active)
+            colour = "TEXT" if active else "TEXT_MUTED"
+            theme.themed(option, lambda o=option, k=key, c=colour: o.setIcon(
+                icons.icon(self._icons[k], c, 20)), "icon")
+
+
+class Columns(QWidget):
+    """Sections side by side once there is room for them, one above the other
+    before that. Each keeps its own height."""
+
+    WIDE = 1300          # px this row needs before its sections go side by side
+
+    def __init__(self, *sections: QWidget, parent=None):
+        super().__init__(parent)
+        self._layout = QBoxLayout(QBoxLayout.Direction.TopToBottom, self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(16)
+        for section in sections:
+            self._layout.addWidget(section, 1, Qt.AlignmentFlag.AlignTop)
+
+    @property
+    def side_by_side(self) -> bool:
+        return self._layout.direction() == QBoxLayout.Direction.LeftToRight
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        wide = event.size().width() >= self.WIDE
+        if wide != self.side_by_side:
+            self._layout.setDirection(QBoxLayout.Direction.LeftToRight if wide
+                                      else QBoxLayout.Direction.TopToBottom)
 
 
 class Segmented(QWidget):
@@ -241,12 +433,14 @@ class Segmented(QWidget):
         layout.setContentsMargins(3, 3, 3, 3)
         layout.setSpacing(2)
         self.setObjectName("Segmented")
-        self.setStyleSheet(f"""
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)     # its recessed track
+        theme.style(self, lambda: f"""
             #Segmented {{ background: {theme.FIELD_BG}; border-radius: {theme.RADIUS_CONTROL}px; }}
             #Segmented QPushButton {{ background: transparent; padding: 5px 12px;
                                       border-radius: 7px; color: {theme.TEXT_MUTED}; }}
             #Segmented QPushButton:hover {{ color: {theme.TEXT}; }}
-            #Segmented QPushButton:checked {{ background: {theme.CARD_BG}; color: {theme.TEXT}; }}
+            #Segmented QPushButton:checked {{ background: {theme.ACCENT_SOFT}; color: {theme.TEXT};
+                                              font-weight: 600; }}
         """)
         for key, text in options:
             option = QPushButton(text)
@@ -289,47 +483,33 @@ class Segmented(QWidget):
 
 
 class StorageGauge(QWidget):
-    """The disk the clips are on: clips, everything else, free."""
+    """The disk the clips are on: one slim bar of how full it is, and a line
+    under it with the clips' share and what is free (of how much, unless
+    `short`)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, short: bool = False, parent=None):
         super().__init__(parent)
+        self._short = short
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        self.meter = Meter()
+        layout.addWidget(self.meter)
+        self.text = label("", "Dim", wrap=True)
+        layout.addWidget(self.text)
         self.stats = None
-        self.setMinimumHeight(54)
 
     def set_stats(self, stats) -> None:
         self.stats = stats
-        if stats is not None:
-            self.setToolTip(f"Clips {stats.clips_human} · other {stats.other_human} · "
-                            f"free {stats.free_human} of {stats.total_human}")
-        self.update()
-
-    def paintEvent(self, _event):
-        if self.stats is None:
+        if stats is None:
             return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        width = self.width()
-        bar = QRectF(0, 22, width, 8)
-        path = QPainterPath()
-        path.addRoundedRect(bar, 4, 4)
-        p.setClipPath(path)
-        p.fillRect(bar, QColor(theme.GAUGE_FREE))
-        x = 0.0
-        for value, colour in ((self.stats.clips_bytes, theme.GAUGE_CLIPS),
-                              (self.stats.other_used, theme.GAUGE_OTHER)):
-            span = width * self.stats.fraction(value)
-            p.fillRect(QRectF(x, bar.top(), span, bar.height()), QColor(colour))
-            x += span
-        p.setClipping(False)
-        p.setPen(QColor(theme.TEXT_MUTED))
-        p.setFont(theme.font(8.5))
-        p.drawText(QRect(0, 0, width, 18), Qt.AlignmentFlag.AlignLeft,
-                   f"Clips {self.stats.clips_human}")
-        p.drawText(QRect(0, 0, width, 18), Qt.AlignmentFlag.AlignRight,
-                   f"{self.stats.free_human} free")
-        p.setPen(QColor(theme.TEXT_DIM))
-        p.drawText(QRect(0, 34, width, 18), Qt.AlignmentFlag.AlignLeft,
-                   f"of {self.stats.total_human}")
+        # Full is what isn't free to use, matching the text: the disk's own
+        # count of used space leaves out what it keeps back for the system.
+        self.meter.set_fraction(1 - stats.fraction(stats.disk_free))
+        text = f"Clips {stats.clips_human} · {stats.free_human} free"
+        self.text.setText(text if self._short else f"{text} of {stats.total_human}")
+        self.setToolTip(f"Clips {stats.clips_human} · everything else {stats.other_human} · "
+                        f"free {stats.free_human} of {stats.total_human}")
 
 
 class FlowLayout(QLayout):
@@ -393,13 +573,14 @@ class FlowLayout(QLayout):
 class Section(QFrame):
     """A settings card: a title, a sentence about it, then its controls."""
 
-    def __init__(self, title: str, blurb: str = "", parent=None):
+    def __init__(self, title: str = "", blurb: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("Section")
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 18, 20, 20)
         outer.setSpacing(12)
-        outer.addWidget(label(title, "Subheading"))
+        if title:
+            outer.addWidget(label(title, "Subheading"))
         if blurb:
             outer.addWidget(label(blurb, "Muted", wrap=True))
         self.body = QVBoxLayout()
@@ -411,24 +592,247 @@ class Section(QFrame):
         return widget
 
     def add_row(self, title: str, widget: QWidget, hint: str = "") -> QWidget:
-        row = QWidget()
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(0, 0, 0, 0)
-        text = QVBoxLayout()
-        text.setSpacing(2)
-        text.addWidget(label(title))
-        if hint:
-            text.addWidget(label(hint, "Dim", wrap=True))
-        layout.addLayout(text, 1)
-        layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        row = setting_row(title, widget, hint)
         self.body.addWidget(row)
         return row
 
 
+def setting_row(title: str, widget: QWidget, hint: str = "") -> QWidget:
+    """One setting: its name, a hint under it, and its control on the right."""
+    if isinstance(widget, (QComboBox, QAbstractSpinBox, QLineEdit)):
+        widget.setMinimumWidth(max(widget.minimumWidth(), CONTROL_WIDTH))
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    text = QVBoxLayout()
+    text.setSpacing(2)
+    text.addWidget(label(title))
+    if hint:
+        text.addWidget(label(hint, "Dim", wrap=True))
+    layout.addLayout(text, 1)
+    layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+    return row
+
+
+class FieldGrid(QWidget):
+    """Fields side by side, each with its title above: all in one row when
+    they fit, two to a row when they don't, one when even that is too wide."""
+
+    def __init__(self, field_width: int = 150, parent=None):
+        super().__init__(parent)
+        self._field_width = field_width
+        self._fields: list[QWidget] = []
+        self._columns = 0
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setHorizontalSpacing(12)
+        self._grid.setVerticalSpacing(12)
+
+    def add(self, title: str, widget: QWidget) -> QWidget:
+        if isinstance(widget, QComboBox):
+            # Sized by the grid, not by the longest entry, so the row can
+            # narrow and reflow.
+            widget.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            widget.setMinimumContentsLength(6)
+        field = QWidget()
+        layout = QVBoxLayout(field)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.addWidget(label(title))
+        layout.addWidget(widget)
+        self._fields.append(field)
+        self._columns = 0
+        self._reflow()
+        return field
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reflow()
+
+    def _reflow(self) -> None:
+        count = len(self._fields)
+        if not count:
+            return
+        spacing = self._grid.horizontalSpacing()
+        fits = max(1, (self.width() + spacing) // (self._field_width + spacing))
+        columns = count if fits >= count else (2 if fits >= 2 else 1)
+        if columns == self._columns:
+            return
+        self._columns = columns
+        for field in self._fields:
+            self._grid.removeWidget(field)
+        for index, field in enumerate(self._fields):
+            self._grid.addWidget(field, index // columns, index % columns)
+        for column in range(count):
+            self._grid.setColumnStretch(column, 1 if column < columns else 0)
+
+
+class Disclosure(QWidget):
+    """A header that shows or hides what is under it, hidden to begin with."""
+
+    def __init__(self, title: str, blurb: str = "", parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        self.toggle = button(title, "ghost", icon="chevron-right")
+        self.toggle.setCheckable(True)
+        self.toggle.toggled.connect(self.set_expanded)
+        header.addWidget(self.toggle)
+        if blurb:
+            header.addWidget(label(blurb, "Dim"), 1)
+        else:
+            header.addStretch(1)
+        layout.addLayout(header)
+        self.body = QWidget()
+        self.body_layout = QVBoxLayout(self.body)
+        self.body_layout.setContentsMargins(0, 0, 0, 0)
+        self.body_layout.setSpacing(16)
+        self.body.hide()
+        layout.addWidget(self.body)
+
+    def add(self, widget: QWidget) -> QWidget:
+        self.body_layout.addWidget(widget)
+        return widget
+
+    @property
+    def expanded(self) -> bool:
+        return self.body.isVisibleTo(self)
+
+    def set_expanded(self, expanded: bool) -> None:
+        if self.toggle.isChecked() != expanded:
+            self.toggle.setChecked(expanded)     # comes back here
+            return
+        name = "chevron-down" if expanded else "chevron-right"
+        theme.themed(self.toggle, lambda: self.toggle.setIcon(icons.icon(name)), "icon")
+        self.body.setVisible(expanded)
+
+
+class GlowArea(QWidget):
+    """Where the pages sit: the scheme's second colour glows faintly from the
+    top right and its accent from the bottom left, over the page's ground."""
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        rect = QRectF(self.rect())
+        reach = max(rect.width(), rect.height()) * 0.7
+        for centre, colour, alpha in ((rect.topRight(), theme.SECOND, 0.08),
+                                      (rect.bottomLeft(), theme.ACCENT, 0.06)):
+            glow = QRadialGradient(centre, reach)
+            inner = QColor(colour)
+            inner.setAlphaF(alpha)
+            outer = QColor(colour)
+            outer.setAlphaF(0)
+            glow.setColorAt(0, inner)
+            glow.setColorAt(1, outer)
+            p.fillRect(rect, QBrush(glow))
+
+
+class Meter(QWidget):
+    """A thin bar filled to a fraction: from `colour` to `second`, tokens of the
+    scheme in use ("ACCENT") or colours of their own."""
+
+    def __init__(self, colour: str = "ACCENT", second: str = "SECOND", parent=None):
+        super().__init__(parent)
+        self.colour = colour
+        self.second = second
+        self.fraction = 0.0
+        self.setFixedHeight(8)
+
+    def set_fraction(self, fraction: float) -> None:
+        self.fraction = max(0.0, min(1.0, fraction))
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bar = QRectF(self.rect())
+        path = QPainterPath()
+        path.addRoundedRect(bar, 4, 4)
+        p.setClipPath(path)
+        p.fillRect(bar, QColor(theme.CONTROL_BG))
+        fill = QLinearGradient(0, 0, bar.width(), 0)
+        fill.setColorAt(0, QColor(theme.colour(self.colour)))
+        fill.setColorAt(1, QColor(theme.colour(self.second)))
+        p.fillRect(QRectF(0, 0, bar.width() * self.fraction, bar.height()), QBrush(fill))
+
+
+class ChoiceCard(QFrame):
+    """One of a few answers to a question, as a card: a title and a sentence.
+
+    Cards joined with `join` behave like radio buttons.
+    """
+
+    chosen = Signal()
+
+    def __init__(self, title: str, text: str, parent=None):
+        super().__init__(parent)
+        self.group: list[ChoiceCard] = [self]
+        self._checked = False
+        self.setObjectName("ChoiceCard")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 14)
+        layout.setSpacing(4)
+        self.title = label(title)
+        self.title.setStyleSheet("font-weight: 600; background: transparent;")
+        layout.addWidget(self.title)
+        self.text = label(text, "Muted", wrap=True)
+        self.text.setStyleSheet("background: transparent;")
+        layout.addWidget(self.text)
+        layout.addStretch(1)      # cards side by side keep their titles level
+        self._paint()
+
+    @staticmethod
+    def join(*cards: ChoiceCard) -> None:
+        for card in cards:
+            card.group = list(cards)
+
+    def isChecked(self) -> bool:
+        return self._checked
+
+    def setChecked(self, checked: bool) -> None:
+        for card in self.group:
+            card._checked = checked if card is self else (card._checked and not checked)
+            card._paint()
+
+    def _paint(self) -> None:
+        theme.style(self, self._sheet)
+
+    def _sheet(self) -> str:
+        edge = theme.ACCENT if self._checked else theme.LINE
+        ground = theme.ACCENT_SOFT if self._checked else theme.CARD_BG
+        return (f"#ChoiceCard {{ background: {ground}; border: 1px solid {edge};"
+                f" border-radius: {theme.RADIUS_CONTROL}px; }}"
+                f"#ChoiceCard:focus {{ border-color: {theme.SELECT}; }}")
+
+    def choose(self) -> None:
+        if not self._checked:
+            self.setChecked(True)
+            self.chosen.emit()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.choose()
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.choose()
+            return
+        super().keyPressEvent(event)
+
+
 class PathField(QWidget):
-    """A folder path with a Browse button."""
+    """A folder path with a Browse button. `changed` follows the typing;
+    `committed` comes once the field is left or a folder is picked."""
 
     changed = Signal(str)
+    committed = Signal(str)
 
     def __init__(self, value: str = "", placeholder: str = "", parent=None):
         super().__init__(parent)
@@ -437,6 +841,7 @@ class PathField(QWidget):
         self.edit = QLineEdit(paths.tilde(value) if value else "")
         self.edit.setPlaceholderText(placeholder)
         self.edit.textChanged.connect(lambda _t: self.changed.emit(self.value()))
+        self.edit.editingFinished.connect(lambda: self.committed.emit(self.value()))
         browse = button("Browse…", on_click=self._browse)
         layout.addWidget(self.edit, 1)
         layout.addWidget(browse)
@@ -452,28 +857,111 @@ class PathField(QWidget):
         chosen = QFileDialog.getExistingDirectory(self, "Choose a folder", start)
         if chosen:
             self.set_value(chosen)
+            self.committed.emit(self.value())
 
 
-class Banner(QLabel):
-    """A transient one-line status message."""
+class Banner(QFrame):
+    """A transient message, shown as a toast in the bottom-right corner of the
+    widget it floats over. It takes no room in any layout, so nothing is kept
+    free for it while there is nothing to say. A click dismisses it, after
+    doing what the message offered, if it offered something."""
 
     COLOURS: ClassVar[dict[str, str]] = {
-        "info": theme.TEXT_MUTED, "ok": theme.OK, "warn": theme.WARN, "error": theme.DANGER}
+        "info": "TEXT_MUTED", "ok": "OK", "warn": "WARN", "error": "DANGER"}
+    MARGIN = 20
+    MAX_WIDTH = 440
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWordWrap(True)
+    def __init__(self, host: QWidget):
+        super().__init__(host)
+        self.setObjectName("Toast")
+        theme.style(self, lambda: f"#Toast {{ background: {theme.CARD_BG}; border: 1px solid "
+                                  f"{theme.SEAM}; border-radius: {theme.RADIUS_CONTROL}px; }}")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(10)
+        self.dot = QLabel()
+        self.dot.setFixedSize(8, 8)
+        layout.addWidget(self.dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.label = QLabel()
+        self.label.setWordWrap(True)
+        layout.addWidget(self.label, 1)
         self._timer = QTimer(self, singleShot=True)
         self._timer.timeout.connect(self.clear)
+        self._on_click = None
+        host.installEventFilter(self)
+        self.hide()
 
-    def show_message(self, text: str, level: str = "info", ms: int = 6000) -> None:
-        self.setStyleSheet(f"color: {self.COLOURS.get(level, theme.TEXT_MUTED)};")
-        self.setText(text)
+    def text(self) -> str:
+        return self.label.text()
+
+    def show_message(self, text: str, level: str = "info", ms: int = 6000,
+                     on_click=None) -> None:
+        """Show `text`; `on_click`, if given, runs when the toast is clicked."""
+        if not text:
+            self.clear()
+            return
+        self._on_click = on_click
+        colour = self.COLOURS.get(level, "TEXT_MUTED")
+        theme.style(self.dot, lambda: f"background: {theme.colour(colour)}; border-radius: 4px;")
+        self.label.setText(text)
+        self._place()
+        self.show()
+        self.raise_()
         if ms:
             self._timer.start(ms)
+        else:
+            self._timer.stop()
+
+    def clear(self) -> None:
+        self._timer.stop()
+        self._on_click = None
+        self.label.clear()
+        self.hide()
+
+    def mousePressEvent(self, event):
+        action = self._on_click
+        self.clear()
+        if action is not None:
+            action()
+
+    def eventFilter(self, watched, event):
+        if watched is self.parentWidget() and event.type() == QEvent.Type.Resize \
+                and self.isVisible():
+            self._place()
+        return False
+
+    def _place(self) -> None:
+        host = self.parentWidget()
+        margins = self.layout().contentsMargins()
+        chrome = margins.left() + margins.right() + self.dot.width() + self.layout().spacing()
+        natural = self.label.fontMetrics().horizontalAdvance(self.label.text()) + chrome + 2
+        width = max(160, min(natural, self.MAX_WIDTH, host.width() - 2 * self.MARGIN))
+        height = self.layout().totalHeightForWidth(width)
+        self.setFixedSize(width, height)
+        self.move(host.width() - width - self.MARGIN, host.height() - height - self.MARGIN)
 
 
-class ChoiceDialog(QDialog):
+class TextDialog(QDialog):
+    """A dialog of text and buttons, always as tall as its wrapped text needs
+    at the width it has.
+
+    Qt sizes a window once, from its layout, then leaves its height alone:
+    text that wraps onto more lines than were counted (shown at another
+    width, in another font, on another screen) is cut off at the bottom."""
+
+    def event(self, event):
+        handled = super().event(event)
+        if event.type() in (QEvent.Type.Show, QEvent.Type.Resize, QEvent.Type.LayoutRequest):
+            layout = self.layout()
+            if layout is not None and layout.hasHeightForWidth():
+                need = layout.totalHeightForWidth(self.width())
+                if self.minimumHeight() != need:
+                    self.setMinimumHeight(need)      # grows the window if it is shorter
+        return handled
+
+
+class ChoiceDialog(TextDialog):
     """A message with a set of choices; `ask` returns the chosen value or None."""
 
     def __init__(self, parent, title: str, message: str, detail: str = "",

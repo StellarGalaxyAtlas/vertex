@@ -66,6 +66,10 @@ def default_cache_dir() -> Path:
     return cache_home() / APP_ID
 
 
+def default_log_dir() -> Path:
+    return default_state_dir() / "logs"
+
+
 def control_socket() -> Path:
     """The Unix socket a running Vertex listens on for `vertex <command>`."""
     return runtime_dir() / "control.sock"
@@ -146,6 +150,6 @@ def mark_path(variant: str = DEFAULT_LOGO_VARIANT, svg: bool = False) -> Path:
 
 
 def wordmark_path(variant: str = DEFAULT_LOGO_VARIANT) -> Path:
-    """The horizontal lockup the rail heads with."""
+    """The horizontal lockup: the mark with the name beside it."""
     variant = logo_variant(variant)
     return asset("logo", variant, f"vertex-horizontal-{variant}.png")

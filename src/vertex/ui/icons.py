@@ -11,7 +11,7 @@ import math
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 from vertex import paths
 from vertex.ui import theme
@@ -164,6 +164,44 @@ def _library(p, c):
         p.drawRoundedRect(QRectF(x, y, 6.5, 6.5), 1.6, 1.6)
 
 
+@_register("home")
+def _home(p, c):
+    _pen(p, c)
+    roof = QPainterPath(QPointF(4, 11.5))
+    roof.lineTo(12, 4.5)
+    roof.lineTo(20, 11.5)
+    p.drawPath(roof)
+    body = QPainterPath(QPointF(6.5, 9.5))
+    for x, y in ((6.5, 19.5), (17.5, 19.5), (17.5, 9.5)):
+        body.lineTo(x, y)
+    p.drawPath(body)
+    p.drawLine(QPointF(10.5, 19.5), QPointF(10.5, 14.5))
+    p.drawLine(QPointF(10.5, 14.5), QPointF(13.5, 14.5))
+    p.drawLine(QPointF(13.5, 14.5), QPointF(13.5, 19.5))
+
+
+@_register("people")
+def _people(p, c):
+    _pen(p, c)
+    p.drawEllipse(QPointF(9, 8.5), 3.2, 3.2)
+    p.drawArc(QRectF(3.5, 14, 11, 10), 0, 180 * 16)
+    p.drawArc(QRectF(13.5, 5, 6, 7), -90 * 16, 180 * 16)
+    p.drawArc(QRectF(15, 14.5, 7, 9), 0, 90 * 16)
+
+
+@_register("storage")
+def _storage(p, c):
+    _pen(p, c)
+    p.drawRoundedRect(QRectF(3.5, 13, 17, 6.5), 2, 2)
+    top = QPainterPath(QPointF(5, 13))
+    top.lineTo(7.5, 5.5)
+    top.lineTo(16.5, 5.5)
+    top.lineTo(19, 13)
+    p.drawPath(top)
+    _fill(p, c)
+    p.drawEllipse(QPointF(16.5, 16.25), 1.1, 1.1)
+
+
 @_register("sonar")
 def _sonar(p, c):
     _pen(p, c, 2)
@@ -205,6 +243,62 @@ def _save_clip(p, c):
     p.drawPath(path)
 
 
+@_register("link")
+def _link(p, c):
+    # Two chain links, joined.
+    _pen(p, c, 2)
+    p.save()
+    p.translate(12, 12)
+    p.rotate(-45)
+    p.drawRoundedRect(QRectF(-9.5, -3.5, 11, 7), 3.5, 3.5)
+    p.drawRoundedRect(QRectF(-1.5, -3.5, 11, 7), 3.5, 3.5)
+    p.restore()
+
+
+@_register("unlink")
+def _unlink(p, c):
+    # The same links, pulled apart.
+    _pen(p, c, 2)
+    p.save()
+    p.translate(12, 12)
+    p.rotate(-45)
+    p.drawRoundedRect(QRectF(-10.5, -3.5, 8.5, 7), 3.5, 3.5)
+    p.drawRoundedRect(QRectF(2, -3.5, 8.5, 7), 3.5, 3.5)
+    p.restore()
+
+
+@_register("grip")
+def _grip(p, c):
+    # Six dots: a handle to drag by.
+    _fill(p, c)
+    for x in (9, 15):
+        for y in (7, 12, 17):
+            p.drawEllipse(QPointF(x, y), 1.5, 1.5)
+
+
+@_register("check")
+def _check(p, c):
+    _pen(p, c, 2.2)
+    path = QPainterPath(QPointF(6, 12.5))
+    path.lineTo(10.5, 17)
+    path.lineTo(18, 7.5)
+    p.drawPath(path)
+
+
+@_register("chevron-right")
+def _chevron_right(p, c):
+    _pen(p, c, 2)
+    p.drawLine(QPointF(10, 7), QPointF(15, 12))
+    p.drawLine(QPointF(15, 12), QPointF(10, 17))
+
+
+@_register("chevron-down")
+def _chevron_down(p, c):
+    _pen(p, c, 2)
+    p.drawLine(QPointF(7, 10), QPointF(12, 15))
+    p.drawLine(QPointF(12, 15), QPointF(17, 10))
+
+
 @_register("back")
 def _back(p, c):
     _pen(p, c, 2)
@@ -233,6 +327,33 @@ def _folder(p, c):
         path.lineTo(x, y)
     path.closeSubpath()
     p.drawPath(path)
+
+
+@_register("bell")
+def _bell(p, c):
+    _pen(p, c)
+    path = QPainterPath(QPointF(5, 17))
+    path.lineTo(6.5, 15)
+    path.lineTo(6.5, 10.5)
+    path.cubicTo(6.5, 7, 9, 4.8, 12, 4.8)
+    path.cubicTo(15, 4.8, 17.5, 7, 17.5, 10.5)
+    path.lineTo(17.5, 15)
+    path.lineTo(19, 17)
+    path.closeSubpath()
+    p.drawPath(path)
+    p.drawLine(QPointF(10.2, 19.8), QPointF(13.8, 19.8))
+
+
+@_register("keyboard")
+def _keyboard(p, c):
+    _pen(p, c)
+    p.drawRoundedRect(QRectF(3, 6.5, 18, 11), 2.2, 2.2)
+    _fill(p, c)
+    for y in (9.6, 12.4):
+        for x in (6.5, 9.5, 12.5, 15.5, 18.5 - 1):
+            p.drawEllipse(QPointF(x, y), 0.9, 0.9)
+    _pen(p, c)
+    p.drawLine(QPointF(8.5, 15), QPointF(15.5, 15))
 
 
 @_register("refresh")
@@ -313,13 +434,6 @@ def _media(p, c):
     p.drawEllipse(QPointF(15.8, 15.3), 2.6, 2.2)
 
 
-@_register("aux")
-def _aux(p, c):
-    _pen(p, c)
-    p.drawEllipse(QRectF(5, 5, 14, 14))
-    p.drawEllipse(QRectF(10, 10, 4, 4))
-
-
 @_register("mic")
 def _mic(p, c):
     _pen(p, c)
@@ -359,22 +473,31 @@ def _menu(p, c):
         p.drawEllipse(QPointF(12, y), 1.7, 1.7)
 
 
-def pixmap(name: str, colour: str = theme.TEXT, size: int = 18, ratio: float = 2.0) -> QPixmap:
+def pixmap(name: str, colour: str = "TEXT", size: int = 18, ratio: float = 2.0) -> QPixmap:
+    """Icon `name` drawn in `colour`: a token of the scheme in use ("TEXT") or a
+    colour of its own."""
     side = int(size * ratio)
     image = QPixmap(side, side)
     image.fill(Qt.GlobalColor.transparent)
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.scale(side / 24, side / 24)
-    _DRAW[name](painter, QColor(colour))
+    _DRAW[name](painter, QColor(theme.colour(colour)))
     painter.end()
     image.setDevicePixelRatio(ratio)
     return image
 
 
+def icon(name: str, colour: str = "TEXT", size: int = 18, disabled: str = "TEXT_DIM") -> QIcon:
+    """Icon `name` for a button, in `colour` and greyed to `disabled`: tokens of
+    the scheme in use, or colours of their own. A button keeps the icon it was
+    given, so one whose colour comes from the scheme sets it through
+    `theme.themed`."""
+    return _icon(name, theme.colour(colour), size, theme.colour(disabled))
+
+
 @lru_cache(maxsize=256)
-def icon(name: str, colour: str = theme.TEXT, size: int = 18,
-         disabled: str = theme.TEXT_DIM) -> QIcon:
+def _icon(name: str, colour: str, size: int, disabled: str) -> QIcon:
     result = QIcon()
     result.addPixmap(pixmap(name, colour, size), QIcon.Mode.Normal)
     result.addPixmap(pixmap(name, colour, size), QIcon.Mode.Active)
@@ -383,13 +506,20 @@ def icon(name: str, colour: str = theme.TEXT, size: int = 18,
 
 
 def channel_icon_name(channel_id: str) -> str:
-    return {"game": "game", "chat": "chat", "media": "media", "aux": "aux",
+    return {"game": "game", "chat": "chat", "media": "media",
             "mic": "mic", "desktop": "headphones"}.get(channel_id, "volume")
 
 
 @lru_cache(maxsize=4)
 def app_icon(variant: str = paths.DEFAULT_LOGO_VARIANT) -> QIcon:
     return QIcon(str(paths.mark_path(variant)))
+
+
+def desktop_ink() -> str:
+    """The logo ink for the desktop's panels and menus: dark on a light
+    desktop, light otherwise (dark, or the desktop doesn't say)."""
+    scheme = QGuiApplication.styleHints().colorScheme()
+    return "dark" if scheme == Qt.ColorScheme.Light else "light"
 
 
 def names() -> list[str]:

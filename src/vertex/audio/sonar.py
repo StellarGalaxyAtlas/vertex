@@ -27,10 +27,21 @@ import json
 import os
 from dataclasses import dataclass, field
 
-from vertex.audio import channels
+from vertex.audio import channels, devices
 from vertex.audio.channels import Channel
-from vertex.audio.pulse import AudioError, Device, Event, Module, Pactl, Stream, proplist
+from vertex.audio.pulse import (
+    AudioError,
+    Device,
+    Event,
+    Module,
+    Pactl,
+    Stream,
+    from_server,
+    proplist,
+    to_server,
+)
 from vertex.config import SonarConfig
+from vertex.logs import SONAR as log
 
 NULL_SINK = "module-null-sink"
 LOOPBACK = "module-loopback"
@@ -42,6 +53,8 @@ class ChannelStatus:
     channel: Channel
     present: bool = False
     routed: bool = False         # an output channel is looped to a real device
+    output: str = ""             # the real device an output channel plays through
+    also: bool = False           # and it plays through the second device too
     volume: float = 1.0
     muted: bool = False
 
@@ -54,6 +67,25 @@ class AppStream:
     icon: str
     channel: str | None          # the channel it is playing on, if one of ours
     rule: str | None             # the channel a rule sends it to, if any
+    device: str = ""             # what it is playing on, as the system names it
+
+    @property
+    def stuck(self) -> bool:
+        """It has a channel to go to, but is playing somewhere else — the
+        server refused to move it (yet). `apply_rules` keeps retrying."""
+        return self.rule is not None and self.channel != self.rule
+
+
+@dataclass
+class AppCapture:
+    """An application recording from an input."""
+
+    index: int
+    key: str
+    name: str
+    icon: str
+    device: str                  # the input it records from
+    via_vertex: bool             # recording Vertex Mic, rather than a mic directly
 
 
 @dataclass
@@ -64,6 +96,9 @@ class SonarStatus:
     output: str = ""             # real sink the channels play through
     mic: str = ""                # real source behind Vertex Mic
     channels: dict[str, ChannelStatus] = field(default_factory=dict)
+    # Picked by hand for now, rather than the device manager's choice.
+    output_picked: bool = False
+    mic_picked: bool = False
 
 
 @dataclass
@@ -83,6 +118,11 @@ class Sonar:
         self.pactl = pactl or Pactl()
         self.state_file = state_file
         self.state = self._load_state()
+        # Devices picked by hand for now, by kind ("output", "mic"): used
+        # instead of the device manager's choice until a device of that kind
+        # is plugged in or the one picked is unplugged. Never saved.
+        self.picked = {"output": "", "mic": ""}
+        self._connected: dict[str, set[str] | None] = {"output": None, "mic": None}
 
     # --- State file ---------------------------------------------------------
 
@@ -143,15 +183,57 @@ class Sonar:
                 return candidate
         return devices[0].name if devices else ""
 
+    def _picked_for_now(self, kind: str, connected: list[str]) -> str:
+        """The device picked by hand for `kind`, unless a device of that kind
+        was plugged in since the last look, or it was unplugged."""
+        before, now = self._connected[kind], set(connected)
+        self._connected[kind] = now
+        if self.picked[kind] and (self.picked[kind] not in now or
+                                  (before is not None and now - before)):
+            self.picked[kind] = ""
+        return self.picked[kind]
+
     def resolve_output(self, outputs: list[Device] | None = None) -> str:
+        """The device the channels share: the one picked for now, else by the
+        device manager's lists, else the one chosen in setup, the last one
+        used, or the system's default."""
         outputs = self.outputs() if outputs is None else outputs
-        return self._resolve(self.config.output_device, outputs,
-                             [self.state.output, self.state.previous_sink, self._default_sink()])
+        cfg = self.config
+        names = [device.name for device in outputs]
+        chosen = devices.choose(cfg.output_priority, cfg.output_excluded, names,
+                                self._picked_for_now("output", names))
+        return chosen or self._resolve(
+            cfg.output_device, outputs,
+            [self.state.output, self.state.previous_sink, self._default_sink()])
+
+    def second_output(self, channel: Channel, outputs: list[Device]) -> str:
+        """The second device a channel also plays through, if one is set, the
+        channel asks for it, and it is plugged in."""
+        second = self.config.second_output
+        if not second or not self.config.channel(channel.id).also_second:
+            return ""
+        return second if second in {device.name for device in outputs} else ""
+
+    def channel_output(self, channel: Channel, outputs: list[Device], shared: str) -> str:
+        """The device an output channel plays through: the shared one while
+        linked, else its own, unless that is unplugged (then the shared one)."""
+        if self.config.linked:
+            return shared
+        own = self.config.channel(channel.id).output_device
+        if own and not own.startswith(channels.NODE_PREFIX) and \
+                own in {device.name for device in outputs}:
+            return own
+        return shared
 
     def resolve_mic(self, inputs: list[Device] | None = None) -> str:
         inputs = self.inputs() if inputs is None else inputs
-        return self._resolve(self.config.mic_device, inputs,
-                             [self.state.mic, self.state.previous_source, self._default_source()])
+        cfg = self.config
+        names = [device.name for device in inputs]
+        chosen = devices.choose(cfg.mic_priority, cfg.mic_excluded, names,
+                                self._picked_for_now("mic", names))
+        return chosen or self._resolve(
+            cfg.mic_device, inputs,
+            [self.state.mic, self.state.previous_source, self._default_source()])
 
     def _default_sink(self) -> str:
         try:
@@ -177,16 +259,28 @@ class Sonar:
         status.available = True
         status.output = self.state.output
         status.mic = self.state.mic
+        status.output_picked = bool(self.picked["output"]) and \
+            self.picked["output"] == status.output
+        status.mic_picked = bool(self.picked["mic"]) and self.picked["mic"] == status.mic
         for channel in channels.ALL:
             device = (sinks if channel.is_output else sources).get(channel.node)
             entry = ChannelStatus(channel, present=device is not None)
             if device is not None:
-                entry.volume, entry.muted = device.volume, device.muted
-            entry.routed = bool(ours.get(f"loop:{channel.id}")) if channel.is_output \
-                else bool(ours.get("mic"))
+                entry.volume, entry.muted = from_server(device.volume), device.muted
+            loops = ours.get(f"loop:{channel.id}", [])
+            entry.routed = bool(loops) if channel.is_output else bool(ours.get("mic"))
+            targets = [module.args.get("sink", "") for module in loops]
+            second = self.config.second_output
+            entry.output = next((sink for sink in targets if sink != second),
+                                targets[0] if targets else "")
+            entry.also = bool(second) and second in targets and entry.output != second
             status.channels[channel.id] = entry
         status.active = all(entry.present for entry in status.channels.values())
         return status
+
+    def _name(self, device: str) -> str:
+        """A device as people know it: its description, else its node name."""
+        return self.config.device_names.get(device, device)
 
     def is_active(self) -> bool:
         return self.status().active
@@ -211,8 +305,12 @@ class Sonar:
         created = False
         for channel in channels.OUTPUTS:
             created |= self._ensure_sink(channel, ours.get(f"null:{channel.id}", []))
-            if output:
-                self._ensure_loopback(channel, output, ours.get(f"loop:{channel.id}", []))
+            targets = [target] if (target := self.channel_output(channel, outputs, output)) \
+                else []
+            second = self.second_output(channel, outputs)
+            if second and second not in targets:
+                targets.append(second)
+            self._ensure_loopbacks(channel, targets, ours.get(f"loop:{channel.id}", []))
         if not output:
             warnings.append("No output device was found, so the channels are not "
                             "connected to anything you can hear.")
@@ -224,6 +322,8 @@ class Sonar:
         else:
             warnings.append("No microphone was found, so Vertex Mic was not created.")
 
+        if output != self.state.output:
+            log.info("Channels play through %s", self._name(output) or "nothing")
         self.state.output, self.state.mic = output, mic
         self._save_state()
         if take_defaults or created:
@@ -245,6 +345,7 @@ class Sonar:
             self._unload(extra)
         if existing:
             return False
+        log.info("Creating %s", channel.description)
         self.pactl.load_module(NULL_SINK, {
             "sink_name": channel.node,
             "sink_properties": proplist({
@@ -256,18 +357,26 @@ class Sonar:
         })
         return True
 
-    def _ensure_loopback(self, channel: Channel, output: str, existing: list[Module]) -> None:
-        keep = None
+    def _ensure_loopbacks(self, channel: Channel, targets: list[str],
+                          existing: list[Module]) -> None:
+        """One loopback from `channel` to each of `targets`, and no others."""
         latency = str(max(1, int(self.config.latency_ms)))
+        kept: set[str] = set()
         for module in existing:
-            args = module.args
-            if keep is None and args.get("sink") == output and \
-                    args.get("latency_msec") == latency:
-                keep = module
+            sink = module.args.get("sink", "")
+            if sink in targets and sink not in kept and \
+                    module.args.get("latency_msec") == latency:
+                kept.add(sink)
             else:
+                if sink not in targets:
+                    log.info("Disconnecting %s from %s", channel.description, self._name(sink))
                 self._unload(module)
-        if keep is not None:
-            return
+        for target in targets:
+            if target not in kept:
+                log.info("Connecting %s to %s", channel.description, self._name(target))
+                self._load_loopback(channel, target, latency)
+
+    def _load_loopback(self, channel: Channel, output: str, latency: str) -> None:
         self.pactl.load_module(LOOPBACK, {
             "source": channel.record_source,
             "sink": output,
@@ -295,6 +404,7 @@ class Sonar:
                 self._unload(module)
         if keep is not None:
             return False
+        log.info("Vertex Mic records %s", self._name(mic))
         self.pactl.load_module(REMAP_SOURCE, {
             "master": mic,
             "source_name": channels.MIC.node,
@@ -323,8 +433,9 @@ class Sonar:
             self.pactl.set_default_sink(target.node)
             if self.config.set_default_mic and mic_present:
                 self.pactl.set_default_source(channels.MIC.node)
-        except AudioError:
-            pass   # the devices exist; defaults are a convenience
+        except AudioError as exc:
+            # The devices exist; defaults are a convenience.
+            log.warning("Couldn't make %s the default: %s", target.description, exc)
 
     def _unload(self, module: Module) -> None:
         try:
@@ -336,6 +447,8 @@ class Sonar:
 
     def down(self) -> None:
         """Remove every Vertex device and give the system its defaults back."""
+        self.picked = {"output": "", "mic": ""}      # picks last while Sonar runs
+        self._connected = {"output": None, "mic": None}
         outputs = self.outputs()
         names = {device.name for device in outputs}
         restore_sink = next((name for name in (self.state.previous_sink, self.state.output)
@@ -343,13 +456,15 @@ class Sonar:
         source_names = {device.name for device in self.inputs()}
         restore_source = next((name for name in (self.state.previous_source, self.state.mic)
                                if name in source_names), "")
+        log.info("Taking the Vertex devices down; defaults back to %s and %s",
+                 self._name(restore_sink) or "unchanged", self._name(restore_source) or "unchanged")
         try:
             if restore_sink:
                 self.pactl.set_default_sink(restore_sink)
             if restore_source:
                 self.pactl.set_default_source(restore_source)
-        except AudioError:
-            pass
+        except AudioError as exc:
+            log.warning("Couldn't give the system its defaults back: %s", exc)
 
         # Move streams off the channels first, so they land on the restored
         # default rather than wherever the server would pick.
@@ -394,9 +509,9 @@ class Sonar:
     def _set_volume(self, channel: Channel, volume: float) -> None:
         try:
             if channel.is_output:
-                self.pactl.set_sink_volume(channel.node, volume)
+                self.pactl.set_sink_volume(channel.node, to_server(volume))
             else:
-                self.pactl.set_source_volume(channel.node, volume)
+                self.pactl.set_source_volume(channel.node, to_server(volume))
         except AudioError:
             pass   # the device is not up; the setting applies when it is
 
@@ -409,13 +524,98 @@ class Sonar:
         except AudioError:
             pass
 
-    def set_output(self, device: str) -> list[str]:
-        self.config.output_device = device
+    def _pick(self, kind: str, device: str, lasting: bool) -> None:
+        """Use `device` for now, or (`lasting`, as setup does) put it on top
+        of the device manager's list."""
+        what = "output" if kind == "output" else "microphone"
+        log.info("%s %s: %s", "Switching" if not lasting else "Setting up", what,
+                 self._name(device) or "none")
+        if not lasting:
+            self.picked[kind] = device
+            self._connected[kind] = None     # what is plugged in now doesn't undo it
+            return
+        self.picked[kind] = ""
+        if device:
+            cfg = self.config
+            priority, excluded = devices.promote(getattr(cfg, f"{kind}_priority"),
+                                                 getattr(cfg, f"{kind}_excluded"), device)
+            setattr(cfg, f"{kind}_priority", priority)
+            setattr(cfg, f"{kind}_excluded", excluded)
+            setattr(cfg, f"{kind}_device", device)
+
+    def set_channel_output(self, channel_id: str, device: str,
+                           lasting: bool = False) -> list[str]:
+        """Play a channel through `device`: every output channel while linked,
+        for now (see _pick); unlinked, the channel keeps it as its own."""
+        if self.config.linked:
+            self._pick("output", device, lasting)
+        else:
+            log.info("%s plays through %s", channels.BY_ID[channel_id].description,
+                     self._name(device))
+            self.config.channel(channel_id).output_device = device
         return self.up() if self.config.enabled else []
 
-    def set_mic(self, device: str) -> list[str]:
-        self.config.mic_device = device
+    def set_linked(self, linked: bool, channel_id: str) -> list[str]:
+        """Linking plays every output channel through `channel_id`'s device.
+        Unlinking keeps each where it is, ready to be set apart."""
+        if linked != self.config.linked:
+            log.info("%s the output channels", "Linking" if linked else "Unlinking")
+        if linked:
+            if not self.config.linked:
+                own = self.config.channel(channel_id).output_device
+                if own:
+                    self._pick("output", own, lasting=False)
+        else:
+            shared = self.state.output or self.config.output_device
+            for channel in channels.OUTPUTS:
+                self.config.channel(channel.id).output_device = shared
+        self.config.linked = linked
         return self.up() if self.config.enabled else []
+
+    def set_mic(self, device: str, lasting: bool = False) -> list[str]:
+        """Feed Vertex Mic from `device`, for now (see _pick)."""
+        self._pick("mic", device, lasting)
+        return self.up() if self.config.enabled else []
+
+    def set_second_output(self, device: str) -> list[str]:
+        """A device the output channels also play through ("" for none)."""
+        log.info("Second output: %s", self._name(device) or "none")
+        self.config.second_output = device
+        return self.up() if self.config.enabled else []
+
+    def set_also_second(self, channel_id: str, also: bool) -> list[str]:
+        """Whether a channel also plays through the second device."""
+        log.info("%s %s plays through the second output", channels.BY_ID[channel_id].description,
+                 "also" if also else "no longer")
+        self.config.channel(channel_id).also_second = also
+        return self.up() if self.config.enabled else []
+
+    def learn_devices(self, outputs: list[Device], inputs: list[Device]) -> bool:
+        """Add devices seen for the first time to the device manager's lists
+        and remember every device's name. True if anything changed."""
+        cfg = self.config
+        before = (list(cfg.output_priority), list(cfg.mic_priority), dict(cfg.device_names))
+        cfg.output_priority = devices.learn(cfg.output_priority, cfg.output_excluded,
+                                            [d.name for d in outputs],
+                                            self.state.output or cfg.output_device)
+        cfg.mic_priority = devices.learn(cfg.mic_priority, cfg.mic_excluded,
+                                         [d.name for d in inputs],
+                                         self.state.mic or cfg.mic_device)
+        for device in (*outputs, *inputs):
+            if device.description:
+                cfg.device_names[device.name] = device.description
+        return before != (cfg.output_priority, cfg.mic_priority, cfg.device_names)
+
+    def set_device_volume(self, kind: str, name: str, volume: float) -> None:
+        """The volume of a real device (kind: "sink" or "source"), as a slider
+        level."""
+        try:
+            if kind == "sink":
+                self.pactl.set_sink_volume(name, to_server(volume))
+            else:
+                self.pactl.set_source_volume(name, to_server(volume))
+        except AudioError:
+            pass   # unplugged meanwhile
 
     # --- Routing ------------------------------------------------------------
 
@@ -424,19 +624,43 @@ class Sonar:
         return "vertex.loopback" in stream.properties
 
     def streams(self) -> list[AppStream]:
-        """Every application currently playing, and which channel it is on."""
-        by_index = {sink.index: sink.name for sink in self.pactl.sinks()}
+        """Every application currently playing, and which channel it is on.
+
+        Streams created by modules (Vertex's own loopbacks, echo cancellers…)
+        and volume meters are not applications and are left out.
+        """
+        sinks = {sink.index: sink for sink in self.pactl.sinks()}
         result = []
         for stream in self.pactl.sink_inputs():
-            if self._is_loopback(stream):
+            if self._is_loopback(stream) or stream.owner_module is not None or stream.is_meter:
                 continue
-            node = by_index.get(stream.sink, "")
-            channel = channels.BY_NODE.get(node)
+            sink = sinks.get(stream.sink)
+            channel = channels.BY_NODE.get(sink.name) if sink else None
             result.append(AppStream(
                 index=stream.index, key=stream.key, name=stream.app_name, icon=stream.icon,
                 channel=channel.id if channel else None,
                 rule=self.config.app_rules.get(stream.key),
+                device=sink.label if sink else "",
             ))
+        return result
+
+    def recorders(self) -> list[AppCapture]:
+        """Every application recording from a microphone — through Vertex Mic
+        or straight from a device. Monitors (recordings of an output, which is
+        how a screen recorder takes desktop audio) and meters are left out."""
+        sources = {source.index: source for source in self.pactl.sources()}
+        result = []
+        for capture in self.pactl.source_outputs():
+            if capture.owner_module is not None or capture.is_meter or \
+                    "vertex.loopback" in capture.properties:
+                continue
+            source = sources.get(capture.source)
+            if source is None or source.is_monitor:
+                continue
+            result.append(AppCapture(
+                index=capture.index, key=capture.key, name=capture.app_name,
+                icon=capture.icon, device=source.label,
+                via_vertex=source.name == channels.MIC.node))
         return result
 
     def route(self, app_key: str, channel_id: str | None) -> int:
@@ -471,8 +695,13 @@ class Sonar:
                 try:
                     self.pactl.move_sink_input(stream.index, target.node)
                     moved += 1
+                    log.info("Moved %s to %s, as its rule says", stream.app_name,
+                             target.description)
                 except AudioError:
-                    pass   # the stream ended in the meantime
+                    # Ended in the meantime, or the server won't move it right
+                    # now (a stream starting up or shutting down). It shows as
+                    # stuck, and the next call tries again.
+                    pass
         return moved
 
     def _move_matching(self, predicate, channel_id: str) -> int:

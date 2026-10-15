@@ -4,7 +4,15 @@ waveform, the trim selection and the playhead."""
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFontMetricsF,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPolygonF,
+)
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from vertex import fmt
@@ -25,6 +33,8 @@ MIN_SELECTION = 0.1
 
 class Timeline(QWidget):
     seek_requested = Signal(float)
+    scrub_started = Signal()         # the playhead is grabbed …
+    scrub_finished = Signal()        # … and let go
     trim_changed = Signal(float, float)
     trim_committed = Signal()
 
@@ -38,20 +48,27 @@ class Timeline(QWidget):
         self.waves: dict[int, list[float]] = {}     # lane position → levels
         self._wave_cache: dict[tuple[int, int, bool], QPolygonF] = {}
         self._drag = None
+        self.scale = 1.0
+        self.ruler_h, self.lane_h = RULER_H, LANE_H
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     # --- Data -----------------------------------------------------------------
 
-    @staticmethod
-    def height_for(lanes: int) -> int:
-        return RULER_H + (lanes + 1) * (LANE_H + LANE_GAP)
+    def height_for(self, lanes: int) -> int:
+        return self.ruler_h + (lanes + 1) * (self.lane_h + LANE_GAP)
 
     def set_lanes(self, lanes: list[tuple[str, bool]]) -> None:
         self.lanes = lanes
         self.setFixedHeight(self.height_for(len(lanes)))
         self._wave_cache.clear()
         self.update()
+
+    def set_scale(self, scale: float) -> None:
+        """Grow the ruler and the lanes with the window (the editor's scale)."""
+        self.scale = scale
+        self.ruler_h, self.lane_h = round(RULER_H * scale), round(LANE_H * scale)
+        self.set_lanes(self.lanes)
 
     def set_wave(self, lane: int, levels: list[float]) -> None:
         self.waves[lane] = levels
@@ -94,7 +111,7 @@ class Timeline(QWidget):
         return max(0.0, min(self.duration, (x - left) / (right - left) * self.duration))
 
     def _lane_top(self, lane: int) -> float:
-        return RULER_H + LANE_GAP + lane * (LANE_H + LANE_GAP)
+        return self.ruler_h + LANE_GAP + lane * (self.lane_h + LANE_GAP)
 
     # --- Painting -------------------------------------------------------------
 
@@ -107,7 +124,7 @@ class Timeline(QWidget):
         colours = [(theme.VIDEO_LANE, False), *self.lanes]
         for lane, (colour, muted) in enumerate(colours):
             top = self._lane_top(lane)
-            rect = QRectF(left, top, right - left, LANE_H)
+            rect = QRectF(left, top, right - left, self.lane_h)
             path = QPainterPath()
             path.addRoundedRect(rect, 5, 5)
             p.fillPath(path, QColor(theme.LANE_BG if muted else colour))
@@ -120,16 +137,16 @@ class Timeline(QWidget):
         shade.setAlpha(175)
         for x0, x1 in ((left, x_in), (x_out, right)):
             if x1 > x0:
-                p.fillRect(QRectF(x0, RULER_H, x1 - x0, bottom - RULER_H), shade)
-        pen = QPen(QColor(theme.ACCENT), 3)
+                p.fillRect(QRectF(x0, self.ruler_h, x1 - x0, bottom - self.ruler_h), shade)
+        pen = QPen(QColor(theme.SELECT), 3)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         for x in (x_in, x_out):
-            p.drawLine(QPointF(x, RULER_H - 4), QPointF(x, bottom))
+            p.drawLine(QPointF(x, self.ruler_h - 4), QPointF(x, bottom))
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(theme.ACCENT))
+        p.setBrush(QColor(theme.SELECT))
         for x in (x_in, x_out):
-            p.drawRoundedRect(QRectF(x - 5, RULER_H - 8, 10, 8), 2, 2)
+            p.drawRoundedRect(QRectF(x - 5, self.ruler_h - 8, 10, 8), 2, 2)
 
         x = self.x_for(self.position)
         p.setPen(QPen(QColor(theme.PLAYHEAD), 1.2))
@@ -145,14 +162,19 @@ class Timeline(QWidget):
         target = max(1, int(self.duration / max(1, (right - left) / 90)))
         step = next((s for s in (1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800) if s >= target),
                     3600)
-        p.setFont(theme.font(7.5))
+        p.setFont(theme.font(7.5 * self.scale))
+        metrics = QFontMetricsF(p.font())
         for seconds in range(0, int(self.duration) + 1, step):
             x = self.x_for(seconds)
-            p.setPen(QColor("#3a4050"))
-            p.drawLine(QPointF(x, RULER_H - 6), QPointF(x, RULER_H))
+            p.setPen(QColor(theme.SEAM))
+            p.drawLine(QPointF(x, self.ruler_h - 6), QPointF(x, self.ruler_h))
+            # Centred on its tick, but kept inside the widget at both ends.
+            text = fmt.duration(seconds)
+            half = metrics.horizontalAdvance(text) / 2 + 1
+            middle = max(half, min(self.width() - half, x))
             p.setPen(QColor(theme.TEXT_MUTED))
-            p.drawText(QRectF(x - 30, 0, 60, RULER_H - 7), Qt.AlignmentFlag.AlignCenter,
-                       fmt.duration(seconds))
+            p.drawText(QRectF(middle - 40, 0, 80, self.ruler_h - 7), Qt.AlignmentFlag.AlignCenter,
+                       text)
 
     def _paint_wave(self, p: QPainter, lane: int, colour: str, muted: bool, top: float) -> None:
         levels = self.waves.get(lane)
@@ -165,8 +187,8 @@ class Timeline(QWidget):
         key = (lane, width, muted)
         polygon = self._wave_cache.get(key)
         if polygon is None:
-            middle = top + LANE_H / 2
-            limit = LANE_H / 2 - WAVE_PAD
+            middle = top + self.lane_h / 2
+            limit = self.lane_h / 2 - WAVE_PAD
             upper, lower = [], []
             count = len(levels)
             for column in range(width + 1):
@@ -196,6 +218,7 @@ class Timeline(QWidget):
             self._drag = "out"
         else:
             self._drag = "seek"
+            self.scrub_started.emit()
             self.seek_requested.emit(self.time_for(x))
 
     def mouseMoveEvent(self, event):
@@ -218,6 +241,8 @@ class Timeline(QWidget):
             self.seek_requested.emit(moment)
 
     def mouseReleaseEvent(self, _event):
-        if self._drag in ("in", "out"):
+        drag, self._drag = self._drag, None
+        if drag in ("in", "out"):
             self.trim_committed.emit()
-        self._drag = None
+        elif drag == "seek":
+            self.scrub_finished.emit()

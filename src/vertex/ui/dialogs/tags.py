@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QStringListModel, Qt
+from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtWidgets import (
     QCompleter,
     QDialog,
@@ -20,11 +20,15 @@ from vertex.ui.widgets import FlowLayout, IconButton, button, label
 
 
 def _completer(words: list[str], parent) -> QCompleter:
-    completer = QCompleter(QStringListModel(words), parent)
+    completer = QCompleter(parent)
+    # Owned by the completer: a model nothing holds on to is collected at once,
+    # leaving the completer with nothing to suggest.
+    completer.setModel(QStringListModel(words, completer))
     completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
     completer.setFilterMode(Qt.MatchFlag.MatchContains)
-    completer.popup().setStyleSheet(
-        f"background: {theme.CARD_BG}; border: 1px solid {theme.SEAM}; padding: 4px;")
+    popup = completer.popup()
+    theme.style(popup, lambda: f"background: {theme.CARD_BG}; border: 1px solid {theme.SEAM}; "
+                               f"padding: 4px;")
     return completer
 
 
@@ -32,12 +36,12 @@ class Chip(QFrame):
     def __init__(self, text: str, on_remove, parent=None):
         super().__init__(parent)
         self.text = text
-        self.setStyleSheet(f"background: {theme.CARD_BG}; border-radius: 8px;")
+        theme.style(self, lambda: f"background: {theme.CARD_BG}; border-radius: 8px;")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 3, 3, 3)
         layout.setSpacing(2)
         layout.addWidget(QLabel(text))
-        remove = IconButton("close", f"Remove {text}", 12, theme.TEXT_MUTED)
+        remove = IconButton("close", f"Remove {text}", 12, "TEXT_MUTED")
         remove.clicked.connect(lambda: on_remove(self))
         layout.addWidget(remove)
 
@@ -59,7 +63,7 @@ class TagDialog(QDialog):
 
         layout.addWidget(label("GAME", "Group"))
         self.game = QLineEdit(game)
-        self.game.setPlaceholderText("What was being played")
+        self.game.setPlaceholderText("Game")
         self.game.setCompleter(_completer(self._known_games, self))
         layout.addWidget(self.game)
         self.game_hint = label("", "Dim")
@@ -72,8 +76,9 @@ class TagDialog(QDialog):
         self.chips = FlowLayout(self.chips_host)
         layout.addWidget(self.chips_host)
         self.person = QLineEdit()
-        self.person.setPlaceholderText("Add a person and press Enter")
+        self.person.setPlaceholderText("Add people")
         self.person.setCompleter(_completer(list(people_pool), self))
+        self.person.completer().activated[str].connect(self._add_suggested)
         self.person.returnPressed.connect(self._add_typed)
         layout.addWidget(self.person)
         for name in people:
@@ -82,9 +87,12 @@ class TagDialog(QDialog):
         layout.addSpacing(10)
         row = QHBoxLayout()
         row.addStretch(1)
-        row.addWidget(button("Cancel", on_click=self.reject))
+        cancel = button("Cancel", on_click=self.reject)
+        cancel.setAutoDefault(False)
+        row.addWidget(cancel)
+        # Enter saves (in the people field it adds the person instead).
         save = button("Save", "primary", on_click=self._save)
-        save.setAutoDefault(False)
+        save.setDefault(True)
         row.addWidget(save)
         layout.addLayout(row)
         self.game.setFocus()
@@ -93,7 +101,7 @@ class TagDialog(QDialog):
         """Point out when a typed game is an existing tag spelled differently."""
         key = game_key(text)
         match = next((g for g in self._known_games if game_key(g) == key and g != text), "")
-        self.game_hint.setText(f"Saved as “{match}”, the spelling already in use." if
+        self.game_hint.setText(f"Saved as “{match}”" if
                                key and match else "")
 
     def _people(self) -> list[str]:
@@ -114,6 +122,10 @@ class TagDialog(QDialog):
     def _add_typed(self) -> None:
         self._add_chip(self.person.text())
         self.person.clear()
+
+    def _add_suggested(self, name: str) -> None:
+        # After the field has taken the suggestion, which would refill it.
+        QTimer.singleShot(0, self, lambda: (self._add_chip(name), self.person.clear()))
 
     def keyPressEvent(self, event):
         # Enter in the people field adds a chip rather than closing the dialog.

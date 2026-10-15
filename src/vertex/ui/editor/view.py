@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import time
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -20,9 +20,10 @@ from PySide6.QtWidgets import (
 
 from vertex import fmt
 from vertex.core import clips as clips_mod
+from vertex.logs import CLIPS as log
 from vertex.media import mixing, probe, trim, waveform
 from vertex.media import tracks as track_labels
-from vertex.media.export import copy_estimate
+from vertex.media.export import apply_edit, copy_estimate
 from vertex.media.ffmpeg import MediaError
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.export import ExportDialog
@@ -33,6 +34,16 @@ from vertex.ui.widgets import ChoiceDialog, EditableLabel, IconButton, button, l
 
 SEEK_STEP = 5.0
 SAVE_DELAY_MS = 800
+SCALE_MAX = 1.5      # as the top bar: the controls grow up to this on a big window
+
+
+def editor_scale(width: int, height: int) -> float:
+    """How much the controls grow in an editor this big: not at all up to about
+    1400 × 800, fully from about 2400 × 1300, in steps of 0.05."""
+    def ramp(value: float, low: float, high: float) -> float:
+        return max(0.0, min(1.0, (value - low) / (high - low)))
+    grow = min(ramp(width, 1400, 2400), ramp(height, 800, 1300))
+    return round((1 + (SCALE_MAX - 1) * grow) * 20) / 20
 
 
 class EditorView(QWidget):
@@ -51,11 +62,12 @@ class EditorView(QWidget):
             self.info = probe.probe(clip.path)
         except MediaError:
             self.info = probe.MediaInfo()
-        self.tracks = track_labels.label_tracks(self.info.tracks, context.config)
+        self.tracks = track_labels.label_tracks(self.info.tracks)
         self.duration = self.info.duration
         self.trim_start, self.trim_end = 0.0, self.duration
         self.position = 0.0
         self._suppress_until = 0.0
+        self._resume_after_scrub = False
         self._closing = False
         self._waves_cancel = workers.Cancel()
         self._waves_started = False
@@ -69,6 +81,7 @@ class EditorView(QWidget):
         self._poll_timer.timeout.connect(self._poll)
 
         self.player_widget = None        # created by _build
+        self.scale = 1.0
         self._build()
         QTimer.singleShot(0, self._start_player)
         QTimer.singleShot(150, self._start_waves)
@@ -79,16 +92,8 @@ class EditorView(QWidget):
         library = self.context.library
         if library is None:
             return
-        edit = library.get_edit(self.clip.name)
-        if self.duration:
-            if edit.trim_start is not None:
-                self.trim_start = max(0.0, min(edit.trim_start, self.duration))
-            if edit.trim_end is not None:
-                self.trim_end = max(self.trim_start + 0.1, min(edit.trim_end, self.duration))
-        for track in self.tracks:
-            saved = edit.mix_for(track.name)
-            if saved is not None:
-                track.volume, track.muted = max(0.0, min(1.5, saved.volume)), saved.muted
+        self.trim_start, self.trim_end = apply_edit(library.get_edit(self.clip.name),
+                                                    self.duration, self.tracks)
 
     def _mark_dirty(self) -> None:
         self._save_timer.start()
@@ -115,25 +120,23 @@ class EditorView(QWidget):
 
         header = QHBoxLayout()
         header.setSpacing(10)
-        back = button("Back", "ghost", "back", self.back.emit, "Back to the library (Esc)")
+        self.back_button = back = button("Back", "ghost", "back", self.back.emit, "Back (Esc)")
         header.addWidget(back)
         self.title = EditableLabel(self.state.title_of(self.clip), self.clip.name)
         self.title.display.setObjectName("Subheading")
         self.title.committed.connect(self._rename)
         self.title.setMaximumWidth(520)
         header.addWidget(self.title, 1)
-        meta = label(self._meta(), "Muted")
+        self.meta = meta = label(self._meta(), "Muted")
         header.addWidget(meta)
         self.tags_button = QPushButton(self._tag_text())
         self.tags_button.setObjectName("Chip")
-        self.tags_button.setStyleSheet(
-            f"QPushButton {{ background: {theme.CARD_BG}; border-radius: 8px; padding: 5px 12px;"
-            f" color: {theme.TEXT_MUTED}; }} QPushButton:hover {{ color: {theme.TEXT}; }}")
+        theme.style(self.tags_button, self._tags_style)
         self.tags_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.tags_button.clicked.connect(self._edit_tags)
         header.addWidget(self.tags_button)
         header.addStretch(0)
-        delete = button("Delete", "danger", "trash",
+        self.delete_button = delete = button("Delete", "danger", "trash",
                         lambda: self.delete_requested.emit(self.clip))
         header.addWidget(delete)
         layout.addLayout(header)
@@ -145,20 +148,18 @@ class EditorView(QWidget):
 
         transport = QHBoxLayout()
         transport.setSpacing(6)
-        self.in_button = IconButton("mark-in", "Set In at the playhead (I)", 20)
+        self.in_button = IconButton("mark-in", "Set start (I)", 20)
         self.in_button.clicked.connect(self.set_in)
         transport.addWidget(self.in_button)
-        self.play_button = IconButton("pause", "Play / pause (Space)", 22, "#ffffff", kind="")
-        self.play_button.setStyleSheet(
-            f"QToolButton {{ background: {theme.ACCENT}; border-radius: 10px; padding: 7px; "
-            f"border: 1px solid {theme.ACCENT_EDGE}; }}"
-            f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}")
+        self.play_button = IconButton("pause", "Play / pause (Space)", 22, "ON_ACCENT",
+                                      kind="")
+        theme.style(self.play_button, self._play_style)
         self.play_button.clicked.connect(self.toggle_play)
         transport.addWidget(self.play_button)
-        self.out_button = IconButton("mark-out", "Set Out at the playhead (O)", 20)
+        self.out_button = IconButton("mark-out", "Set end (O)", 20)
         self.out_button.clicked.connect(self.set_out)
         transport.addWidget(self.out_button)
-        reset = IconButton("reset", "Select the whole clip", 18)
+        self.reset_button = reset = IconButton("reset", "Select all", 18)
         reset.clicked.connect(self.reset_trim)
         transport.addSpacing(6)
         transport.addWidget(reset)
@@ -171,10 +172,10 @@ class EditorView(QWidget):
         transport.addWidget(self.status)
         transport.addSpacing(8)
         self.trim_button = button("Trim", icon="scissors", on_click=self.confirm_trim,
-                                  tooltip="Cut the clip down to the selection")
+                                  tooltip="Trim to selection")
         transport.addWidget(self.trim_button)
         self.export_button = button("Export", "primary", "export", self.start_export,
-                                    "Make a shareable file of the selection")
+                                    "Export selection")
         transport.addWidget(self.export_button)
         for widget in (self.trim_button, self.export_button):
             widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -183,29 +184,39 @@ class EditorView(QWidget):
         editor = QGridLayout()
         editor.setHorizontalSpacing(8)
         editor.setVerticalSpacing(0)
-        mixer = QWidget()
+        self.mixer = mixer = QWidget()
         mixer.setFixedWidth(PANEL_W)
-        column = QVBoxLayout(mixer)
+        self.mixer_column = column = QVBoxLayout(mixer)
         # Each row sits beside its lane: lanes start LANE_GAP below the ruler.
         column.setContentsMargins(0, RULER_H + LANE_GAP, 0, 0)
         column.setSpacing(LANE_GAP)
-        video_row = label("   Video", "Dim")
-        video_row.setFixedHeight(LANE_H)
-        column.addWidget(video_row)
+        self.video_row = QWidget()
+        self.video_row.setFixedHeight(LANE_H)
+        video = QHBoxLayout(self.video_row)
+        video.setContentsMargins(12, 0, 0, 0)
+        self.video_labels = [label("Video", "Dim")]
+        if not self.tracks:
+            # On the Video row's line, so it never lands on top of it.
+            self.video_labels.append(label("This clip has no audio.", "Dim"))
+        for text in self.video_labels:
+            video.addWidget(text)
+            video.addSpacing(18)
+        video.addStretch(1)
+        column.addWidget(self.video_row)
         self.rows = []
         for position, track in enumerate(self.tracks):
             row = TrackRow(track, theme.channel_colour(track.channel, position))
             row.changed.connect(self._mix_changed)
             column.addWidget(row)
             self.rows.append(row)
-        if not self.tracks:
-            column.addWidget(label("This clip has no audio.", "Dim"))
         column.addStretch(1)
         self.timeline = Timeline()
         self.timeline.set_lanes(self._lanes())
         self.timeline.set_duration(self.duration)
         self.timeline.set_trim(self.trim_start, self.trim_end)
         self.timeline.seek_requested.connect(self.seek)
+        self.timeline.scrub_started.connect(self._scrub_started)
+        self.timeline.scrub_finished.connect(self._scrub_finished)
         self.timeline.trim_changed.connect(self._trim_dragged)
         self.timeline.trim_committed.connect(self._trim_committed)
         mixer.setFixedHeight(self.timeline.height())
@@ -214,6 +225,57 @@ class EditorView(QWidget):
         editor.setColumnStretch(1, 1)
         layout.addLayout(editor)
         self._update_estimate()
+
+    # --- Size ------------------------------------------------------------------
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        scale = editor_scale(self.width(), self.height())
+        if scale != self.scale:
+            self.set_scale(scale)
+
+    def set_scale(self, scale: float) -> None:
+        """Grow the transport, the mixer and the timeline with the window, the
+        way the top bar grows its tabs (item 75)."""
+        self.scale = scale
+        for widget, size in ((self.in_button, 20), (self.out_button, 20),
+                             (self.play_button, 22), (self.reset_button, 18)):
+            widget.set_size(round(size * scale))
+        theme.style(self.play_button, self._play_style)
+        text = f"font-size: {10 * scale:.1f}pt;"
+        self.title.display.setStyleSheet(f"font-size: {12 * scale:.1f}pt;")
+        self.title.setMaximumWidth(round(520 * scale))
+        self.meta.setStyleSheet(text)
+        theme.style(self.tags_button, self._tags_style)
+        for widget in (self.back_button, self.delete_button, self.trim_button,
+                       self.export_button):
+            widget.setStyleSheet(f"QPushButton {{ {text} padding: {round(7 * scale)}px "
+                                 f"{round(14 * scale)}px; }}")
+            widget.setIconSize(QSize(round(16 * scale), round(16 * scale)))
+        self.time_label.setStyleSheet(text)
+        self.time_label.setMinimumWidth(round(110 * scale))
+        self._update_estimate()
+        for widget in self.video_labels:
+            widget.setStyleSheet(text)
+        self.timeline.set_scale(scale)
+        self.mixer.setFixedWidth(round(PANEL_W * scale))
+        self.mixer_column.setContentsMargins(0, self.timeline.ruler_h + LANE_GAP, 0, 0)
+        self.video_row.setFixedHeight(self.timeline.lane_h)
+        for row in self.rows:
+            row.set_scale(scale)
+        self.mixer.setFixedHeight(self.timeline.height())
+
+    def _tags_style(self) -> str:
+        return (f"QPushButton {{ background: {theme.CARD_BG}; border-radius: 8px; "
+                f"padding: {round(5 * self.scale)}px {round(12 * self.scale)}px; "
+                f"font-size: {10 * self.scale:.1f}pt; color: {theme.TEXT_MUTED}; }} "
+                f"QPushButton:hover {{ color: {theme.TEXT}; }}")
+
+    def _play_style(self) -> str:
+        return (f"QToolButton {{ background: {theme.ACCENT_FILL}; border-radius: "
+                f"{round(10 * self.scale)}px; padding: {round(7 * self.scale)}px; "
+                f"border: 1px solid {theme.ACCENT_FILL_EDGE}; }}"
+                f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}")
 
     def _lanes(self) -> list[tuple[str, bool]]:
         return [(theme.channel_colour(track.channel, position), track.muted)
@@ -249,6 +311,7 @@ class EditorView(QWidget):
         self._update_time()
 
     def _apply_mix(self) -> None:
+        """Set up the mix before playback starts. Only gains change after."""
         if self.player_widget is None or self.player_widget.player is None:
             return
         graph = mixing.mpv_graph(self.tracks)
@@ -256,8 +319,26 @@ class EditorView(QWidget):
             return
         try:
             self.player_widget.player["lavfi-complex"] = graph
+            self.player_widget.player["af"] = mixing.mpv_mix_filter(self.tracks)
         except Exception:            # playback goes on without the mix
             pass
+
+    def _apply_gains(self) -> None:
+        """Hand the mixer's gains to the playing mix, without interrupting it."""
+        player = self.player_widget.player if self.player_widget else None
+        if player is None or not self.tracks:
+            return
+        try:
+            for position, track in enumerate(self.tracks):
+                player.command("af-command", mixing.MPV_MIX_LABEL, "volume",
+                               str(track.gain), mixing.mpv_volume_target(position))
+        except Exception:
+            # An mpv too old to aim a command inside the filter: swapping the
+            # filter whole costs a blip of sound, still no seek.
+            try:
+                player["af"] = mixing.mpv_mix_filter(self.tracks)
+            except Exception:
+                pass
 
     def _poll(self) -> None:
         if self._closing or self.player_widget is None or self.player_widget.player is None:
@@ -267,8 +348,8 @@ class EditorView(QWidget):
             position, duration, paused = player.time_pos, player.duration, player.pause
         except Exception:
             return
-        if paused is not None:
-            self.play_button.set_icon("play" if paused else "pause", "#ffffff")
+        if paused is not None and not self._resume_after_scrub:
+            self.play_button.set_icon("play" if paused else "pause", "ON_ACCENT")
         if duration and not self.duration:
             # ffprobe could not say how long the clip is; mpv can.
             self.duration = duration
@@ -293,7 +374,7 @@ class EditorView(QWidget):
         if paused and not (self.trim_start <= self.position <= self.trim_end - 0.05):
             self.seek(self.trim_start)
         player.pause = not paused
-        self.play_button.set_icon("pause" if paused else "play", "#ffffff")
+        self.play_button.set_icon("pause" if paused else "play", "ON_ACCENT")
 
     def seek(self, seconds: float) -> None:
         player = self.player_widget.player if self.player_widget else None
@@ -308,6 +389,21 @@ class EditorView(QWidget):
             player.command("seek", seconds, "absolute", "exact")
         except Exception:
             pass
+
+    def _scrub_started(self) -> None:
+        """Hold a playing clip while the playhead is dragged; it plays on from
+        wherever the playhead is let go."""
+        player = self.player_widget.player if self.player_widget else None
+        if player is None or player.pause:
+            return
+        self._resume_after_scrub = True
+        player.pause = True
+
+    def _scrub_finished(self) -> None:
+        resume, self._resume_after_scrub = self._resume_after_scrub, False
+        player = self.player_widget.player if self.player_widget else None
+        if resume and player is not None and not self._closing:
+            player.pause = False
 
     def _frame_step(self, forward: bool) -> None:
         player = self.player_widget.player if self.player_widget else None
@@ -327,7 +423,7 @@ class EditorView(QWidget):
     # --- Mixer and trim ---------------------------------------------------------
 
     def _mix_changed(self) -> None:
-        self._apply_mix()
+        self._apply_gains()
         self.timeline.set_lanes(self._lanes())
         self._mark_dirty()
 
@@ -371,7 +467,8 @@ class EditorView(QWidget):
         if estimate:
             parts.append(f"≈{fmt.size(estimate, 0)}")
         self.status.setText("  ·  ".join(parts))
-        self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+        theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED}; "
+                                         f"font-size: {10 * self.scale:.1f}pt;")
 
     # --- Waveforms -------------------------------------------------------------
 
@@ -433,7 +530,7 @@ class EditorView(QWidget):
         if self._trim_job is not None:
             return
         if not self._has_trim():
-            self.status.setText("Set the In and Out markers first.")
+            self.status.setText("Set a start and end first.")
             return
         span = (f"{fmt.duration(self.trim_start)} – {fmt.duration(self.trim_end)} "
                 f"({fmt.duration(self.selection)})")
@@ -456,6 +553,10 @@ class EditorView(QWidget):
         self.export_button.setEnabled(False)
         self.status.setText("Trimming…")
         start, end, source = self.trim_start, self.trim_end, self.clip.path
+        log.info("Trimming %s to %s–%s (%s)", source,
+                 f"{start:.1f} s" if start is not None else "start",
+                 f"{end:.1f} s" if end is not None else "end",
+                 "as a copy" if mode == "copy" else "replacing it")
         self._trim_job = (mode, target)
         workers.run(lambda: trim.trim(source, target, start, end),
                     lambda size: self._trim_done(mode, target, size),
@@ -469,23 +570,26 @@ class EditorView(QWidget):
             return
         self.trim_button.setEnabled(True)
         self.export_button.setEnabled(True)
+        if mode == "copy":
+            log.info("Saved the trim as %s", target)
         if mode == "copy" and self.context.library is not None:
             self.context.library.copy_edits(self.clip.name, os.path.basename(target),
                                             title_suffix=" (trimmed)")
             self.status.setText(f"Saved {os.path.basename(target)} · {fmt.size(size)}")
-            self.status.setStyleSheet(f"color: {theme.OK};")
+            theme.style(self.status, lambda: f"color: {theme.OK};")
         self.trimmed.emit(self.clip, mode, target)
 
     def _trim_failed(self, exc: BaseException) -> None:
         _mode, target = self._trim_job or ("", "")
         self._trim_job = None
+        log.error("Couldn't trim %s: %s", self.clip.path, exc)
         _remove(target)
         if self._closing:
             return
         self.trim_button.setEnabled(True)
         self.export_button.setEnabled(True)
         self.status.setText(str(exc))
-        self.status.setStyleSheet(f"color: {theme.DANGER};")
+        theme.style(self.status, lambda: f"color: {theme.DANGER};")
 
     # --- Keyboard -----------------------------------------------------------------
 

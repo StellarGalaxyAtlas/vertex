@@ -38,6 +38,32 @@ SIZE_CHOICES: tuple[tuple[str, int | None], ...] = (
     ("50 MB", 50 * MB),
     ("100 MB", 100 * MB),
 )
+# Quick export's size until one has been exported at from the export sheet.
+QUICK_SIZE = "10 MB"
+
+
+def size_choice(name: str, fallback: str = SIZE_CHOICES[0][0]) -> tuple[str, int | None]:
+    """The size choice called `name`, or `fallback`'s when there is none."""
+    sizes = dict(SIZE_CHOICES)
+    name = name if name in sizes else fallback
+    return name, sizes[name]
+
+
+def apply_edit(edit, duration: float, tracks: Sequence[AudioTrack]) -> tuple[float, float]:
+    """Set each track's saved volume and mute from the library's `edit` (a
+    ClipEdit) and return the saved trim as (start, end), the whole clip if
+    it has none. What the editor opens with, and what a quick export uses."""
+    start, end = 0.0, duration
+    if duration:
+        if edit.trim_start is not None:
+            start = max(0.0, min(edit.trim_start, duration))
+        if edit.trim_end is not None:
+            end = max(start + 0.1, min(edit.trim_end, duration))
+    for track in tracks:
+        saved = edit.mix_for(track.name)
+        if saved is not None:
+            track.volume, track.muted = max(0.0, min(1.5, saved.volume)), saved.muted
+    return start, end
 
 # Headroom for the container and x264 missing slightly. Measured overshoot on
 # high-motion gameplay is ~5%, so 0.92 lands safely under.

@@ -153,6 +153,18 @@ class TestImporting:
         assert progress[-1] == (1, "new.mp4", 1000)
         assert not [n for n in os.listdir(dst) if n.endswith(".part")]
 
+    def test_copy_into_a_folder_not_made_yet(self, tmp_path):
+        # Setup copies into the clips folder it is about to create.
+        src, dst = tmp_path / "src", tmp_path / "videos" / "Game Recordings"
+        src.mkdir()
+        _touch(str(src), "a.mp4", 100)
+        plan = importing.plan_copy(str(src), str(dst))
+        assert plan.files == [("a.mp4", 100)]
+        assert plan.free_bytes > 0 and plan.fits
+        copied, failed = importing.copy_clips(plan)
+        assert copied == ["a.mp4"] and not failed
+        assert os.path.getsize(dst / "a.mp4") == 100
+
     def test_copy_can_be_cancelled(self, tmp_path):
         src, dst = tmp_path / "src", tmp_path / "dst"
         src.mkdir()
@@ -191,3 +203,35 @@ class TestStorage:
         path = _touch(str(tmp_path), "a.mp4")
         storage.delete_file(path)
         assert not os.path.exists(path)
+
+
+class TestDeviceOrder:
+    def test_learn_choose_promote(self):
+        from vertex.audio import devices
+        assert devices.learn([], [], ["a", "b", "c"], first="b") == ["b", "a", "c"]
+        assert devices.learn(["c"], ["x"], ["a", "x", "c"]) == ["c", "a"]
+        assert devices.choose(["a", "b"], [], ["b"]) == "b"
+        assert devices.choose(["a", "b"], ["a"], ["a", "b"]) == "b"
+        assert devices.choose(["a", "b"], [], ["a", "b"], "b") == "b"      # picked for now
+        assert devices.choose(["a", "b"], [], ["a"], "b") == "a"           # unplugged
+        assert devices.choose(["a"], ["a"], ["a"], "a") == "a"             # picked by hand
+        assert devices.choose(["a"], [], ["z"]) == ""
+        assert devices.promote(["a", "b"], ["c"], "c") == (["c", "a", "b"], [])
+
+    def test_reorder_keeps_hidden_entries_in_place(self):
+        from vertex.audio import devices
+        # "h" is disconnected and hidden; "a" and "b" swap round it.
+        assert devices.reorder(["a", "h", "b"], {"a", "b"}, ["b", "a"]) == ["b", "h", "a"]
+        # One moved in from the other list goes after the rest; one moved out goes.
+        assert devices.reorder(["a", "h", "b"], {"a", "b"}, ["b", "a", "x"]) == [
+            "b", "h", "a", "x"]
+        assert devices.reorder(["a", "h", "b"], {"a", "b"}, ["b"]) == ["b", "h"]
+
+    def test_describe_format(self):
+        from vertex.audio import devices
+        assert devices.describe_format("s24le 2ch 48000Hz") == "24-bit · 48 kHz · stereo"
+        assert devices.describe_format("float32le 1ch 44100Hz") == \
+            "32-bit float · 44.1 kHz · mono"
+        assert devices.describe_format("s24-32le 6ch 96000Hz") == "24-bit · 96 kHz · 6 channels"
+        assert devices.describe_format("") == ""
+

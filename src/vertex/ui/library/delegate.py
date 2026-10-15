@@ -11,6 +11,7 @@ from PySide6.QtGui import (
     QLinearGradient,
     QPainter,
     QPainterPath,
+    QPen,
 )
 from PySide6.QtWidgets import QLineEdit, QStyle, QStyledItemDelegate
 
@@ -19,7 +20,7 @@ from vertex.ui import icons, theme
 from vertex.ui.library.model import ClipRole
 
 PAD = 9            # room around the card for its shadow
-INFO_H = 78        # the three text lines under the thumbnail
+INFO_H = 58        # the two text lines under the thumbnail
 RADIUS = theme.RADIUS_CARD
 STAR = 30          # the favourite button's square
 
@@ -38,14 +39,15 @@ def star_rect(cell: QRect) -> QRectF:
     return QRectF(thumb.right() - STAR - 8, thumb.top() + 8, STAR, STAR)
 
 
-def tags_rect(cell: QRect) -> QRectF:
-    thumb = thumb_rect(cell)
-    return QRectF(thumb.left() + 14, thumb.bottom() + 10, thumb.width() - 28, 18)
-
-
 def title_rect(cell: QRect) -> QRectF:
     thumb = thumb_rect(cell)
-    return QRectF(thumb.left() + 14, thumb.bottom() + 30, thumb.width() - 28, 22)
+    return QRectF(thumb.left() + 14, thumb.bottom() + 8, thumb.width() - 28, 22)
+
+
+def tags_rect(cell: QRect) -> QRectF:
+    """The line under the title: tags, age and size. A click on it edits the tags."""
+    thumb = thumb_rect(cell)
+    return QRectF(thumb.left() + 14, thumb.bottom() + 30, thumb.width() - 28, 18)
 
 
 class ClipDelegate(QStyledItemDelegate):
@@ -119,7 +121,7 @@ class ClipDelegate(QStyledItemDelegate):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(6, 7, 10, 200))
             painter.drawRoundedRect(badge, 6, 6)
-            painter.setPen(QColor(theme.TEXT))
+            painter.setPen(QColor(theme.ON_VIDEO))
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, text)
 
         # Favourite star: always shown when set, on hover otherwise.
@@ -130,26 +132,8 @@ class ClipDelegate(QStyledItemDelegate):
             painter.setBrush(QColor(6, 7, 10, 150))
             painter.drawRoundedRect(star, 8, 8)
             glyph = icons.pixmap("star" if favorite else "star-outline",
-                                 theme.WARN if favorite else theme.TEXT, 18)
+                                 theme.STAR if favorite else theme.ON_VIDEO, 18)
             painter.drawPixmap(QPointF(star.center().x() - 9, star.center().y() - 9), glyph)
-
-        # Tags line: game (with its colour) · people.
-        game, people = self.state.tags_of(clip)
-        tags = tags_rect(cell)
-        painter.setFont(theme.font(8.5))
-        x = tags.left()
-        if game:
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(theme.game_colour(game)))
-            painter.drawEllipse(QPointF(x + 4, tags.center().y()), 4, 4)
-            x += 13
-        text = "  ·  ".join(part for part in (game, ", ".join(people)) if part) or "Add tags"
-        painter.setPen(QColor(theme.TEXT_MUTED if (game or people) else theme.TEXT_DIM))
-        metrics = QFontMetrics(painter.font())
-        painter.drawText(QRectF(x, tags.top(), tags.right() - x, tags.height()),
-                         Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                         metrics.elidedText(text, Qt.TextElideMode.ElideRight,
-                                            int(tags.right() - x)))
 
         # Title.
         title = title_rect(cell)
@@ -160,13 +144,52 @@ class ClipDelegate(QStyledItemDelegate):
                          metrics.elidedText(self.state.title_of(clip),
                                             Qt.TextElideMode.ElideRight, int(title.width())))
 
-        # Age and size.
-        meta = QRectF(title.left(), title.bottom() + 2, title.width(), 18)
+        # One line under it: game (with its colour) · people · age · size. An
+        # untagged clip says so, and offers to tag it while hovered.
+        game, people = self.state.tags_of(clip)
+        line = tags_rect(cell)
         painter.setFont(theme.font(8.5))
-        painter.setPen(QColor(theme.TEXT_DIM))
-        painter.drawText(meta, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                         f"{clip.age_human}  ·  {clip.size_human}")
+        metrics = QFontMetrics(painter.font())
+        x = line.left()
+        if game:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(theme.game_colour(game)))
+            painter.drawEllipse(QPointF(x + 4, line.center().y()), 4, 4)
+            x += 13
+        parts = [part for part in (game, ", ".join(people)) if part]
+        text = "  ·  ".join([*parts, clip.age_human, clip.size_human])
+        if not parts:
+            lead = "Add tags" if hovered else "Untagged"
+            painter.setPen(QColor(theme.SELECT if hovered else theme.TEXT_DIM))
+            painter.drawText(QRectF(x, line.top(), line.right() - x, line.height()),
+                             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, lead)
+            x += metrics.horizontalAdvance(lead)
+            text = "  ·  " + text
+        painter.setPen(QColor(theme.TEXT_MUTED))
+        painter.drawText(QRectF(x, line.top(), line.right() - x, line.height()),
+                         Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                         metrics.elidedText(text, Qt.TextElideMode.ElideRight,
+                                            int(line.right() - x)))
+        self._outline(painter, card, hovered)
+        if self.view.focus_row() == index.row():
+            painter.setPen(QPen(QColor(theme.SELECT), 2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(card.adjusted(-4, -4, 4, 4), RADIUS + 4, RADIUS + 4)
         painter.restore()
+
+    @staticmethod
+    def _outline(painter: QPainter, card: QRectF, hovered: bool) -> None:
+        """A faint edge in the scheme's own colours, the accent into the second
+        one, so a card stands off the page; brighter while hovered."""
+        alpha = 0.6 if hovered else 0.25
+        edge = QLinearGradient(card.topLeft(), card.bottomRight())
+        for at, token in ((0, theme.ACCENT), (1, theme.SECOND)):
+            colour = QColor(token)
+            colour.setAlphaF(alpha)
+            edge.setColorAt(at, colour)
+        painter.setPen(QPen(QBrush(edge), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), RADIUS, RADIUS)
 
     @staticmethod
     def _shadow(painter: QPainter, card: QRectF, hovered: bool) -> None:
@@ -218,10 +241,16 @@ class ClipDelegate(QStyledItemDelegate):
         editor = QLineEdit(parent)
         editor.setFont(theme.font(10.5, QFont.Weight.DemiBold))
         editor.setStyleSheet(f"padding: 1px 6px; border-radius: 6px; "
-                             f"border: 1px solid {theme.ACCENT}; background: {theme.FIELD_BG};")
+                             f"border: 1px solid {theme.SELECT}; background: {theme.FIELD_BG};")
         return editor
 
     def setEditorData(self, editor, index):
+        # The view calls this again on every change to the row: each frame of
+        # the hover preview, a thumbnail arriving. Filling the field only once
+        # keeps what is being typed.
+        if editor.property("filled"):
+            return
+        editor.setProperty("filled", True)
         editor.setText(index.data(Qt.ItemDataRole.EditRole) or "")
         editor.selectAll()
 

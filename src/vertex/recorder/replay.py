@@ -5,6 +5,12 @@ SIGRTMIN+n saves only the last 10 s … 30 min, SIGINT stops without saving —
 and every saved replay's path is printed on stdout. This class wraps exactly
 that and nothing more; it knows nothing about Qt or the library, and reports
 through callbacks that run on its reader threads.
+
+Stopping signals GSR's whole process group, wrappers and helpers alike. Saving
+signals GSR alone: its helpers share the group, and gsr-kms-server, which
+captures the screen for it, has no handler for those signals. They killed it,
+after which GSR got no more frames and saved nothing more: the first save of
+a run worked, and no other.
 """
 
 from __future__ import annotations
@@ -18,12 +24,59 @@ import time
 from collections import deque
 from collections.abc import Callable
 
+from vertex.logs import RECORDER as log
 from vertex.proc import die_with_parent
 from vertex.recorder.gsr import SAVE_PRESETS
 
 # How long the recorder has to stay up before it counts as running. GSR exits
 # within a fraction of a second when a capture target or audio device is bad.
 SETTLE_SECONDS = 1.5
+
+# GPU Screen Recorder's process name, as the kernel keeps it: 15 characters.
+RECORDER_NAME = "gpu-screen-recorder"[:15]
+
+
+def _children() -> dict[int, list[int]]:
+    """Every process's children, from /proc."""
+    tree: dict[int, list[int]] = {}
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat", encoding="utf-8", errors="replace") as handle:
+                stat = handle.read()
+        except OSError:
+            continue
+        # "pid (name) state ppid …", where the name may hold spaces and brackets.
+        fields = stat.rsplit(")", 1)[-1].split()
+        if len(fields) > 1 and fields[1].isdigit():
+            tree.setdefault(int(fields[1]), []).append(int(entry))
+    return tree
+
+
+def _name(pid: int) -> str:
+    try:
+        with open(f"/proc/{pid}/comm", encoding="utf-8", errors="replace") as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
+def recorder_pids(root: int) -> list[int]:
+    """GPU Screen Recorder itself: `root`, or the GSR a wrapper started (a
+    Flatpak run line). Its own children — its helpers — are left out."""
+    tree = _children()
+    found, queue, seen = [], [root], set()
+    while queue:
+        pid = queue.pop(0)
+        if pid in seen:
+            continue
+        seen.add(pid)
+        if _name(pid) == RECORDER_NAME:
+            found.append(pid)
+        else:
+            queue.extend(tree.get(pid, []))
+    return found
 
 
 class State(enum.Enum):
@@ -104,22 +157,31 @@ class ReplayRecorder:
         try:
             proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
+            log.warning("GPU Screen Recorder didn't stop within %g seconds; killing it", timeout)
             self._signal(proc, signal.SIGKILL)
             proc.wait(timeout=2)
         self._set(State.STOPPED)
 
     def save(self, seconds: int | None = None) -> None:
-        """Save the buffer, or only its last `seconds` (10, 30, 60, 300, 600, 1800)."""
+        """Save the buffer, or only its last `seconds` (10, 30, 60, 300, 600, 1800).
+
+        Reads /proc to find GSR in the process tree: quick, but call it off
+        the UI thread."""
         proc = self._proc
         if proc is None or proc.poll() is not None:
             raise RecorderError("The replay buffer is not running.")
         if seconds is None:
-            self._signal(proc, signal.SIGUSR1)
-            return
-        offset = SAVE_PRESETS.get(int(seconds))
-        if offset is None:
-            raise RecorderError(f"Can only save the last {sorted(SAVE_PRESETS)} seconds.")
-        self._signal(proc, signal.SIGRTMIN + offset)
+            sig = signal.SIGUSR1
+        else:
+            offset = SAVE_PRESETS.get(int(seconds))
+            if offset is None:
+                raise RecorderError(f"Can only save the last {sorted(SAVE_PRESETS)} seconds.")
+            sig = signal.SIGRTMIN + offset
+        for pid in recorder_pids(proc.pid) or [proc.pid]:
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                pass
 
     @staticmethod
     def _signal(proc: subprocess.Popen, sig: int) -> None:
@@ -163,6 +225,8 @@ class ReplayRecorder:
             self._set(State.STOPPED)
             return
         time.sleep(0.1)       # let the stderr reader catch the last lines
+        log.error("GPU Screen Recorder exited with code %d. Its last output:\n%s", code,
+                  "\n".join(self._stderr) or "(nothing)")
         detail = self.stderr_tail() or f"exit code {code}"
         self._set(State.FAILED, f"GPU Screen Recorder stopped: {detail}")
 

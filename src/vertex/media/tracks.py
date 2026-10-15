@@ -5,10 +5,9 @@ tracks are titled after the channel they came from ("Vertex Game", or GPU
 Screen Recorder's own "Devices: Monitor of Vertex Game"), whatever the
 hardware is called.
 
-Older clips go by what is known about the machine that recorded them — the
-capture devices named in Settings — and failing that, by how the device
-happens to be named. All or nothing: a half-recognised mixer reads like a bug,
-so unless every track maps to a distinct source they all get numbered.
+Other clips go by how their devices happen to be named. All or nothing: a
+half-recognised mixer reads like a bug, so unless every track maps to a
+distinct source they all get numbered.
 """
 
 from __future__ import annotations
@@ -26,12 +25,10 @@ LABELS = {
     DESKTOP: "Desktop",
     channels.CHAT.id: "Chat",
     channels.MEDIA.id: "Media",
-    channels.AUX.id: "Aux",
     channels.MIC.id: "Microphone",
 }
 # The order lanes appear in, whatever order the streams have in the file.
-ORDER = (channels.GAME.id, DESKTOP, channels.CHAT.id, channels.MEDIA.id,
-         channels.AUX.id, channels.MIC.id)
+ORDER = (channels.GAME.id, DESKTOP, channels.CHAT.id, channels.MEDIA.id, channels.MIC.id)
 
 # Recorders name the field as well as the device — "device:Virtual_Game_Sink",
 # "Devices: Monitor of Game Audio".
@@ -40,13 +37,6 @@ MONITOR_PREFIX = re.compile(r"^monitor of\s+", re.IGNORECASE)
 VERTEX_DEVICE = re.compile(
     rf"^vertex[ _-]?(?P<channel>{'|'.join(c.id for c in channels.ALL)})(?:\.monitor)?$",
     re.IGNORECASE,
-)
-
-# Which config setting names the device behind each legacy lane.
-DEVICE_SETTINGS = (
-    (channels.GAME.id, "game_device"),
-    (channels.CHAT.id, "chat_device"),
-    (channels.MIC.id, "mic_device"),
 )
 
 
@@ -69,21 +59,6 @@ def vertex_channel(device: str) -> str | None:
     return match.group("channel").lower() if match else None
 
 
-def device_matches(configured: str, device: str) -> bool:
-    """Substring either way: the setting holds today's node name, the clip
-    whatever its recorder wrote at the time."""
-    configured, device = configured.casefold(), device.casefold()
-    return configured in device or device in configured
-
-
-def configured_source(device: str, config) -> str | None:
-    for channel_id, setting in DEVICE_SETTINGS:
-        configured = (getattr(config, setting, "") or "").strip()
-        if configured and device_matches(configured, device):
-            return channel_id
-    return None
-
-
 def guess_source(device: str) -> str | None:
     """Which lane a device's name looks like it belongs to, or None."""
     lowered = device.lower()
@@ -93,8 +68,9 @@ def guess_source(device: str) -> str | None:
         return channels.CHAT.id
     if "media" in lowered or "music" in lowered:
         return channels.MEDIA.id
+    # An Aux output has no lane of its own; numbered beats called the mic.
     if re.search(r"\baux\b", lowered):
-        return channels.AUX.id
+        return None
     if "mic" in lowered:
         return channels.MIC.id
     # "Audio 1" is a placeholder for a track with no name at all.
@@ -107,38 +83,30 @@ def guess_source(device: str) -> str | None:
     return None
 
 
-def _is_microphone(device: str, config) -> bool:
-    if vertex_channel(device) == channels.MIC.id:
-        return True
-    if config is not None and configured_source(device, config) == channels.MIC.id:
-        return True
-    return "mic" in device.lower()
+def _is_microphone(device: str) -> bool:
+    return vertex_channel(device) == channels.MIC.id or "mic" in device.lower()
 
 
-def match_source(name: str, config=None) -> str | None:
+def match_source(name: str) -> str | None:
     """Which lane a track's title refers to, or None if it can't be told."""
     devices = track_devices(name) or [name]
     if len(devices) > 1:
         # Several outputs mixed down are "Desktop" — true whichever they are.
         # With the mic in the mix there is no honest single label.
-        if any(_is_microphone(device, config) for device in devices):
+        if any(_is_microphone(device) for device in devices):
             return None
         return DESKTOP
     device = devices[0]
     own = vertex_channel(device)
     if own is not None:
         return own
-    if config is not None:
-        configured = configured_source(device, config)
-        if configured is not None:
-            return configured
     return guess_source(device)
 
 
-def label_tracks(tracks: Sequence[AudioTrack], config=None) -> list[AudioTrack]:
+def label_tracks(tracks: Sequence[AudioTrack]) -> list[AudioTrack]:
     """Label every track and return them in the order the mixer shows them."""
     by_file = sorted(tracks, key=lambda track: track.index)
-    matches = [match_source(track.name, config) if track.has_name else None
+    matches = [match_source(track.name) if track.has_name else None
                for track in by_file]
     if None in matches or len(set(matches)) != len(matches):
         for position, track in enumerate(by_file, start=1):

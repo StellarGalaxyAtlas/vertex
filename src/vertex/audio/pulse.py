@@ -29,6 +29,20 @@ class AudioError(RuntimeError):
 
 # --- Data -------------------------------------------------------------------
 
+# The server's volume scale is cubic, so its 25% is about -36 dB: all but
+# silent. Vertex's sliders follow a gentler audio taper instead, loudness
+# going as the square of the slider: 50% is about -12 dB, 25% about -24 dB,
+# 10% about -40 dB. Settings hold slider levels; only the server sees its own.
+def to_server(level: float) -> float:
+    """A slider level (0..1) as the server's volume."""
+    return max(0.0, min(1.0, level)) ** (2 / 3)
+
+
+def from_server(volume: float) -> float:
+    """The server's volume as a slider level (0..1)."""
+    return min(1.0, max(0.0, volume) ** 1.5)
+
+
 def _volume(raw) -> float:
     """Average channel volume as a fraction (1.0 = 100%)."""
     if not isinstance(raw, dict):
@@ -55,6 +69,7 @@ class Device:
     muted: bool = False
     owner_module: int | None = None
     properties: dict = field(default_factory=dict)
+    sample_spec: str = ""            # e.g. "s24le 2ch 48000Hz"
 
     @property
     def is_monitor(self) -> bool:
@@ -77,6 +92,7 @@ class Device:
             volume=_volume(data.get("volume")), muted=bool(data.get("mute", False)),
             owner_module=_int_or_none(data.get("owner_module")),
             properties=dict(data.get("properties") or {}),
+            sample_spec=str(data.get("sample_specification") or ""),
         )
 
 
@@ -88,16 +104,10 @@ GENERIC_BINARIES = frozenset({
 })
 
 
-@dataclass
-class Stream:
-    """An application's playback stream (a sink input)."""
+class _AppProperties:
+    """Who a stream belongs to, read from its PipeWire/Pulse properties."""
 
-    index: int
-    sink: int
-    owner_module: int | None = None
-    volume: float = 1.0
-    muted: bool = False
-    properties: dict = field(default_factory=dict)
+    properties: dict
 
     @property
     def app_name(self) -> str:
@@ -121,12 +131,49 @@ class Stream:
             return binary.casefold()
         return self.app_name.strip().casefold()
 
+    @property
+    def is_meter(self) -> bool:
+        """A volume meter (pavucontrol, panel applets) rather than a real stream."""
+        props = self.properties
+        return (str(props.get("stream.monitor", "")).lower() == "true"
+                or props.get("media.name") == "Peak detect")
+
+
+@dataclass
+class Stream(_AppProperties):
+    """An application's playback stream (a sink input)."""
+
+    index: int
+    sink: int
+    owner_module: int | None = None
+    volume: float = 1.0
+    muted: bool = False
+    properties: dict = field(default_factory=dict)
+
     @classmethod
     def from_json(cls, data: dict) -> Stream:
         return cls(
             index=int(data.get("index", -1)), sink=int(data.get("sink", -1)),
             owner_module=_int_or_none(data.get("owner_module")),
             volume=_volume(data.get("volume")), muted=bool(data.get("mute", False)),
+            properties=dict(data.get("properties") or {}),
+        )
+
+
+@dataclass
+class Capture(_AppProperties):
+    """An application's recording stream (a source output)."""
+
+    index: int
+    source: int
+    owner_module: int | None = None
+    properties: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_json(cls, data: dict) -> Capture:
+        return cls(
+            index=int(data.get("index", -1)), source=int(data.get("source", -1)),
+            owner_module=_int_or_none(data.get("owner_module")),
             properties=dict(data.get("properties") or {}),
         )
 
@@ -282,6 +329,9 @@ class Pactl:
 
     def sink_inputs(self) -> list[Stream]:
         return [Stream.from_json(item) for item in self.json("list", "sink-inputs") or []]
+
+    def source_outputs(self) -> list[Capture]:
+        return [Capture.from_json(item) for item in self.json("list", "source-outputs") or []]
 
     def modules(self) -> list[Module]:
         modules = []

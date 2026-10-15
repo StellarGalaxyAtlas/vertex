@@ -5,9 +5,9 @@ trim points, per-track volumes — lives here, keyed by the clip's file name
 (relative to the clips folder), and is applied when the clip is played,
 trimmed or exported.
 
-Schema changes are versioned with `PRAGMA user_version`. A library written by
-Vertex 1.x (user_version 0, columns added ad hoc) is brought up to date in
-place on first open; nothing in it is lost or rewritten beyond that.
+The layout is versioned with `PRAGMA user_version`: a change to SCHEMA bumps
+SCHEMA_VERSION, and `Library._upgrade` brings older libraries up to it in
+place.
 """
 
 from __future__ import annotations
@@ -19,55 +19,36 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from vertex import fmt
 from vertex.core.naming import clean_tag, clean_tags, game_from_filename, game_key
+from vertex.logs import CLIPS as log
 
 DB_NAME = "library.db"
 
-BASE_SCHEMA = """
+SCHEMA = """
 CREATE TABLE IF NOT EXISTS clips (
     filename    TEXT PRIMARY KEY,
     title       TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL DEFAULT '',
-    tag         TEXT NOT NULL DEFAULT '',   -- legacy, folded into `game`
+    game        TEXT NOT NULL DEFAULT '',     -- '' = untagged
+    people      TEXT NOT NULL DEFAULT '[]',   -- JSON list, in typed order
     favorite    INTEGER NOT NULL DEFAULT 0,
-    trim_start  REAL,                       -- NULL = clip start
-    trim_end    REAL,                       -- NULL = clip end
-    -- JSON: {track_name: {"volume": 0..1.5, "muted": bool}}. Rows from early
-    -- versions stored a bare number per track; readers accept that too.
+    trim_start  REAL,                         -- NULL = clip start
+    trim_end    REAL,                         -- NULL = clip end
+    -- JSON: {track_name: {"volume": 0..1.5, "muted": bool}}
     volumes     TEXT NOT NULL DEFAULT '{}',
-    updated     REAL NOT NULL DEFAULT 0
+    duration    REAL,
+    -- When the clip was recorded: from its name where that says, else the date
+    -- its file had when first indexed. NULL = never indexed (not the same as 0).
+    recorded    REAL,
+    updated     REAL NOT NULL DEFAULT 0       -- last write
 );
+CREATE INDEX IF NOT EXISTS clips_game ON clips (game COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS clips_favorite ON clips (favorite);
 """
-
-# Columns added after the first release. Version 1 makes sure every one of them
-# exists, which is what 1.x did on every start with try/except ALTERs.
-V1_COLUMNS = (
-    ("duration", "REAL"),
-    ("game", "TEXT NOT NULL DEFAULT ''"),        # '' = untagged
-    ("people", "TEXT NOT NULL DEFAULT '[]'"),    # JSON list, in typed order
-    # When the clip was recorded: from its name where that says, else the date
-    # its file had when first indexed. NULL = never indexed (not the same as 0).
-    ("recorded", "REAL"),
-)
-
-
-def _migrate_v1(conn: sqlite3.Connection) -> None:
-    present = {row[1] for row in conn.execute("PRAGMA table_info(clips)")}
-    for name, decl in V1_COLUMNS:
-        if name not in present:
-            conn.execute(f"ALTER TABLE clips ADD COLUMN {name} {decl}")
-    # `tag` was a single free-text field; whatever is in it is the closest
-    # thing an old library has to a game.
-    conn.execute("UPDATE clips SET game = tag WHERE game = '' AND tag != ''")
-
-
-def _migrate_v2(conn: sqlite3.Connection) -> None:
-    conn.execute("CREATE INDEX IF NOT EXISTS clips_game ON clips (game COLLATE NOCASE)")
-    conn.execute("CREATE INDEX IF NOT EXISTS clips_favorite ON clips (favorite)")
-
-
-MIGRATIONS = (_migrate_v1, _migrate_v2)
-SCHEMA_VERSION = len(MIGRATIONS)
+# The user_version of SCHEMA. Libraries in use are at 2 already; bump it with
+# every change.
+SCHEMA_VERSION = 2
 
 
 def _decode_people(raw: str | None) -> list[str]:
@@ -111,13 +92,10 @@ class ClipEdit:
         saved = self.volumes.get(track_name)
         if saved is None:
             return None
-        if isinstance(saved, dict):
-            try:
-                return TrackMix(float(saved.get("volume", 1.0)), bool(saved.get("muted", False)))
-            except (TypeError, ValueError):
-                return None
+        if not isinstance(saved, dict):
+            return None
         try:
-            return TrackMix(float(saved))   # early rows stored a bare number
+            return TrackMix(float(saved.get("volume", 1.0)), bool(saved.get("muted", False)))
         except (TypeError, ValueError):
             return None
 
@@ -143,13 +121,9 @@ class Library:
         return library
 
     def _upgrade(self) -> None:
-        with self.conn:
-            self.conn.executescript(BASE_SCHEMA)
-            version = self.conn.execute("PRAGMA user_version").fetchone()[0]
-            for number, migrate in enumerate(MIGRATIONS, start=1):
-                if version < number:
-                    migrate(self.conn)
-            if version < SCHEMA_VERSION:
+        if self.schema_version < SCHEMA_VERSION:
+            with self.conn:
+                self.conn.executescript(SCHEMA)
                 self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     @property
@@ -393,6 +367,7 @@ class Library:
         """
         rows = [(name, clean_tag(game), time.time())
                 for name, game in assignments.items() if clean_tag(game)]
+        log.info("Tagging %s from an import", fmt.plural(len(rows), "clip"))
         with self.conn:
             self.conn.executemany(
                 "INSERT INTO clips (filename, game, updated) VALUES (?, ?, ?)"

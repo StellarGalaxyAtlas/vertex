@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from vertex import config as config_mod
 from vertex import paths
 from vertex.audio.pulse import AudioError, Pactl
-from vertex.recorder import gsr
+from vertex.recorder import gsr, notifier, presets
 
 
 @dataclass
@@ -44,6 +44,9 @@ PACKAGES = {
     "pactl": {"arch": "libpulse", "fedora": "pulseaudio-utils", "debian": "pulseaudio-utils"},
     "gsr": {"arch": "gpu-screen-recorder (AUR)", "fedora": "gpu-screen-recorder (COPR)",
             "debian": "gpu-screen-recorder (Flatpak: com.dec05eba.gpu_screen_recorder)"},
+    "gsr-notify": {"arch": "gpu-screen-recorder-notification",
+                   "fedora": "gpu-screen-recorder-notification (COPR)",
+                   "debian": "gpu-screen-recorder-notification (from source)"},
 }
 
 
@@ -94,9 +97,17 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
                         detail, fix, required=False))
 
     if found.available:
-        problems = gsr.validate(config.recorder)
+        # As the recorder passes them: a bitrate left to the quality level is
+        # worked out first (the monitor's size only changes how high).
+        problems = gsr.validate(presets.resolve(config.recorder, []))
         checks.append(Check("recorder settings", not problems, "; ".join(problems) or "valid",
                             "fix them in Settings → Recording", required=False))
+
+    found_notifier = notifier.find()
+    checks.append(Check("GPU Screen Recorder notifier", bool(found_notifier),
+                        found_notifier or "not found",
+                        _hint("gsr-notify") + " — to show notifications over games",
+                        required=False))
 
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),

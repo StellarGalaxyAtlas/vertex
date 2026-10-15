@@ -10,6 +10,7 @@ the same layout whatever the hardware is called.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import shlex
 import subprocess
@@ -31,6 +32,11 @@ from vertex.config import (
 # `-a "name:<title>|device:<node>"` sets a track's title. Versions before this
 # take the "name:" part for a device and refuse to start.
 TRACK_NAMES_SINCE = (5, 15)
+
+# The project's own page, which keeps its install instructions current for
+# every distro and the Flatpak.
+INSTALL_URL = "https://git.dec05eba.com/gpu-screen-recorder/about/"
+
 # The oldest release whose flags this module emits (-replay-storage, -encoder).
 MIN_VERSION = (5, 0)
 
@@ -47,6 +53,7 @@ class GsrInfo:
     version: tuple[int, ...] = ()
     version_text: str = ""
     error: str = ""
+    missing: bool = False        # the command isn't there at all
 
     @property
     def supports_track_names(self) -> bool:
@@ -83,6 +90,7 @@ def detect(command: str) -> GsrInfo:
     try:
         text = _query(command, "--version", timeout=5).strip()
     except FileNotFoundError:
+        info.missing = True
         info.error = ("GPU Screen Recorder is not installed. Install the "
                       "'gpu-screen-recorder' package, or set its command in Settings.")
         return info
@@ -112,18 +120,45 @@ def list_audio_devices(command: str) -> list[tuple[str, str]]:
     return devices
 
 
-def list_capture_options(command: str) -> list[str]:
-    """Capture targets this machine offers: 'screen', 'portal', monitor names…"""
+@dataclass(frozen=True)
+class CaptureOption:
+    """Something GSR can record, as `--list-capture-options` reports it."""
+
+    value: str           # what `-w` takes: "DP-1", "portal", "/dev/video0", …
+    kind: str            # "monitor", "camera", or the option itself: "portal", "region", …
+    width: int = 0       # a monitor's size in pixels, turned with it if it is rotated
+    height: int = 0
+
+
+def parse_capture_options(text: str) -> list[CaptureOption]:
+    """Bare options ("window", "focused", "region", "portal"), monitors as
+    NAME|WxH, and cameras as /dev/videoN|WxH@30hz|format, once per mode."""
+    options: list[CaptureOption] = []
+    seen = set()
+    for line in text.splitlines():
+        value, bar, detail = line.partition("|")
+        value = value.strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        if value.startswith("/dev/video"):
+            options.append(CaptureOption(value, "camera"))
+        elif bar:
+            size = re.match(r"\s*(\d+)x(\d+)", detail)
+            width, height = (int(size[1]), int(size[2])) if size else (0, 0)
+            options.append(CaptureOption(value, "monitor", width, height))
+        else:
+            options.append(CaptureOption(value, value))
+    return options
+
+
+def list_capture_options(command: str) -> list[CaptureOption]:
+    """What this machine can record: its monitors, the portal, cameras…"""
     try:
         out = _query(command, "--list-capture-options")
     except (OSError, subprocess.SubprocessError):
         return []
-    options = []
-    for line in out.splitlines():
-        option = line.split("|", 1)[0].strip()
-        if option and option not in options:
-            options.append(option)
-    return options
+    return parse_capture_options(out)
 
 
 @dataclass(frozen=True)
@@ -140,13 +175,62 @@ class Track:
         return self.source
 
 
+# A clip's audio tracks: the lane each becomes, and the setting naming its device.
+AUDIO_ROLES = ((channels.GAME.id, "game_audio"), (channels.CHAT.id, "chat_audio"),
+               (channels.MIC.id, "mic_audio"))
+
+
 def audio_tracks(config: Config) -> list[Track]:
-    """The tracks a recording will have under the current settings."""
-    if config.sonar.enabled:
-        return [Track(f"device:{channel.record_source}", channel.track_title, channel.id)
-                for channel in channels.ALL if config.sonar.channel(channel.id).record]
-    return [Track(source.strip(), "") for source in config.recorder.audio_sources
-            if source.strip()]
+    """The tracks a recording will have: one per role with a device chosen,
+    titled after the role ("Vertex Game"), so the editor names its lane Game
+    whichever device it came from."""
+    tracks = []
+    for role, setting in AUDIO_ROLES:
+        source = getattr(config.recorder, setting).strip()
+        if source:
+            tracks.append(Track(source, channels.BY_ID[role].track_title, role))
+    return tracks
+
+
+def fallback_source(role: str) -> str:
+    """What a track records while its own device is missing."""
+    return "default_input" if role == channels.MIC.id else "default_output"
+
+
+def _recordable(source: str, devices: set[str]) -> bool:
+    if source.startswith("device:"):
+        return source.removeprefix("device:") in devices
+    if source in ("default_output", "default_input"):
+        return source in devices
+    return True          # app:… and the like: GSR's to judge
+
+
+def available_tracks(tracks: list[Track],
+                     devices: list[str]) -> tuple[list[Track], list[tuple[Track, str]]]:
+    """The tracks to record now. GSR won't start at all with a device it
+    doesn't have (Vertex Chat while Sonar is off, an unplugged headset), so
+    such a track records the default output, or the default input for the
+    microphone, until its device is back; the setting itself is kept.
+
+    `devices` are the names list_audio_devices gives; empty means unknown.
+    Returns the tracks, and each stood-in track with the source it records
+    instead ("" if even that is missing, and the track is left out).
+    """
+    if not devices:
+        return tracks, []
+    known = set(devices)
+    usable, stood_in = [], []
+    for track in tracks:
+        if _recordable(track.source, known):
+            usable.append(track)
+            continue
+        fallback = fallback_source(track.channel)
+        if fallback in known:
+            usable.append(dataclasses.replace(track, source=fallback))
+            stood_in.append((track, fallback))
+        else:
+            stood_in.append((track, ""))
+    return usable, stood_in
 
 
 def validate(rec: RecorderConfig) -> list[str]:
@@ -158,8 +242,8 @@ def validate(rec: RecorderConfig) -> list[str]:
         problems.append("The frame rate must be between 1 and 1000.")
     if rec.capture == "region" and not re.fullmatch(r"\d+x\d+\+\d+\+\d+", rec.region):
         problems.append("A region capture needs the region as WxH+X+Y, e.g. 1920x1080+0+0.")
-    if rec.resolution and not re.fullmatch(r"\d+x\d+", rec.resolution):
-        problems.append("The resolution limit must look like 1920x1080.")
+    if rec.resolution and not re.fullmatch(r"\d+x\d+|\d+p", rec.resolution):
+        problems.append("The resolution must look like 1080p or 1920x1080.")
     if rec.capture == "focused" and not rec.resolution:
         problems.append("Recording the focused window needs a resolution limit.")
     if rec.encoder == "cpu" and rec.video_codec not in ("auto", "h264"):
@@ -169,6 +253,7 @@ def validate(rec: RecorderConfig) -> list[str]:
     if rec.video_codec.endswith("_hdr") and rec.capture == "portal":
         problems.append("HDR is not available with portal capture.")
     if rec.bitrate_mode == "cbr" and rec.bitrate_kbps <= 0:
+        # Settings and the recorder pass presets.resolve()d settings, which have one.
         problems.append("Constant bitrate needs a bitrate.")
     for name, value, allowed in (
         ("container", rec.container, CONTAINERS),

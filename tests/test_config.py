@@ -4,34 +4,35 @@ import os
 from vertex import config, paths
 
 
-def test_v1_config_loads_unchanged(tmp_path):
-    """A config.json written by Vertex 1.x keeps every setting it had."""
-    legacy = {
+def test_unknown_keys_are_ignored_and_dropped(tmp_path):
+    """Settings Vertex no longer has don't stop a config from loading, and go
+    on the next save; missing sections fall back to their defaults."""
+    data = {
         "clip_path": "~/Videos/Game Recordings",
-        "data_path": "~/.local/share/vertex",
-        "state_path": "",
         "export_path": "~/Videos/Game Recordings/Vertex/Exports",
-        "cache_path": "",
-        "game_device": "Virtual_Game_Sink.monitor",
-        "chat_device": "",
-        "mic_device": "alsa_input.usb-mic",
         "logo_variant": "dark",
+        "game_device": "Virtual_Game_Sink.monitor",
     }
     path = tmp_path / "config.json"
-    path.write_text(json.dumps(legacy))
+    path.write_text(json.dumps(data))
     loaded = config.Config.load(path)
-    for key, value in legacy.items():
-        assert getattr(loaded, key) == value
+    assert loaded.clip_path == data["clip_path"]
+    assert loaded.export_path == data["export_path"]
     assert loaded.sonar.enabled is False
     assert loaded.recorder.replay_seconds == 60
+    loaded.save(path)
+    saved = json.loads(path.read_text())
+    assert "game_device" not in saved and "logo_variant" not in saved
 
 
 def test_round_trip_with_new_sections(tmp_path):
     cfg = config.default_config()
     cfg.sonar.enabled = True
-    cfg.sonar.channel("media").record = False
+    cfg.sonar.channel("media").volume = 0.5
     cfg.sonar.app_rules["spotify"] = "media"
-    cfg.recorder.audio_sources = ["default_output"]
+    cfg.recorder.chat_audio = ""
+    cfg.recorder.mic_audio = "device:alsa_input.usb-mic"
+    cfg.colour_scheme = "spooky"
     path = tmp_path / "config.json"
     cfg.save(path)
     again = config.Config.load(path)
@@ -42,7 +43,8 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps({
         "clip_path": 5,
-        "logo_variant": "neon",
+        "colour_scheme": 5,
+        "card_width": 5000,
         "recorder": {"fps": "sixty", "cursor": "yes", "replay_seconds": 30},
         "sonar": {
             "default_channel": "mic",
@@ -52,7 +54,8 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     }))
     loaded = config.Config.load(path)
     assert loaded.clip_path == ""
-    assert loaded.logo_variant == paths.DEFAULT_LOGO_VARIANT
+    assert loaded.colour_scheme == "navy"
+    assert loaded.card_width == config.CARD_WIDTH_RANGE[1]
     assert loaded.recorder.fps == 60 and loaded.recorder.cursor is True
     assert loaded.recorder.replay_seconds == 30
     assert loaded.sonar.default_channel == "game"     # mic is not an output

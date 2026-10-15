@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import fmt, paths
+from vertex.logs import CLIPS as log
 from vertex.media import export
 from vertex.media.ffmpeg import Cancelled, MediaError
 from vertex.media.mixing import ffmpeg_graph
@@ -69,13 +70,14 @@ class ExportDialog(QDialog):
         self.preview = QLabel("…")
         self.preview.setFixedSize(PREVIEW_W, PREVIEW_W * 9 // 16)
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview.setStyleSheet(f"background: {theme.VIDEO_BG}; border-radius: 10px;")
+        theme.style(self.preview, lambda: f"background: {theme.VIDEO_BG}; border-radius: 10px;")
         layout.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(label(f"{fmt.duration(end - start)} selected", "Muted"))
 
         layout.addWidget(label("SIZE", "Group"))
-        self.sizes = Segmented([(name, name) for name, _ in export.SIZE_CHOICES],
-                               export.SIZE_CHOICES[0][0])
+        # It opens on the size last exported at.
+        size, self.limit = export.size_choice(context.config.export_size)
+        self.sizes = Segmented([(name, name) for name, _ in export.SIZE_CHOICES], size)
         self.sizes.changed.connect(self._on_size)
         layout.addWidget(self.sizes)
         self.detail = label("", "Muted", wrap=True)
@@ -97,7 +99,7 @@ class ExportDialog(QDialog):
 
         buttons = QHBoxLayout()
         self.copy_button = button("Copy file", icon="save-clip", on_click=self._copy,
-                                  tooltip="Copy the exported file, then paste it into a chat")
+                                  tooltip="Copy to clipboard")
         self.folder_button = button("Open folder", icon="folder", on_click=self._open_folder)
         self.copy_button.hide()
         self.folder_button.hide()
@@ -141,7 +143,7 @@ class ExportDialog(QDialog):
             except MediaError as exc:
                 text, possible = str(exc), False
         self.detail.setText(text)
-        self.detail.setStyleSheet(f"color: {theme.TEXT_MUTED if possible else theme.WARN};")
+        theme.style(self.detail, lambda: f"color: {theme.TEXT_MUTED if possible else theme.WARN};")
         if not self._running:
             self.export_button.setEnabled(possible)
 
@@ -180,11 +182,17 @@ class ExportDialog(QDialog):
         self.copy_button.hide()
         self.folder_button.hide()
         self.close_button.setText("Cancel")
+        size = export.size_label(self.limit)
+        if size != self.context.config.export_size:
+            self.context.config.export_size = size
+            self.context.save_config_later()
         verb = "Copying" if self.limit is None else "Converting"
         self.status.setText(f"{verb}…")
-        self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+        theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
         args = (self.clip.path, self.clip.name, self.folder, self.start, self.end,
                 self.tracks, self.info, self.limit)
+        log.info("Exporting %s to %s (%s)", self.clip.path, self.folder,
+                 f"up to {fmt.size(self.limit)}" if self.limit else "original quality")
 
         def progress(fraction: float) -> None:
             workers.post(self._progress, fraction)
@@ -201,12 +209,14 @@ class ExportDialog(QDialog):
     def _done(self, result: export.ExportResult) -> None:
         self._running = False
         self.out_path = result.path
+        log.info("Exported %s, %s%s", result.path, fmt.size(result.size),
+                 " (over the size limit)" if result.over_limit else "")
         self.progress.setValue(1000)
         self._release()
         over = "  —  over the size limit" if result.over_limit else ""
         self.status.setText(f"Saved {os.path.basename(result.path)} · "
                             f"{fmt.size(result.size)}{over}")
-        self.status.setStyleSheet(f"color: {theme.WARN if over else theme.OK};")
+        theme.style(self.status, lambda: f"color: {theme.WARN if over else theme.OK};")
         self.copy_button.show()
         self.folder_button.show()
 
@@ -215,11 +225,13 @@ class ExportDialog(QDialog):
         self.progress.setValue(0)
         self._release()
         if isinstance(exc, Cancelled):
+            log.info("Export of %s cancelled", self.clip.path)
             self.status.setText("Export cancelled.")
-            self.status.setStyleSheet(f"color: {theme.TEXT_MUTED};")
+            theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
         else:
+            log.error("Couldn't export %s: %s", self.clip.path, exc)
             self.status.setText(str(exc))
-            self.status.setStyleSheet(f"color: {theme.DANGER};")
+            theme.style(self.status, lambda: f"color: {theme.DANGER};")
 
     def _release(self) -> None:
         self.sizes.setEnabled(True)
@@ -231,8 +243,8 @@ class ExportDialog(QDialog):
     def _copy(self) -> None:
         if self.out_path:
             copy_file_to_clipboard(self.out_path)
-            self.status.setText("Copied — paste it into a chat or an upload field.")
-            self.status.setStyleSheet(f"color: {theme.OK};")
+            self.status.setText("Copied to clipboard")
+            theme.style(self.status, lambda: f"color: {theme.OK};")
 
     def _open_folder(self) -> None:
         QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(self.out_path)

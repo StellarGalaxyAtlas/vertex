@@ -1,14 +1,16 @@
-"""The main window: the rail beside whichever page is showing."""
+"""The main window: the top bar over whichever page is showing."""
 
 from __future__ import annotations
 
+import copy
 import os
+import sqlite3
 
 from PySide6.QtCore import QFileSystemWatcher, QTimer
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QApplication,
-    QHBoxLayout,
     QMainWindow,
     QStackedWidget,
     QSystemTrayIcon,
@@ -16,17 +18,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME
+from vertex import APP_NAME, desktop, kwin, logs, notifications, reset
+from vertex.audio import channels
 from vertex.config import Config
-from vertex.ui import icons, theme
+from vertex.media.thumbnails import ThumbnailCache
+from vertex.recorder import notifier
+from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
-from vertex.ui.first_run import FirstRunView
+from vertex.ui.first_run import FirstRunView, SetupResult
+from vertex.ui.home import HomeView
 from vertex.ui.library.state import LibraryState
 from vertex.ui.library.view import LibraryView
-from vertex.ui.rail import Rail
 from vertex.ui.settings.view import SettingsView
 from vertex.ui.sonar_view import SonarView
-from vertex.ui.widgets import Banner, ChoiceDialog
+from vertex.ui.topbar import TopBar
+from vertex.ui.widgets import Banner, ChoiceDialog, GlowArea
 
 
 class MainWindow(QMainWindow):
@@ -34,10 +40,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.context = context
         self.tray = None
+        self.over_games = notifier.Notifier()
         self._quitting = False
         self._told_about_tray = False
+        self._services_started = False
         self.setWindowTitle(APP_NAME)
-        self.setWindowIcon(icons.app_icon(context.config.logo_variant))
+        self.setWindowIcon(icons.app_icon(icons.desktop_ink()))
+        # The icon on the desktop's panels follows its light or dark look.
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._ink_changed)
         self.resize(1280, 820)
         self.setMinimumSize(980, 640)
 
@@ -45,21 +55,21 @@ class MainWindow(QMainWindow):
         central = QWidget()
         central.setObjectName("Page")
         self.setCentralWidget(central)
-        row = QHBoxLayout(central)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(0)
-        self.rail = Rail(context, self.state)
-        self.rail.navigate.connect(self.navigate)
-        row.addWidget(self.rail)
-        column = QVBoxLayout()
+        rows = QVBoxLayout(central)
+        rows.setContentsMargins(0, 0, 0, 0)
+        rows.setSpacing(0)
+        self.topbar = TopBar(context, self.state)
+        self.topbar.navigate.connect(self.navigate)
+        rows.addWidget(self.topbar)
+        self.page_area = GlowArea()
+        column = QVBoxLayout(self.page_area)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
-        row.addLayout(column, 1)
+        rows.addWidget(self.page_area, 1)
         self.stack = QStackedWidget()
         column.addWidget(self.stack, 1)
-        self.banner = Banner()
-        self.banner.setContentsMargins(theme.CONTENT_MARGIN, 0, theme.CONTENT_MARGIN, 8)
-        column.addWidget(self.banner)
+        # Messages float over the pages as toasts.
+        self.banner = Banner(self.page_area)
 
         self.library_view = LibraryView(context, self.state)
         self.library_view.open_clip.connect(self.open_clip)
@@ -68,16 +78,28 @@ class MainWindow(QMainWindow):
         self.settings_view = SettingsView(context)
         self.settings_view.saved.connect(self._settings_saved)
         self.settings_view.imported.connect(self.state.reload)
-        for page in (self.library_view, self.sonar_view, self.settings_view):
+        self.settings_view.setup_requested.connect(self.run_setup_again)
+        self.settings_view.reset_requested.connect(self.reset)
+        self.settings_view.test_requested.connect(self._test_over_games)
+        self.home_view = HomeView(context, self.state, self.library_view)
+        self.home_view.navigate.connect(self.navigate)
+        self.home_view.open_clip.connect(self.open_clip)
+        for page in (self.home_view, self.library_view, self.sonar_view, self.settings_view):
             self.stack.addWidget(page)
         self.editor: EditorView | None = None
+        self._editor_from = "library"
+        # The editor's video is an OpenGL widget, and the first one a shown
+        # window gets makes Qt rebuild the window for OpenGL: it vanishes and
+        # comes back. A hidden one from the start means it is built that way.
+        self._gl_ready = QOpenGLWidget(central)
+        self._gl_ready.hide()
         self.first_run: FirstRunView | None = None
 
         context.message.connect(self.banner.show_message)
+        self.library_view.notice.connect(self.banner.show_message)
+        context.notified.connect(self._notified)
         self.state.status.connect(self.banner.show_message)
         context.recorder.saved.connect(self._clip_saved)
-        context.recorder.state_changed.connect(self._recorder_state)
-        context.sonar.warning.connect(lambda text: self.banner.show_message(text, "warn"))
         context.library_reset.connect(self._watch_folder)
 
         self.watcher = QFileSystemWatcher(self)
@@ -97,16 +119,16 @@ class MainWindow(QMainWindow):
         if self.first_run is not None:
             return
         if self._on_settings() and page != "settings" and not self._may_leave_settings():
-            self.rail.set_page("settings")
+            self.topbar.set_page("settings")
             return
         self._close_editor()
-        self.rail.show()
-        target = {"library": self.library_view, "sonar": self.sonar_view,
-                  "settings": self.settings_view}[page]
+        self.topbar.show()
+        target = {"home": self.home_view, "library": self.library_view,
+                  "sonar": self.sonar_view, "settings": self.settings_view}[page]
         if page == "settings":
             self.settings_view.load()
         self.stack.setCurrentWidget(target)
-        self.rail.set_page(page)
+        self.topbar.set_page(page)
         if page == "library":
             self.library_view.grid.setFocus()
 
@@ -124,47 +146,189 @@ class MainWindow(QMainWindow):
         page.deleteLater()
 
     def _may_leave_settings(self) -> bool:
-        if not self.settings_view.is_dirty():
+        """Most settings apply as they change; recording changes wait for Apply,
+        since they restart the replay buffer."""
+        if not self.settings_view.apply_now():
+            return False
+        if not self.settings_view.pending_recording():
             return True
-        answer = ChoiceDialog.ask(self, "Unsaved settings", "Save your changes to Settings?",
+        answer = ChoiceDialog.ask(self, "Recording changes", "Apply the recording changes?",
+                                  "Applying restarts the replay buffer if it's on.",
                                   choices=[("Discard", "discard", ""),
-                                           ("Save", "save", "primary")])
-        if answer == "save":
-            return self.settings_view.save()
+                                           ("Apply", "apply", "primary")])
+        if answer == "apply":
+            return self.settings_view.apply_recording()
         if answer == "discard":
             self.settings_view.load()
             return True
         return False
 
-    def show_setup(self, config: Config | None = None, missing=()) -> None:
+    def show_setup(self, config: Config | None = None, missing=(), again: bool = False) -> None:
         self._close_editor()
-        self.rail.hide()
-        self.first_run = FirstRunView(self.context, config, missing)
+        self.topbar.hide()
+        self.first_run = FirstRunView(self.context, config, missing, again=again)
         self.first_run.finished.connect(self._setup_done)
+        self.first_run.cancelled.connect(self._setup_cancelled)
         self.stack.addWidget(self.first_run)
         self.stack.setCurrentWidget(self.first_run)
 
-    def _setup_done(self, config: Config, enable_sonar: bool, start_recorder: bool) -> None:
-        context = self.context
+    def run_setup_again(self) -> None:
+        """First-run setup on a running Vertex, from Settings, after a warning."""
+        if self._on_settings() and not self._may_leave_settings():
+            return
+        answer = ChoiceDialog.ask(
+            self, "Run setup again", "Run setup again?",
+            "Setup opens with your current settings. Finishing it replaces them; cancel "
+            "at any step to keep them. Your clips, tags and edits aren't touched.",
+            [("Run setup", "run", "primary")])
+        if answer == "run":
+            self.show_setup(copy.deepcopy(self.context.config), again=True)
+
+    def _setup_cancelled(self) -> None:
+        page, self.first_run = self.first_run, None
+        self._remove_page(page)
+        self.navigate("settings")
+        self.settings_view.show_page("import")
+
+    def _setup_done(self, result: SetupResult) -> None:
+        context, config = self.context, result.config
+        before = copy.deepcopy(context.config)
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path"):
             setattr(context.config, key, getattr(config, key))
         context.config.recorder = config.recorder
-        context.config.sonar.output_device = config.sonar.output_device
-        context.config.sonar.mic_device = config.sonar.mic_device
+        if not self._services_started:
+            context.config.sonar.output_device = config.sonar.output_device
+            context.config.sonar.mic_device = config.sonar.mic_device
         failed = context.config.ensure_dirs()
         context.save_config()
         if failed:
-            self.banner.show_message(f"Could not create {failed[0]}", "error")
+            context.notify("vertex_problem", "Couldn't create a folder", failed[0])
         page, self.first_run = self.first_run, None
         self._remove_page(page)
         self.settings_view.load()
-        self.start_services(enable_sonar=enable_sonar, start_recorder=start_recorder)
-        self.navigate("library")
+        if self._services_started:
+            self._apply_setup_again(before, config, result.enable_sonar, result.start_recorder)
+            if self._write_setup_tags(result.games, result.dates):
+                self.state.reload()
+        else:
+            self.start_services(enable_sonar=result.enable_sonar,
+                                start_recorder=result.start_recorder,
+                                tags=(result.games, result.dates))
+        self.navigate("home")
+
+    def _write_setup_tags(self, games: dict[str, str], dates: dict[str, float]) -> bool:
+        """Save the games confirmed in setup for the clips brought along."""
+        library = self.context.library
+        if not (games or dates) or library is None:
+            return False
+        try:
+            library.apply_import(games, dates)
+        except sqlite3.Error as exc:
+            self.context.notify("vertex_problem", "Couldn't save the tags", str(exc))
+            return False
+        return True
+
+    def _apply_setup_again(self, before: Config, config: Config, enable_sonar: bool,
+                           start_recorder: bool) -> None:
+        """Setup ran again on a running Vertex: change what it changed, the way
+        Settings and the Sonar page do, rather than starting anything twice."""
+        context = self.context
+        self._settings_saved(any(getattr(before, key) != getattr(context.config, key)
+                                 for key in ("clip_path", "data_path", "cache_path",
+                                             "state_path")))
+        if enable_sonar != before.sonar.enabled:
+            context.config.sonar.output_device = config.sonar.output_device
+            context.config.sonar.mic_device = config.sonar.mic_device
+            context.sonar.set_enabled(enable_sonar)
+        elif enable_sonar:
+            status = context.sonar.status
+            output, mic = config.sonar.output_device, config.sonar.mic_device
+            if output and output != status.output:
+                # Linked, one channel's device is every channel's.
+                for channel in (channels.OUTPUTS[:1] if context.config.sonar.linked
+                                else channels.OUTPUTS):
+                    context.sonar.set_channel_output(channel.id, output, lasting=True)
+            if mic and mic != status.mic:
+                context.sonar.set_mic(mic, lasting=True)
+        if context.config.recorder != before.recorder:
+            context.recorder.detect()
+            context.recorder.restart_if_running()
+        if start_recorder and not before.recorder.autostart:
+            context.recorder.start()      # just asked to start with Vertex: now, too
+
+    # --- Reset and delete -----------------------------------------------------------
+
+    def reset(self, what: str) -> None:
+        """Settings, the library or the cache back to a fresh install's, once
+        Settings › Reset and delete has had it confirmed."""
+        {"settings": self.reset_settings, "library": self.reset_library,
+         "cache": self.clear_cache}[what]()
+
+    def reset_settings(self) -> None:
+        """Stop the buffer and take Sonar down (giving back the system's default
+        devices), put the settings file away, then first-run setup."""
+        context = self.context
+        self._close_editor()
+        context.recorder.stop()
+
+        def sonar_down(_value=None):
+            try:
+                where = reset.discard_settings()
+            except OSError as exc:
+                context.notify("vertex_problem", "Couldn't reset settings", str(exc))
+                return
+            logs.APP.info("Settings reset%s", f"; the old ones are in {where}" if where else "")
+            # In place: Sonar and the recorder hold on to the settings' parts.
+            reset.reset_in_place(context.config, Config())
+            self.settings_view.load()
+            self.show_setup()
+            self.banner.show_message(f"Settings reset. {_kept(where, 'old ones are')}", "ok",
+                                     10000)
+
+        if context.sonar.enabled:
+            context.sonar.set_enabled(False, then=sonar_down)
+        else:
+            sonar_down()
+
+    def reset_library(self) -> None:
+        context = self.context
+        self._close_editor()
+        if context.library is not None:
+            context.library.close()
+        try:
+            where = reset.discard_library(context.config.resolved_data_dir())
+        except OSError as exc:
+            context.notify("vertex_problem", "Couldn't reset the library", str(exc))
+            where = None
+        if where is not None:
+            logs.CLIPS.info("Library reset%s", f"; the old one is in {where}" if where else "")
+        context.open_library()
+        self.state.reload()
+        if where is not None:
+            self.settings_view.banner.show_message(
+                f"Library reset. {_kept(where, 'old one is')}", "ok", 10000)
+
+    def clear_cache(self) -> None:
+        context = self.context
+        if context.thumbs is not None:
+            context.thumbs.shutdown()
+        ThumbnailCache(context.config.resolved_cache_dir()).clear()
+        logs.APP.info("Cache cleared")
+        context.open_library()
+        self.state.reload()
+        self.settings_view.banner.show_message("Cache cleared", "ok")
 
     def start_services(self, enable_sonar: bool | None = None,
-                       start_recorder: bool | None = None) -> None:
+                       start_recorder: bool | None = None,
+                       tags: tuple[dict, dict] | None = None) -> None:
+        """Open the library and start Sonar and the recorder. `tags` are the
+        games and dates setup confirmed, written before the first scan so it
+        doesn't tag those clips its own way first."""
+        self._services_started = True
         context = self.context
         context.open_library()
+        if tags is not None:
+            self._write_setup_tags(*tags)
         self.state.reload()
         if context.thumbs is not None:
             QTimer.singleShot(5000, lambda: context.thumbs.prune(
@@ -175,12 +339,23 @@ class MainWindow(QMainWindow):
         context.recorder.detect()
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:
             context.recorder.start()
+        # Into the start menu on the first run; never again once removed.
+        ink = icons.desktop_ink()
+        self.start_menu_job = workers.run(lambda: desktop.ensure(ink), None,
+                                          lambda _exc: None)
+
+    def _ink_changed(self, *_args) -> None:
+        """The desktop turned light or dark: the icons on it follow."""
+        ink = icons.desktop_ink()
+        icon = icons.app_icon(ink)
+        QApplication.instance().setWindowIcon(icon)
+        self.setWindowIcon(icon)
+        if self.tray is not None:
+            self.tray.setIcon(icon)
+        self.start_menu_job = workers.run(lambda: desktop.ensure(ink), None,
+                                          lambda _exc: None)
 
     def _settings_saved(self, folders_changed: bool) -> None:
-        self.setWindowIcon(icons.app_icon(self.context.config.logo_variant))
-        self.rail.set_logo(self.context.config.logo_variant)
-        if self.tray is not None:
-            self.tray.setIcon(icons.app_icon(self.context.config.logo_variant))
         if folders_changed:
             self.context.open_library()
             self.state.reload()
@@ -192,8 +367,8 @@ class MainWindow(QMainWindow):
     def _focus_search(self) -> None:
         if self.first_run is None:
             self.navigate("library")
-            self.rail.search.setFocus()
-            self.rail.search.selectAll()
+            self.topbar.search.setFocus()
+            self.topbar.search.selectAll()
 
     # --- Editor ----------------------------------------------------------------
 
@@ -203,14 +378,17 @@ class MainWindow(QMainWindow):
             self.state.reload()
             return
         self._close_editor()
+        # Back, and out after a delete or trim, goes where the clip was opened from.
+        self._editor_from = "home" if self.stack.currentWidget() is self.home_view \
+            else "library"
         self.editor = EditorView(self.context, self.state, clip)
-        self.editor.back.connect(lambda: self.navigate("library"))
+        self.editor.back.connect(lambda: self.navigate(self._editor_from))
         self.editor.delete_requested.connect(self._delete_from_editor)
         self.editor.trimmed.connect(self._clip_trimmed)
         self.stack.addWidget(self.editor)
         self.stack.setCurrentWidget(self.editor)
-        # The editor takes the whole window: nothing on the rail helps mid-trim.
-        self.rail.hide()
+        # The editor takes the whole window: nothing on the top bar helps mid-trim.
+        self.topbar.hide()
         self.editor.setFocus()
 
     def _close_editor(self) -> None:
@@ -224,14 +402,14 @@ class MainWindow(QMainWindow):
         if not self.library_view.confirm_delete(clip):
             return
         # Leave first: mpv still has the file open.
-        self.navigate("library")
+        self.navigate(self._editor_from)
         self.state.delete(clip)
 
     def _clip_trimmed(self, clip, mode: str, path: str) -> None:
         if mode == "copy":
             self.state.reload()
             return
-        self.navigate("library")            # releases the file before it is replaced
+        self.navigate(self._editor_from)    # releases the file before it is replaced
         self.state.replace_with_trim(clip, path)
 
     # --- Folder and recorder events ---------------------------------------------
@@ -250,15 +428,38 @@ class MainWindow(QMainWindow):
             self.state.reload()
 
     def _clip_saved(self, path: str) -> None:
-        name = os.path.basename(path)
         self.state.reload()
-        self.banner.show_message(f"Clip saved: {name}", "ok")
-        if self.tray is not None and not self.isActiveWindow():
-            self.tray.notify_saved(name)
+        self.context.notify("clip_saved", "Clip saved", os.path.basename(path))
 
-    def _recorder_state(self, state: str, error: str) -> None:
-        if state == "failed" and error:
-            self.banner.show_message(error, "error", 12000)
+    def _notified(self, notice: notifications.Notice) -> None:
+        """Every notice shows at the bottom of the window. It pops up too, if its
+        kind is switched on and the window isn't in front: over games through
+        GPU Screen Recorder's notifier when that is on, else on the desktop."""
+        kind = notifications.BY_ID[notice.kind]
+        self.banner.show_message(notice.line, kind.level, 12000 if kind.level == "error"
+                                 else 6000)
+        in_front = self.isVisible() and self.isActiveWindow() and not self.isMinimized()
+        if in_front or self._quitting or \
+                not notifications.enabled(self.context.config.notifications, kind.id):
+            return
+        if self.context.config.notify_over_games and self._over_games(notice, kind):
+            return
+        if self.tray is not None:
+            self.tray.pop_up(notice)
+
+    def _over_games(self, notice: notifications.Notice, kind: notifications.Kind) -> bool:
+        background, ink = {"warn": (theme.WARN, theme.ON_DANGER),
+                           "error": (theme.DANGER, theme.ON_DANGER)}.get(
+            kind.level, (theme.ACCENT_FILL, theme.ON_ACCENT))
+        return self.over_games.show(notice.line, kind.level, background, ink, kind.icon)
+
+    def _test_over_games(self) -> None:
+        """Settings › Notifications' "Send a test": a sample over whatever is on
+        screen, as a saved clip would show over a game."""
+        notice = notifications.Notice("clip_saved", "Clip saved", "This is how it looks")
+        if not self._over_games(notice, notifications.BY_ID["clip_saved"]):
+            self.settings_view.banner.show_message(
+                "GPU Screen Recorder's notifier didn't start.", "error", 8000)
 
     # --- Window -------------------------------------------------------------------
 
@@ -268,6 +469,11 @@ class MainWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+        if QGuiApplication.platformName() == "wayland":
+            # Wayland won't let us take the focus; KWin can give it (see kwin).
+            # The pause lets a window coming out of the tray map first.
+            pid = os.getpid()
+            QTimer.singleShot(150, lambda: workers.run(lambda: kwin.activate(pid)))
 
     def closeEvent(self, event):
         tray_ok = self.tray is not None and QSystemTrayIcon.isSystemTrayAvailable()
@@ -277,8 +483,7 @@ class MainWindow(QMainWindow):
             self.hide()
             if not self._told_about_tray:
                 self._told_about_tray = True
-                self.tray.showMessage(APP_NAME, "Still running in the tray. Quit from its "
-                                                "menu.", icons.app_icon(), 4000)
+                self.context.notify("in_tray", "Still running in the tray")
             return
         if not self._quitting:
             event.ignore()
@@ -290,7 +495,17 @@ class MainWindow(QMainWindow):
         if self._on_settings() and not self._may_leave_settings():
             return
         self._quitting = True
+        self.library_view.cancel_exports()
         self._close_editor()
         self.close()
         QApplication.instance().quit()
+
+
+def _kept(where: str, subject: str) -> str:
+    """Where a reset put the file it replaced, as a sentence."""
+    if not where:
+        return ""
+    if where == "the Trash":
+        return f"The {subject} in the Trash."
+    return f"The {subject} kept as {where}."
 

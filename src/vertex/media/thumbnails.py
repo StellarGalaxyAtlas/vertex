@@ -17,9 +17,9 @@ from vertex.media.ffmpeg import BASE
 from vertex.media.probe import duration as probe_duration
 
 SEEK_SECONDS = 1.0      # skip the black intro frame most recordings open on
-THUMB_WIDTH = 480
+THUMB_WIDTH = 960       # sharp on the library's largest cards
 PREVIEW_FRAMES = 20
-PREVIEW_WIDTH = 480
+PREVIEW_WIDTH = 960
 
 
 class ThumbnailCache:
@@ -36,6 +36,9 @@ class ThumbnailCache:
             key = f"{os.path.abspath(clip_path)}:{stat.st_mtime_ns}:{stat.st_size}"
         except OSError:
             key = os.path.abspath(clip_path)
+        # The image sizes are part of the key: images of another size are made
+        # again when next shown, and prune() drops the old ones.
+        key += f":{THUMB_WIDTH}:{PREVIEW_WIDTH}"
         return hashlib.sha1(key.encode()).hexdigest()
 
     def thumb_path(self, clip_path: str) -> str:
@@ -114,16 +117,17 @@ class ThumbnailCache:
         _remove(self.thumb_path(clip_path))
         shutil.rmtree(self.preview_dir(clip_path), ignore_errors=True)
 
+    def clear(self) -> None:
+        """Delete every cached image. Only the cache's own folders: the cache
+        folder itself may be anywhere, shared with anything."""
+        for folder in (self.thumb_dir, self.preview_root):
+            shutil.rmtree(folder, ignore_errors=True)
+        os.makedirs(self.thumb_dir, exist_ok=True)
+
     def prune(self, clip_paths) -> int:
         """Delete cached images for clips that no longer exist. Returns count."""
         keep = {self.digest(path) for path in clip_paths}
         removed = 0
-        # Vertex 1.x kept thumbnails loose in the cache root; they are never
-        # read any more.
-        for entry in glob.glob(os.path.join(self.cache_dir, "*.jpg")):
-            if len(os.path.basename(entry)) == 44:     # sha1 hex + ".jpg"
-                _remove(entry)
-                removed += 1
         for entry in glob.glob(os.path.join(self.thumb_dir, "*.jpg")):
             if os.path.splitext(os.path.basename(entry))[0] not in keep:
                 _remove(entry)
