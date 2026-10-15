@@ -82,33 +82,6 @@ behind:
   two of them light (30, 38 to 42, 44), and how `ui/theme.py` works them
   out (`_scheme`, the light path, `ACCENT_FILL`, `ON_CHANNEL`, `ON_VIDEO`).
 
-**59.** Waiting on the maintainer's test
-**A StreamController plugin for Vertex**
-In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`, install
-and Flatseal steps in its README), a client of the control socket. Keys, named
-by the maintainer (2026-10-15): Sonar Information (a channel's volume, in the bottom label),
-Sonar Volume (up or down by a step set on the key; on a dial, turning goes
-either way), Sonar Toggle Channel Mute, Sonar Next Microphone, Sonar
-Next Output Device, Sonar Toggle Microphone, Sonar Toggle Output Device,
-Replay Buffer Toggle, Replay Save Clip (flashes green when a clip lands)
-and Show Vertex. Action ids stay as first published (Volume is now Sonar
-Information, Mute is Sonar Toggle Channel Mute), so set-up keys keep working. One
-subscription follows the state for every key. Decided (maintainer,
-2026-10-14): the toggles' two devices are picked in the key's settings from
-the list Sonar gives (`devices`); a press switches for now (`device set`),
-as the Sonar page does; on any other device the key shows a neutral "No
-mic" face. Inside the Flatpak the plugin uses the socket when given
-`xdg-run/vertex` (Flatseal), else a relay run with `flatpak-spawn --host
-python3`. Show Vertex on Wayland also asks KWin, through its scripting
-interface on the session bus, to activate Vertex's windows (`vertex.kwin`),
-since Wayland won't let Vertex take the focus itself; untested on a real
-Plasma. The state keys (both toggles,
-Sonar Toggle Channel Mute, Replay Buffer Toggle) take a picture per state in
-their settings (asked 2026-10-15, as the maintainer's Discord plugin
-does); a face without one falls back to `assets/<name>.png` when present
-(mic-1, mic-2, mic-none, output-1/2/none, muted, unmuted, replay-on,
-replay-off). Drawing those default icons is the next stage.
-
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
@@ -559,6 +532,32 @@ keeps naming 10, 60, 300, 600 or 1800 since only those work.
 
 ---
 
+**59. A StreamController plugin for Vertex.** Tested and approved by the maintainer
+(2026-10-15). In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`, install
+and Flatseal steps in its README), a client of the control socket. Keys, named
+by the maintainer (2026-10-15): Sonar Information (a channel's volume, in the bottom label),
+Sonar Volume (up or down by a step set on the key; on a dial, turning goes
+either way), Sonar Toggle Channel Mute, Sonar Next Microphone, Sonar
+Next Output Device, Sonar Toggle Microphone, Sonar Toggle Output Device,
+Replay Buffer Toggle, Replay Save Clip (flashes green when a clip lands)
+and Show Vertex. Action ids stay as first published (Volume is now Sonar
+Information, Mute is Sonar Toggle Channel Mute), so set-up keys keep working. One
+subscription follows the state for every key. Decided (maintainer,
+2026-10-14): the toggles' two devices are picked in the key's settings from
+the list Sonar gives (`devices`); a press switches for now (`device set`),
+as the Sonar page does; on any other device the key shows a neutral "No
+mic" face. Inside the Flatpak the plugin uses the socket when given
+`xdg-run/vertex` (Flatseal), else a relay run with `flatpak-spawn --host
+python3`. Show Vertex on Wayland also asks KWin, through its scripting
+interface on the session bus, to activate Vertex's windows (`vertex.kwin`),
+since Wayland won't let Vertex take the focus itself; works on the
+maintainer's Plasma. The state keys (both toggles,
+Sonar Toggle Channel Mute, Replay Buffer Toggle) take a picture per state in
+their settings (asked 2026-10-15, as the maintainer's Discord plugin
+does); a face without one falls back to `assets/<name>.png` when present
+(mic-1, mic-2, mic-none, output-1/2/none, muted, unmuted, replay-on,
+replay-off). Drawing those default icons is the next stage.
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -566,7 +565,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 58, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 59, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer
