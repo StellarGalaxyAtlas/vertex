@@ -30,6 +30,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractSpinBox,
+    QBoxLayout,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -252,6 +253,89 @@ class Toggle(QAbstractButton):
 
     def sizeHint(self):
         return QSize(40, 22)
+
+
+class SideNav(QWidget):
+    """A column of pages to pick from, each with an icon: a page's tabs, on
+    the left of it. Takes (key, text, icon) options."""
+
+    changed = Signal(str, bool)       # key, and always True: as Segmented's
+
+    def __init__(self, options: list[tuple[str, str, str]], current: str = "", parent=None):
+        super().__init__(parent)
+        self._buttons: dict[str, QPushButton] = {}
+        self._icons = {key: name for key, _text, name in options}
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.setObjectName("SideNav")
+        theme.style(self, lambda: f"""
+            #SideNav QPushButton {{ background: transparent; text-align: left;
+                                    padding: 10px 14px; border-radius: {theme.RADIUS_CONTROL}px;
+                                    color: {theme.TEXT_MUTED}; font-size: 11pt; }}
+            #SideNav QPushButton:hover {{ color: {theme.TEXT}; background: {theme.CARD_BG}; }}
+            #SideNav QPushButton:checked {{ background: {theme.ACCENT_SOFT}; color: {theme.TEXT};
+                                            font-weight: 600; }}
+        """)
+        for key, text, _name in options:
+            option = QPushButton(text)
+            option.setCheckable(True)
+            option.setIconSize(QSize(20, 20))
+            option.setCursor(Qt.CursorShape.PointingHandCursor)
+            option.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            option.clicked.connect(lambda _c=False, k=key: self._pick(k))
+            layout.addWidget(option)
+            self._buttons[key] = option
+        layout.addStretch(1)
+        self._current = current or options[0][0]
+        self._paint()
+
+    @property
+    def current(self) -> str:
+        return self._current
+
+    def set_current(self, key: str) -> None:
+        self._current = key
+        self._paint()
+
+    def _pick(self, key: str) -> None:
+        self._current = key
+        self._paint()
+        self.changed.emit(key, True)
+
+    def _paint(self) -> None:
+        for key, option in self._buttons.items():
+            active = key == self._current
+            option.setChecked(active)
+            colour = "TEXT" if active else "TEXT_MUTED"
+            theme.themed(option, lambda o=option, k=key, c=colour: o.setIcon(
+                icons.icon(self._icons[k], c, 20)), "icon")
+
+
+class Columns(QWidget):
+    """Sections side by side once there is room for them, one above the other
+    before that. Each keeps its own height."""
+
+    WIDE = 1300          # px this row needs before its sections go side by side
+
+    def __init__(self, *sections: QWidget, parent=None):
+        super().__init__(parent)
+        self._layout = QBoxLayout(QBoxLayout.Direction.TopToBottom, self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(16)
+        for section in sections:
+            self._layout.addWidget(section, 1, Qt.AlignmentFlag.AlignTop)
+
+    @property
+    def side_by_side(self) -> bool:
+        return self._layout.direction() == QBoxLayout.Direction.LeftToRight
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        wide = event.size().width() >= self.WIDE
+        if wide != self.side_by_side:
+            self._layout.setDirection(QBoxLayout.Direction.LeftToRight if wide
+                                      else QBoxLayout.Direction.TopToBottom)
 
 
 class Segmented(QWidget):
@@ -666,9 +750,11 @@ class ChoiceCard(QFrame):
 
 
 class PathField(QWidget):
-    """A folder path with a Browse button."""
+    """A folder path with a Browse button. `changed` follows the typing;
+    `committed` comes once the field is left or a folder is picked."""
 
     changed = Signal(str)
+    committed = Signal(str)
 
     def __init__(self, value: str = "", placeholder: str = "", parent=None):
         super().__init__(parent)
@@ -677,6 +763,7 @@ class PathField(QWidget):
         self.edit = QLineEdit(paths.tilde(value) if value else "")
         self.edit.setPlaceholderText(placeholder)
         self.edit.textChanged.connect(lambda _t: self.changed.emit(self.value()))
+        self.edit.editingFinished.connect(lambda: self.committed.emit(self.value()))
         browse = button("Browse…", on_click=self._browse)
         layout.addWidget(self.edit, 1)
         layout.addWidget(browse)
@@ -692,6 +779,7 @@ class PathField(QWidget):
         chosen = QFileDialog.getExistingDirectory(self, "Choose a folder", start)
         if chosen:
             self.set_value(chosen)
+            self.committed.emit(self.value())
 
 
 class Banner(QFrame):

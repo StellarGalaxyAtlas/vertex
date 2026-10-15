@@ -7,8 +7,8 @@ import copy
 import os
 import shlex
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtCore import QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QFontDatabase
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -47,17 +47,25 @@ from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
 from vertex.ui.widgets import (
     Banner,
+    Columns,
     Disclosure,
     FieldGrid,
     PathField,
     Section,
-    Segmented,
+    SideNav,
     StorageGauge,
     Toggle,
     button,
     label,
     setting_row,
 )
+
+# What applies as soon as it changes. The rest of the recorder's settings
+# restart the replay buffer, so they wait for Apply (item 76).
+APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
+                 "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
+                 "notify_over_games")
+RECORDER_AT_ONCE = ("autostart", "tag_from_game_channel")
 
 LABELS = {
     "very_high": "Very high", "qp": "Constant quality (QP)", "vbr": "Variable bitrate",
@@ -84,12 +92,14 @@ def combo(values, current: str, editable: bool = False) -> QComboBox:
 
 
 def scroll_page(*sections) -> QScrollArea:
+    """A page of sections, one under the other. A tuple of sections goes side
+    by side once the page is wide enough (item 77)."""
     page = QWidget()
     layout = QVBoxLayout(page)
     layout.setContentsMargins(0, 0, 12, 24)
     layout.setSpacing(16)
     for section in sections:
-        layout.addWidget(section)
+        layout.addWidget(Columns(*section) if isinstance(section, tuple) else section)
     layout.addStretch(1)
     scroll = QScrollArea()
     scroll.setWidget(page)
@@ -103,49 +113,82 @@ class SettingsView(QWidget):
     imported = Signal()
     setup_requested = Signal()       # run first-run setup again
     reset_requested = Signal(str)    # settings | library | cache, confirmed
+    test_requested = Signal()        # a sample notification over games
 
     def __init__(self, context, parent=None):
         super().__init__(parent)
         self.context = context
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(theme.CONTENT_MARGIN, 18, theme.CONTENT_MARGIN - 12, 12)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(theme.CONTENT_MARGIN, 18, theme.CONTENT_MARGIN - 12, 12)
+        outer.setSpacing(28)
+        # The pages, in a column on the left (item 77).
+        nav = QVBoxLayout()
+        nav.setSpacing(14)
+        title = label("Settings", "Heading")
+        title.setContentsMargins(14, 0, 0, 0)
+        nav.addWidget(title)
+        self.tabs = SideNav([("general", "General", "settings"),
+                             ("recording", "Recording", "record"),
+                             ("notifications", "Notifications", "bell"),
+                             ("shortcuts", "Shortcuts", "keyboard"),
+                             ("import", "Import and setup", "folder"),
+                             ("reset", "Reset and delete", "trash")], "general")
+        self.tabs.setFixedWidth(240)
+        self.tabs.changed.connect(lambda key, _d: self.show_page(key))
+        nav.addWidget(self.tabs, 1)
+        outer.addLayout(nav)
+        layout = QVBoxLayout()
         layout.setSpacing(14)
+        outer.addLayout(layout, 1)
         header = QHBoxLayout()
-        header.addWidget(label("Settings", "Heading"))
         header.addStretch(1)
+        # Only for recording changes, which restart the replay buffer; the
+        # rest applies as it changes.
+        self.pending = label("Recording changes restart the replay buffer", "Muted")
         self.revert_button = button("Revert", "ghost", on_click=self.load)
-        self.save_button = button("Save", "primary", on_click=self.save)
+        self.apply_button = button("Apply", "primary", on_click=self.apply_recording)
+        header.addWidget(self.pending)
+        header.addSpacing(6)
         header.addWidget(self.revert_button)
-        header.addWidget(self.save_button)
+        header.addWidget(self.apply_button)
         header.setContentsMargins(0, 0, 12, 0)
         layout.addLayout(header)
-        self.tabs = Segmented([("general", "General"), ("recording", "Recording"),
-                               ("notifications", "Notifications"), ("shortcuts", "Shortcuts"),
-                               ("import", "Import and setup"), ("reset", "Reset and delete")],
-                              "general")
-        self.tabs.changed.connect(lambda key, _d: self.show_page(key))
-        layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
         self.stack = QStackedWidget()
         layout.addWidget(self.stack, 1)
         self.banner = Banner(self)
         self.pages = {}
+        self._loading = False
         # The disk the clips go to, once measured.
         self._storage: storage.StorageStats | None = None
         # The audio devices GSR said it can record: (name, description).
         self._audio_devices: list[tuple[str, str]] = []
         self._build_general()
         self._build_recording()
-        self.notifications = NotificationsPage()
-        self.pages["notifications"] = scroll_page(*self.notifications.sections)
+        self.notifications = NotificationsPage(self.test_requested.emit)
+        first, *kinds = self.notifications.sections
+        self.pages["notifications"] = scroll_page(first, *_pairs(kinds))
         self.stack.addWidget(self.pages["notifications"])
-        self.pages["shortcuts"] = scroll_page(*ShortcutsPage().sections)
+        intro, *groups = ShortcutsPage().sections
+        self.pages["shortcuts"] = scroll_page(intro, *_pairs(groups))
         self.stack.addWidget(self.pages["shortcuts"])
         self._build_import()
         resets = ResetPage(self)
         resets.reset_requested.connect(self.reset_requested)
-        self.pages["reset"] = scroll_page(*resets.sections)
+        self.pages["reset"] = scroll_page(tuple(resets.sections))
         self.stack.addWidget(self.pages["reset"])
+        self._apply_on_change()
         self.load()
+
+    def _apply_on_change(self) -> None:
+        for field in (self.clip_path, self.export_path, self.data_path, self.state_path,
+                      self.cache_path, self.log_path):
+            field.committed.connect(lambda _v: self.apply_now())
+        for switch in (self.keep_logs, self.close_to_tray, self.autostart,
+                       self.notifications.over_games, *self.notifications.switches.values(),
+                       self.rec_autostart, self.tag_from_game):
+            switch.toggled.connect(lambda _on: self.apply_now())
+        self.schemes.picked.connect(lambda _s: self.apply_now())
+        self.output_dir.changed.connect(lambda _v: self._show_pending())
 
     def show_page(self, key: str) -> None:
         self.tabs.set_current(key)
@@ -196,13 +239,28 @@ class SettingsView(QWidget):
         self.autostart = Toggle()
         behaviour.add_row("Start with your computer", self.autostart,
                           "Starts minimized to the tray")
-        self.pages["general"] = scroll_page(appearance, folders, behaviour)
+        self.pages["general"] = scroll_page(appearance, (folders, behaviour))
         self.stack.addWidget(self.pages["general"])
 
     def _build_recording(self) -> None:
         status = Section("GPU Screen Recorder")
         self.gsr_status = label("", "Muted", wrap=True)
         status.add(self.gsr_status)
+        # Shown while the recorder is missing, too old or doesn't start (item 70).
+        self.gsr_help = QWidget()
+        help_row = QHBoxLayout(self.gsr_help)
+        help_row.setContentsMargins(0, 0, 0, 0)
+        help_row.setSpacing(10)
+        self.install_button = button("How to install it", "primary",
+                                     on_click=lambda: QDesktopServices.openUrl(
+                                         QUrl(gsr.INSTALL_URL)))
+        self.command_button = button("Set the command", on_click=self._go_to_command)
+        recheck = button("Check again", on_click=self._refresh_recorder)
+        for widget in (self.install_button, self.command_button, recheck):
+            help_row.addWidget(widget)
+        help_row.addStretch(1)
+        self.gsr_help.hide()
+        status.add(self.gsr_help)
         self.rec_autostart = Toggle()
         status.add_row("Start replay buffer with Vertex", self.rec_autostart)
 
@@ -229,7 +287,8 @@ class SettingsView(QWidget):
         clips.add(label("Each is saved as a separate audio track", "Dim", wrap=True))
         clips.add(self._build_estimate())
 
-        advanced = Disclosure("Advanced", "Bitrate, codecs, audio and more")
+        self.recording_advanced = advanced = Disclosure("Advanced",
+                                                        "Bitrate, codecs, audio and more")
         video = Section("Video")
         self.bitrate_mode = combo(BITRATE_MODES, "cbr")
         video.add_row("Bitrate mode", self.bitrate_mode)
@@ -288,8 +347,8 @@ class SettingsView(QWidget):
         self.preview.setFixedHeight(96)
         recorder.add(label("Command preview", "Dim"))
         recorder.add(self.preview)
-        for section in (video, replay, audio, recorder):
-            advanced.add(section)
+        advanced.add(Columns(video, replay))
+        advanced.add(Columns(audio, recorder))
 
         # The clip settings change what each other offers (sizes up to the
         # monitor's, bitrates for the size and frame rate) and the estimate.
@@ -347,12 +406,20 @@ class SettingsView(QWidget):
         tag_section.add(button("Review tags…", on_click=self._tag_clips))
         setup = Section("Run setup again", "Starts with your current settings")
         setup.add(button("Run setup again…", on_click=self.setup_requested.emit))
-        self.pages["import"] = scroll_page(copy_section, tag_section, setup)
+        self.pages["import"] = scroll_page((copy_section, tag_section, setup))
         self.stack.addWidget(self.pages["import"])
 
     # --- Load / collect / save -------------------------------------------------
 
     def load(self) -> None:
+        self._loading = True
+        try:
+            self._load()
+        finally:
+            self._loading = False
+        self._show_pending()
+
+    def _load(self) -> None:
         config = self.context.config
         self.clip_path.set_value(config.clip_path)
         self.export_path.set_value(config.export_path)
@@ -438,48 +505,87 @@ class SettingsView(QWidget):
         return self.collect().to_dict() != self.context.config.to_dict() or \
             self.autostart.isChecked() != desktop.autostart_enabled()
 
+    def pending_recording(self) -> bool:
+        """Recording changes waiting for Apply."""
+        new, old = self.collect().recorder, self.context.config.recorder
+        for key in RECORDER_AT_ONCE:
+            setattr(new, key, getattr(old, key))
+        return new != old
+
+    def _show_pending(self) -> None:
+        pending = not self._loading and self.pending_recording()
+        for widget in (self.pending, self.revert_button, self.apply_button):
+            widget.setVisible(pending)
+
     def save(self) -> bool:
+        """Apply everything: what applies at once, then the recording changes."""
+        return self.apply_now() and self.apply_recording()
+
+    def apply_now(self) -> bool:
+        """Apply and save what doesn't wait for Apply: folders, switches, the
+        scheme, notifications."""
+        if self._loading:
+            return True
+        new, old = self.collect(), self.context.config
+        autostart = self.autostart.isChecked()
+        applied = copy.deepcopy(old)
+        for key in APPLY_AT_ONCE:
+            setattr(applied, key, getattr(new, key))
+        for key in RECORDER_AT_ONCE:
+            setattr(applied.recorder, key, getattr(new.recorder, key))
+        if applied.to_dict() == old.to_dict() and autostart == desktop.autostart_enabled():
+            return True
+        if not applied.is_complete():
+            self.banner.show_message("Set the clips, exports, library, state and cache "
+                                     "folders (blank uses the defaults).", "error", 10000)
+            self.folders_advanced.set_expanded(True)
+            return False
+        folders_changed = any(getattr(applied, key) != getattr(old, key) for key in
+                              ("clip_path", "data_path", "cache_path", "state_path"))
+        _log_changes(old, applied)
+        for key in APPLY_AT_ONCE:
+            setattr(old, key, getattr(applied, key))
+        for key in RECORDER_AT_ONCE:
+            setattr(old.recorder, key, getattr(applied.recorder, key))
+        old.ensure_dirs()
+        self.context.save_config()
+        if autostart != desktop.autostart_enabled():
+            logs.APP.info("Start with your computer: %s", "on" if autostart else "off")
+            desktop.set_autostart(autostart)
+        if old.keep_logs and logs.folder() != os.path.abspath(old.resolved_log_dir()):
+            self.banner.show_message(f"Logs can't be written to "
+                                     f"{paths.tilde(old.resolved_log_dir())}.", "warn", 10000)
+        if folders_changed:
+            self._refresh_storage()
+        self.saved.emit(folders_changed)
+        self._show_pending()
+        return True
+
+    def apply_recording(self) -> bool:
+        """Apply the recording changes, restarting a running replay buffer."""
+        if not self.pending_recording():
+            return True
         new = self.collect()
         problems = gsr.validate(self._as_recorded(new.recorder))
         if problems:
             self.banner.show_message("Recording: " + problems[0], "error", 10000)
             self.show_page("recording")
             return False
-        if not new.is_complete():
-            self.banner.show_message("Set the clips, exports, library, state and cache "
-                                     "folders (blank uses the defaults).", "error", 10000)
-            self.folders_advanced.set_expanded(True)
-            if not new.resolved_clip_dir() or not new.resolved_export_dir():
-                self.show_page("general")
-                return False
         old = self.context.config
-        folders_changed = any(getattr(new, key) != getattr(old, key) for key in
-                              ("clip_path", "data_path", "cache_path", "state_path"))
-        recorder_changed = new.recorder != old.recorder
-        _log_changes(old, new)
-        for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path",
-                    "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
-                    "notify_over_games"):
-            setattr(old, key, getattr(new, key))
+        for key in RECORDER_AT_ONCE:
+            setattr(new.recorder, key, getattr(old.recorder, key))
+        applied = copy.deepcopy(old)
+        applied.recorder = new.recorder
+        _log_changes(old, applied)
         old.recorder = new.recorder
-        old.ensure_dirs()
         self.context.save_config()
-        if self.autostart.isChecked() != desktop.autostart_enabled():
-            logs.APP.info("Start with your computer: %s", "on" if self.autostart.isChecked()
-                          else "off")
-            desktop.set_autostart(self.autostart.isChecked())
-        restarting = recorder_changed and self.context.recorder.running
-        if recorder_changed:
-            self.context.recorder.detect()
-            self.context.recorder.restart_if_running()
-        if old.keep_logs and logs.folder() != os.path.abspath(old.resolved_log_dir()):
-            self.banner.show_message(f"Saved, but logs can't be written to "
-                                     f"{paths.tilde(old.resolved_log_dir())}.", "warn", 10000)
-        else:
-            self.banner.show_message("Saved. Replay buffer restarting." if restarting
-                                     else "Saved.", "ok", 5000)
+        restarting = self.context.recorder.running
+        self.context.recorder.detect()
+        self.context.recorder.restart_if_running()
+        self.banner.show_message("Applied. Replay buffer restarting." if restarting
+                                 else "Applied.", "ok", 5000)
         self._refresh_storage()
-        self.saved.emit(folders_changed)
+        self._show_pending()
         return True
 
     # --- Recorder helpers ---------------------------------------------------------
@@ -497,17 +603,41 @@ class SettingsView(QWidget):
 
     def _show_recorder(self, result) -> None:
         info, captures, devices = result
-        if info.available:
+        working = info.available and not info.too_old
+        if working:
             note = "" if info.supports_track_names else \
                 " — update to 5.15+ so clip tracks are named Game, Chat and Microphone"
             self.gsr_status.setText(f"Found GPU Screen Recorder {info.version_text}{note}.")
             theme.style(self.gsr_status, lambda: f"color: {theme.OK if not note else theme.WARN};")
         else:
-            self.gsr_status.setText(info.error)
+            # Its own wording here: the recorder's says "set its command in
+            # Settings", and this is Settings.
+            if info.too_old:
+                minimum = ".".join(map(str, gsr.MIN_VERSION))
+                text = (f"GPU Screen Recorder {info.version_text} is too old: Vertex needs "
+                        f"{minimum} or newer.")
+            elif info.missing:
+                text = ("GPU Screen Recorder is not installed. Install it, or set the "
+                        "command that runs it if it's a Flatpak.")
+            else:
+                text = info.error
+            self.gsr_status.setText(text)
             theme.style(self.gsr_status, lambda: f"color: {theme.WARN};")
+            self.install_button.setText("How to update it" if info.too_old
+                                        else "How to install it")
+        self.gsr_help.setVisible(not working)
         self._audio_devices = devices
         self.choices.set_capture_options(captures)
         self._clip_settings_changed()
+
+    def _go_to_command(self) -> None:
+        """Open Advanced and put the cursor in the recorder's command."""
+        self.recording_advanced.set_expanded(True)
+        page = self.pages["recording"]
+        page.widget().layout().activate()
+        page.ensureWidgetVisible(self.command, 0, 120)
+        self.command.setFocus()
+        self.command.selectAll()
 
     # --- Capture --------------------------------------------------------------------
 
@@ -608,6 +738,7 @@ class SettingsView(QWidget):
             self.preview.setPlainText(shlex.join(argv))
         except ValueError as exc:
             self.preview.setPlainText(f"(not valid yet: {exc})")
+        self._show_pending()
 
     # --- Actions -----------------------------------------------------------------
 
@@ -627,6 +758,13 @@ class SettingsView(QWidget):
         if dialog.exec():
             self.imported.emit()
             self.banner.show_message(f"Tagged {dialog.written} clips.", "ok")
+
+
+def _pairs(sections: list) -> list:
+    """Sections two by two, to sit side by side on a wide page; an odd one out
+    gets the width to itself."""
+    return [tuple(sections[i:i + 2]) if i + 1 < len(sections) else sections[i]
+            for i in range(0, len(sections), 2)]
 
 
 def _log_changes(old: Config, new: Config) -> None:

@@ -3,21 +3,34 @@ category. Built from vertex.notifications, so a new kind shows up by itself."""
 
 from __future__ import annotations
 
+from PySide6.QtWidgets import QHBoxLayout, QWidget
+
 from vertex import notifications
 from vertex.recorder import notifier
-from vertex.ui.widgets import Section, Toggle
+from vertex.ui.widgets import Section, Toggle, button
 
 
 class NotificationsPage:
-    def __init__(self):
+    def __init__(self, send_test=None):
         self.switches: dict[str, Toggle] = {}
         pop_ups = Section(
             "Desktop notifications", "Shown when Vertex isn't in front")
         self.over_games = Toggle()
         found = notifier.find() is not None
         self.over_games.setEnabled(found)
+        # A sample over whatever is on screen, to see how it looks in a game.
+        controls = QWidget()
+        row = QHBoxLayout(controls)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(14)
+        self.test_button = button("Send a test", on_click=send_test)
+        self.test_button.setEnabled(found and self.over_games.isChecked())
+        self.over_games.toggled.connect(lambda on: self.test_button.setEnabled(
+            on and self.over_games.isEnabled()))
+        row.addWidget(self.test_button)
+        row.addWidget(self.over_games)
         pop_ups.add_row(
-            "Show them over games", self.over_games,
+            "Show them over games", controls,
             "Uses GPU Screen Recorder's overlay" if found else
             "Requires gpu-screen-recorder-notification")
         self.sections = [pop_ups]

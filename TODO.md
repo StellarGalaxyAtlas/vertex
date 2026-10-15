@@ -17,44 +17,7 @@ the way, are in this file as it was at commit 606d1a2
 ideas list (see Notes, "Ideas list"); each keeps its id from that list.
 They are built in five groups, each shown to the maintainer as a mockup
 and built once approved: Library (71 to 73, done), Tray (74, done), Editor (75, done),
-Settings (70, 76, 77), Sonar (78, 79).
-
-**70.** Ideas list U4
-**Settings › Recording › Clearer "recorder not installed" message**
-Settings › Recording says "set its command in Settings" when you are already
-in Settings. It could show the "How to install it" button that first-run
-setup has, plus a button that opens Advanced at the command field.
-- The text comes from `recorder/gsr.py` (`detect`) and is shown as is;
-  `vertex doctor` uses the same "or set its command in Settings" in
-  `doctor.py`, where it reads fine. Give the Recording page its own wording
-  rather than changing what the CLI prints.
-
-**76.** Ideas list X6
-**Settings › Apply right away**
-Every change in Settings waits for Save, and leaving asks whether to save.
-Switches and lists could apply as soon as they change, the way the colour
-scheme already does. Only recording changes that restart the replay buffer
-would get an Apply button.
-- Today: Save and Revert in the header, `is_dirty` in
-  `ui/settings/view.py`, and the "leave without saving?" question in
-  `ui/main_window.py` (`_may_leave_settings`). All of that goes, except
-  for the recording settings.
-- To ask the maintainer: whether folder changes (clips, exports) apply
-  right away too, or wait for Apply like recording.
-- Before 77, because 77 lays out the header and pages again.
-
-**77.** Ideas list L2
-**Settings › Use the width**
-On a wide screen each setting's name sits at the far left and its switch
-about 2,000 px away at the far right, and the text stays small. The page
-tabs could become a list with icons in a left column, and on wide windows
-the sections could sit in two columns (Notifications: Clips next to Sonar;
-General: Folders next to Behavior).
-- From the mockup: a "Send a test" button next to "Show them over games",
-  which shows a sample notification over a game.
-- Keep the Import and setup style the maintainer likes (bold title, a
-  line of text, a full-width button). Check at 980, 1280 and 2560 px with
-  no dead space; mockup first.
+Settings (70, 76, 77, done), Sonar (78, 79).
 
 **78.** Ideas list F4
 **Sonar › Level meters on the channels**
@@ -147,6 +110,8 @@ behind:
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
+- 70, 76, 77: Settings at their size; "Send a test" over a game; whether
+  folders applying when their field is left suits them.
 - 75: the editor at their screen's size, with hardware video.
 - 74: the tray menu on Plasma: its submenus, ticks and greying.
 - 71 to 73: the Library keys in their desktop's keyboard layout; dragging a
@@ -717,6 +682,33 @@ grow, up to 1.5× from about 2400 × 1300, in steps of 0.05
 today's size, so the video keeps its room. The ruler's first and last
 times stay inside the timeline.
 
+**70. Recorder not installed, said in Settings' words** (ideas list U4,
+2026-10-15). Settings › Recording says "GPU Screen Recorder is not
+installed. Install it, or set the command that runs it if it's a Flatpak."
+(or that it is too old, or the error it gave), with "How to install it"
+(or "How to update it"), "Set the command" (opens Advanced and puts the
+cursor in the command) and "Check again". `vertex doctor` keeps its wording.
+
+**76. Settings apply as they change** (ideas list X6, 2026-10-15). Switches,
+the scheme and notifications are saved as they change; a folder once its
+field is left or a folder is picked (decided without the maintainer, who was
+away: say if folders should wait for Apply too). "Start replay buffer with
+Vertex" and "Auto-tag clips with the game" apply at once as well. The rest
+of Recording restarts the replay buffer, so it waits: "Recording changes
+restart the replay buffer", Revert and Apply show at the top while there are
+any, and leaving Settings asks "Apply the recording changes?". Save and the
+"Save your changes?" question are gone (`apply_now`, `apply_recording` in
+`ui/settings/view.py`).
+
+**77. Settings use the width** (ideas list L2, 2026-10-15). The pages are a
+column on the left with icons (new: bell, keyboard), under the "Settings"
+title. Sections pair up side by side once their row is 1300 px wide
+(`Columns` in `ui/widgets.py`): General's Folders and Behavior,
+Notifications' Clips and Sonar, the Shortcuts groups two by two, Import's
+three sections, Reset's two, and Advanced's Video and Replay buffer, Audio
+and Recorder. "Send a test" next to "Show them over games" shows a sample
+"Clip saved" over whatever is on screen.
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -724,9 +716,9 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 43 to 47, 50, 51, 53 to 64, 71 to 75, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 43 to 47, 50, 51, 53 to 64, 70 to 77, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
-screens; there are nine colour schemes, two of them light. Next: the picked ideas 70 to 79, group by group (Library, Tray and Editor done). Then 9 (on hold) and
+screens; there are nine colour schemes, two of them light. Next: the picked ideas 70 to 79, group by group (Library, Tray, Editor and Settings done). Then 9 (on hold) and
 21 (documentation, when the maintainer says). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 

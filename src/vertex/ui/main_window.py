@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
         self.settings_view.imported.connect(self.state.reload)
         self.settings_view.setup_requested.connect(self.run_setup_again)
         self.settings_view.reset_requested.connect(self.reset)
+        self.settings_view.test_requested.connect(self._test_over_games)
         self.home_view = HomeView(context, self.state, self.library_view)
         self.home_view.navigate.connect(self.navigate)
         self.home_view.open_clip.connect(self.open_clip)
@@ -145,13 +146,18 @@ class MainWindow(QMainWindow):
         page.deleteLater()
 
     def _may_leave_settings(self) -> bool:
-        if not self.settings_view.is_dirty():
+        """Most settings apply as they change; recording changes wait for Apply,
+        since they restart the replay buffer."""
+        if not self.settings_view.apply_now():
+            return False
+        if not self.settings_view.pending_recording():
             return True
-        answer = ChoiceDialog.ask(self, "Unsaved settings", "Save your changes to Settings?",
+        answer = ChoiceDialog.ask(self, "Recording changes", "Apply the recording changes?",
+                                  "Applying restarts the replay buffer if it's on.",
                                   choices=[("Discard", "discard", ""),
-                                           ("Save", "save", "primary")])
-        if answer == "save":
-            return self.settings_view.save()
+                                           ("Apply", "apply", "primary")])
+        if answer == "apply":
+            return self.settings_view.apply_recording()
         if answer == "discard":
             self.settings_view.load()
             return True
@@ -446,6 +452,14 @@ class MainWindow(QMainWindow):
                            "error": (theme.DANGER, theme.ON_DANGER)}.get(
             kind.level, (theme.ACCENT_FILL, theme.ON_ACCENT))
         return self.over_games.show(notice.line, kind.level, background, ink, kind.icon)
+
+    def _test_over_games(self) -> None:
+        """Settings › Notifications' "Send a test": a sample over whatever is on
+        screen, as a saved clip would show over a game."""
+        notice = notifications.Notice("clip_saved", "Clip saved", "This is how it looks")
+        if not self._over_games(notice, notifications.BY_ID["clip_saved"]):
+            self.settings_view.banner.show_message(
+                "GPU Screen Recorder's notifier didn't start.", "error", 8000)
 
     # --- Window -------------------------------------------------------------------
 

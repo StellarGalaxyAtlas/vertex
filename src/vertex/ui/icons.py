@@ -329,6 +329,33 @@ def _folder(p, c):
     p.drawPath(path)
 
 
+@_register("bell")
+def _bell(p, c):
+    _pen(p, c)
+    path = QPainterPath(QPointF(5, 17))
+    path.lineTo(6.5, 15)
+    path.lineTo(6.5, 10.5)
+    path.cubicTo(6.5, 7, 9, 4.8, 12, 4.8)
+    path.cubicTo(15, 4.8, 17.5, 7, 17.5, 10.5)
+    path.lineTo(17.5, 15)
+    path.lineTo(19, 17)
+    path.closeSubpath()
+    p.drawPath(path)
+    p.drawLine(QPointF(10.2, 19.8), QPointF(13.8, 19.8))
+
+
+@_register("keyboard")
+def _keyboard(p, c):
+    _pen(p, c)
+    p.drawRoundedRect(QRectF(3, 6.5, 18, 11), 2.2, 2.2)
+    _fill(p, c)
+    for y in (9.6, 12.4):
+        for x in (6.5, 9.5, 12.5, 15.5, 18.5 - 1):
+            p.drawEllipse(QPointF(x, y), 0.9, 0.9)
+    _pen(p, c)
+    p.drawLine(QPointF(8.5, 15), QPointF(15.5, 15))
+
+
 @_register("refresh")
 def _refresh(p, c):
     _pen(p, c)

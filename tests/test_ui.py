@@ -434,7 +434,7 @@ def test_plum_puts_white_text_on_a_deeper_pink():
     assert plum["ACCENT_SOFT"] == theme._mix(plum["CARD_BG"], plum["SECOND"], 0.3)
 
 
-def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
+def test_a_colour_scheme_shows_and_is_kept_at_once(qapp, window):
     from vertex.ui import theme
 
     navy, spooky = theme.SCHEMES["navy"][2], theme.SCHEMES["spooky"][2]
@@ -445,23 +445,21 @@ def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
     pill = window.topbar.recorder
     assert navy["SECTION_BG"] in pill.styleSheet()
     try:
-        # Picking one restyles everything already built, before any Save.
+        # Picking one restyles everything already built.
         settings.schemes.cards["spooky"].click()
         assert theme.scheme == "spooky"
         assert spooky["ACCENT"] in qapp.styleSheet()
         assert spooky["SECTION_BG"] in pill.styleSheet()
         strip = window.sonar_view.strips["media"]
         assert spooky["MEDIA"] in strip.slider.styleSheet()
-        assert settings.is_dirty()
-        # Leaving without saving puts the saved one back.
-        settings.load()
-        assert theme.scheme == "navy" and settings.schemes.value() == "navy"
-        assert navy["SECTION_BG"] in pill.styleSheet()
-        # Saved, it is the scheme the next start opens with.
-        settings.schemes.cards["spooky"].click()
-        assert settings.save()
-        assert Config.load().colour_scheme == "spooky"
+        # Picked, it is saved at once: the next start opens with it.
         assert not settings.is_dirty()
+        assert Config.load().colour_scheme == "spooky"
+        settings.load()
+        assert theme.scheme == "spooky" and settings.schemes.value() == "spooky"
+        settings.schemes.cards["navy"].click()
+        assert Config.load().colour_scheme == "navy"
+        assert navy["SECTION_BG"] in pill.styleSheet()
     finally:
         theme.use(theme.DEFAULT_SCHEME)
 
@@ -1760,3 +1758,34 @@ def test_editor_controls_grow_with_the_window(qapp):
     timeline.set_scale(1.5)
     assert timeline.lane_h == round(LANE_H * 1.5)
     assert timeline.height() > small
+
+
+def test_settings_apply_at_once_and_recording_waits_for_apply(qapp, window, monkeypatch):
+    from vertex.ui.widgets import ChoiceDialog
+
+    window.navigate("settings")
+    settings = window.settings_view
+    assert settings.apply_button.isHidden()
+    # A switch is saved as it is flipped.
+    settings.close_to_tray.setChecked(not settings.close_to_tray.isChecked())
+    assert Config.load().close_to_tray == settings.close_to_tray.isChecked()
+    settings.rec_autostart.setChecked(not settings.rec_autostart.isChecked())
+    assert Config.load().recorder.autostart == settings.rec_autostart.isChecked()
+    assert settings.apply_button.isHidden()
+    # A folder once the field is left.
+    folder = str(window.context.config.resolved_export_dir()) + "-2"
+    settings.export_path.set_value(folder)
+    settings.export_path.edit.editingFinished.emit()
+    assert Config.load().export_path == folder
+    # What restarts the replay buffer waits for Apply.
+    settings.duration.setCurrentIndex(settings.duration.findData(90))
+    assert not settings.apply_button.isHidden()
+    assert Config.load().recorder.replay_seconds != 90
+    asked = []
+    monkeypatch.setattr(ChoiceDialog, "ask",
+                        lambda *args, **kwargs: asked.append(args[2]) or "apply")
+    window.navigate("library")
+    assert asked == ["Apply the recording changes?"]
+    assert Config.load().recorder.replay_seconds == 90
+    window.navigate("settings")
+    assert settings.apply_button.isHidden()
