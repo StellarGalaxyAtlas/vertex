@@ -9,18 +9,24 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, Gtk  # noqa: E402
+from GtkHelper.FileDialogRow import FileDialogFilter, FileDialogRow  # noqa: E402
 from loguru import logger as log  # noqa: E402
 from src.backend.PluginManager.ActionBase import ActionBase  # noqa: E402
 
 CHANNELS = (("game", "Game"), ("chat", "Chat"), ("media", "Media"), ("mic", "Microphone"))
+IMAGES = FileDialogFilter("Images", ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.svg"])
 
 
 class VertexAction(ActionBase):
+    # The faces a key changes between, each with a picture the user can pick
+    # in the key's settings: (face, the setting's title).
+    FACES: tuple[tuple[str, str], ...] = ()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.has_configuration = False
-        self._face = ""
+        self._face: str | None = ""      # the picture shown; None: show it again
 
     @property
     def vertex(self):
@@ -55,12 +61,38 @@ class VertexAction(ActionBase):
         self.set_bottom_label(bottom)
 
     def face(self, name: str) -> None:
-        """Show `assets/<name>.png` if the plugin has that image (the icons
-        come later); the key keeps its image otherwise."""
-        path = os.path.join(getattr(self.plugin_base, "PATH", ""), "assets", f"{name}.png")
-        if path != self._face and os.path.exists(path):
-            self._face = path
-            self.set_media(media_path=path, size=0.8)
+        """Show the face `name`: the picture picked for it in the key's
+        settings, else the plugin's own `assets/<name>.png` if it has one.
+        With neither, a picture another face put up goes away; a key that
+        never had one keeps the image it was given in StreamController."""
+        path = self.images().get(name, "")
+        if not os.path.isfile(path):
+            bundled = os.path.join(getattr(self.plugin_base, "PATH", ""), "assets", f"{name}.png")
+            path = bundled if os.path.isfile(bundled) else ""
+        if path == self._face:
+            return
+        if path:
+            self.set_media(media_path=path)
+        elif self._face != "":            # ours, or the one just unpicked
+            self.set_media()
+        self._face = path
+
+    def images(self) -> dict[str, str]:
+        """The pictures picked in the key's settings, by face."""
+        images = self.setting("images", {})
+        return dict(images) if isinstance(images, dict) else {}
+
+    def set_image(self, face: str, path: str) -> None:
+        settings = self.get_settings()
+        images = self.images()
+        if path:
+            images[face] = path
+        else:
+            images.pop(face, None)
+        settings["images"] = images
+        self.set_settings(settings)
+        self._face = None
+        self._redraw(self.vertex.state)
 
     def on_notice(self, notice: dict) -> None:
         """A notification from Vertex (kind, category, title, body)."""
@@ -113,3 +145,26 @@ class VertexAction(ActionBase):
             self._redraw(self.vertex.state)
         row.connect("notify::value", changed)
         return row
+
+    def image_rows(self) -> list[Adw.PreferencesRow]:
+        """A picture row for each of the key's faces."""
+        rows = []
+        for face, title in self.FACES:
+            row = FileDialogRow(title=title, dialog_title=title, filters=[IMAGES],
+                                file_change_callback=lambda file, face=face:
+                                self.set_image(face, file.get_path() or ""))
+            current = self.images().get(face)
+            if current:
+                row.selected_file = Gio.File.new_for_path(current)
+            row.update_label()
+            clear = Gtk.Button(icon_name="edit-clear-symbolic", valign=Gtk.Align.CENTER,
+                               tooltip_text="No picture")
+
+            def cleared(_button, face=face, row=row):
+                self.set_image(face, "")
+                row.selected_file = None
+                row.update_label()
+            clear.connect("clicked", cleared)
+            row.add_suffix(clear)
+            rows.append(row)
+        return rows

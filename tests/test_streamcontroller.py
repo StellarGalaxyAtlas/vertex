@@ -40,6 +40,7 @@ class _ActionBase:
         self._settings = dict(settings or {})
         self.labels = {}
         self.errors = 0
+        self.media = []
 
     def get_settings(self):
         return dict(self._settings)
@@ -61,6 +62,9 @@ class _ActionBase:
 
     def set_background_color(self, color):
         self.background = color
+
+    def set_media(self, media_path=None, **_kwargs):
+        self.media.append(media_path)
 
     def event_callback(self, event, data=None):
         if event == _Events.DOWN:
@@ -90,7 +94,10 @@ def _stub_streamcontroller(monkeypatch):
 
     gi = module("gi", require_version=lambda *_: None)
     gi.repository = module("gi.repository", Adw=types.SimpleNamespace(),
-                           Gtk=types.SimpleNamespace())
+                           Gio=types.SimpleNamespace(), Gtk=types.SimpleNamespace())
+    module("GtkHelper")
+    module("GtkHelper.FileDialogRow", FileDialogRow=object,
+           FileDialogFilter=lambda name, patterns: (name, patterns))
     module("loguru", logger=types.SimpleNamespace(debug=print, info=print))
     module("src.backend.PluginManager.ActionBase", ActionBase=_ActionBase)
     module("src.backend.DeckManagement.InputIdentifier",
@@ -417,3 +424,39 @@ def test_save_clip_key_flashes_when_a_clip_lands(plugin, vertex, monkeypatch):
     assert _wait(lambda: key.background == [0, 0, 0, 0])
     key.on_notice({"kind": "clip_not_saved"})
     assert key.errors == 1
+
+
+def test_toggle_shows_the_picture_picked_for_each_face(plugin, vertex, tmp_path):
+    first, second = tmp_path / "desk.png", tmp_path / "headset.png"
+    first.write_bytes(b"png")
+    second.write_bytes(b"png")
+    key, _ = _key(plugin, vertex, plugin.keys.SonarToggleMic, first="desk_mic",
+                  second="headset_mic",
+                  images={"mic-1": str(first), "mic-2": str(second)})
+    key.show(_state(mic="Desk mic"))
+    key.show(_state(mic="Desk mic"))                    # unchanged: not drawn again
+    key.show(_state(mic="Headset mic"))
+    key.show(_state(mic="Webcam"))                      # no picture for "No mic"
+    assert key.media == [str(first), str(second), None]
+    key.show(_state(mic="Webcam"))
+    assert len(key.media) == 3
+
+
+def test_keys_without_pictures_keep_their_image(plugin, vertex):
+    key, _ = _key(plugin, vertex, plugin.keys.SonarToggleMic, first="desk_mic")
+    key.show(_state(mic="Desk mic"))
+    key.show(_state(mic="Webcam"))
+    assert key.media == []
+
+
+def test_picking_and_unpicking_a_picture(plugin, vertex, tmp_path):
+    picture = tmp_path / "muted.png"
+    picture.write_bytes(b"png")
+    key, client = _key(plugin, vertex, plugin.keys.SonarChannelToggle, channel="game")
+    client.state = _state()
+    key.show(client.state)
+    key.set_image("unmuted", str(picture))
+    assert key.get_settings()["images"] == {"unmuted": str(picture)}
+    key.set_image("unmuted", "")
+    assert key.get_settings()["images"] == {}
+    assert key.media == [str(picture), None]

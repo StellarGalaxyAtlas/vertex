@@ -95,6 +95,7 @@ class SonarChannelToggle(_ChannelKey):
     """Mutes or unmutes a Sonar channel, and shows which it is."""
 
     default_channel = "mic"
+    FACES = (("unmuted", "Picture when on"), ("muted", "Picture when muted"))
 
     def show(self, state):
         entry = vc.channel(state, self._channel())
@@ -106,6 +107,9 @@ class SonarChannelToggle(_ChannelKey):
 
     def on_key_down(self):
         self.send("mute", channel=self._channel())
+
+    def get_config_rows(self):
+        return [*super().get_config_rows(), *self.image_rows()]
 
 
 class _NextDevice(VertexAction):
@@ -237,7 +241,8 @@ class _Toggle(VertexAction):
     def get_config_rows(self):
         choices, note = self._choices()
         return [self.choice_row(f"{self.title} 1", "first", choices, "", note),
-                self.choice_row(f"{self.title} 2", "second", choices, "")]
+                self.choice_row(f"{self.title} 2", "second", choices, ""),
+                *self.image_rows()]
 
 
 class SonarToggleMic(_Toggle):
@@ -245,6 +250,8 @@ class SonarToggleMic(_Toggle):
     kind = "mics"
     channel = "mic"
     none = "No mic"
+    FACES = (("mic-1", "Mic 1 picture"), ("mic-2", "Mic 2 picture"),
+             ("mic-none", "No mic picture"))
 
     def _current(self, state):
         return vc.sonar(state).get("mic")
@@ -254,6 +261,8 @@ class SonarToggleOutput(_Toggle):
     title = "Output"
     kind = "outputs"
     none = "No output"
+    FACES = (("output-1", "Output 1 picture"), ("output-2", "Output 2 picture"),
+             ("output-none", "No output picture"))
 
     def _current(self, state):
         return vc.sonar(state).get("output")
@@ -266,9 +275,16 @@ REPLAY_PHASES = {"running": "On", "stopped": "Off", "starting": "Starting",
 class ReplayToggle(VertexAction):
     """Starts or stops the replay buffer, and shows whether it runs."""
 
+    FACES = (("replay-on", "Picture when on"), ("replay-off", "Picture when off"))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.has_configuration = True
+
     def show(self, state):
         if state is None:
             self.show_labels("Replay", NOT_RUNNING)
+            self.face("replay-off")
             return
         phase = ((state.get("replay") or {}).get("state")) or "stopped"
         self.show_labels("Replay", REPLAY_PHASES.get(phase, phase.capitalize()))
@@ -276,6 +292,9 @@ class ReplayToggle(VertexAction):
 
     def on_key_down(self):
         self.send("replay", action="toggle")
+
+    def get_config_rows(self):
+        return self.image_rows()
 
 
 SAVE_LENGTHS = ((0, "Replay length"), (10, "10 seconds"), (30, "30 seconds"),

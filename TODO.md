@@ -102,9 +102,12 @@ mic" face. Inside the Flatpak the plugin uses the socket when given
 python3`. Show Vertex on Wayland also asks KWin, through its scripting
 interface on the session bus, to activate Vertex's windows (`vertex.kwin`),
 since Wayland won't let Vertex take the focus itself; untested on a real
-Plasma. Faces load `assets/<name>.png` when present (mic-1, mic-2,
-mic-none, output-1/2/none, muted, unmuted, replay-on, replay-off); drawing
-those icons is the next stage.
+Plasma. The state keys (both toggles,
+Sonar Channel Toggle, Replay Buffer Toggle) take a picture per state in
+their settings (asked 2026-10-15, as the maintainer's Discord plugin
+does); a face without one falls back to `assets/<name>.png` when present
+(mic-1, mic-2, mic-none, output-1/2/none, muted, unmuted, replay-on,
+replay-off). Drawing those default icons is the next stage.
 
 ## Waiting on the maintainer
 

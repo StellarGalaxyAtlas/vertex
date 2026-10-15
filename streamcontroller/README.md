@@ -20,6 +20,15 @@ devices, and Moments' replay buffer and clips.
 device manager's order stays as it is. The two-device keys list the devices
 Sonar knows in their settings; pick the first and the second there.
 
+## Pictures
+
+The keys that change state (Sonar Toggle Microphone, Sonar Toggle Output
+Device, Sonar Channel Toggle and Replay Buffer Toggle) take a picture for
+each state in their settings, such as "Mic 1 picture" and "Mic 2 picture",
+and switch to it as the state changes. Leave the key's own image in
+StreamController empty: StreamController keeps an image set there and
+doesn't let the plugin change it.
+
 ## Install
 
 Clone Vertex and link this folder into StreamController's plugins:
