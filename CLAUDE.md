@@ -76,10 +76,6 @@ where the work stands. New requests and bugs get the next free number in
   The tools shoot Navy, the default. A colour change is checked in a dark
   and a light scheme: for another one, add `"colour_scheme": "polar"` to
   the config a tool writes (and don't commit that).
-- Workflow agents with `isolation: "worktree"` get a worktree made from the
-  repository's default branch (`main`, an early 2.0 merged long before the
-  work on this branch), not the working branch. Have them `git reset --hard`
-  to the working branch's commit first.
 
 ## The design
 
@@ -109,14 +105,16 @@ them.
 
 ## The maintainer's installation
 
-They run one installation, installed with pipx from the working branch as
-the README describes (`~/vertex-test` and 1.x are gone). After each push,
-give them the update command with the branch you pushed to. It works in
-fish:
+They run one installation, installed with pipx from `main` as the README
+describes (`~/vertex-test` and 1.x are gone). `main` is the only branch
+(item 65): a session works on its own branch, and the maintainer tries it
+with the command below, adding `@<branch>` at the end of the URL. When they
+say it's good, it goes onto `main` and the session's branch is deleted.
+It works in fish:
 
 ```bash
-pipx install --force "git+https://github.com/StellarGalaxyAtlas/vertex.git@claude/loving-curie-0t4h2o"
+pipx install --force "git+https://github.com/StellarGalaxyAtlas/vertex.git"
 ```
 
 A running Vertex keeps the old code until it is quit from the tray and opened
-again: say so. Once the work is merged into `main`, the `@…` part goes.
+again: say so.

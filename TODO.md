@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 65 (70 to 79 are taken by the ideas
+and bugs get the next free number: 66 (70 to 79 are taken by the ideas
 list of 2026-10-15).
 
 Finished items are kept short: what was built, and the decisions that still
@@ -594,6 +594,11 @@ never retried. The restart shows as "Restarting…" in the top bar, goes in
 notification switched on (off by default; its line in Settings ›
 Notifications now reads "After a settings change or a crash").
 
+**65. One branch** (asked 2026-10-15). All work, the StreamController
+plugin's removal (it lives in its own repository) and the short docs were
+merged into `main`, and every other branch was deleted. Install from `main`
+with no `@…` part.
+
 **71. Library keys** (ideas list X3, 2026-10-15). In the Library and on
 Home's latest clips: the first arrow key shows a focus ring on the current
 card, the next ones move it (Home, End, Page Up and Down too); Enter opens,
@@ -686,10 +691,9 @@ asked: not too detailed, but showing everything Vertex offers; their own
 words in the README stay as they are; the install steps keep a big "written
 by AI, not verified" warning.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–42, 43 to 47, 50, 51, 53 to 64, 70 to 79, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–42, 43 to 47, 50, 51, 53 to 65, 70 to 79, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
-screens; there are nine colour schemes, two of them light. Next: the maintainer tries 74 to 79 (pushed 2026-10-15 to
-`claude/project-thread-788h94`, not yet on loving-curie); then 9 (on hold). Waiting on the maintainer: the checks listed above. The session that
+screens; there are nine colour schemes, two of them light. All work is on `main`, the only branch since item 65. Next: 9 (on hold). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 
 **Colour schemes.** Decided along the way (items 30, 38 to 45): the picker
