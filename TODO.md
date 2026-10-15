@@ -104,13 +104,14 @@ Built and tested in the container; only their system can confirm:
 
 **21.** Done (2026-10-15)
 **Documentation**
-README rewritten as an overview (the maintainer's intro and "Thanks" kept
-word for word, apart from the closing note about real game titles, since the
-screenshots now use made-up games), with a "written by AI, not verified"
-warning on the install steps. New `docs/GUIDE.md` (every page, briefly) and
-`docs/CONTROL.md` (the control API); `docs/ARCHITECTURE.md` brought up to
-date. Fresh screenshots from `tools/docs_screenshots.py` (made-up demo
-library, Navy). The StreamController plugin's docs live in its own
+Kept brief, as the maintainer asked: everything for users is in the README
+(their intro and "Thanks" word for word, apart from the closing note about
+real game titles; a "written by AI, not verified" warning on the install
+steps), and developers get `docs/DEVELOPMENT.md` (setup, checks, rules,
+layout, control API). The old guide, architecture, control and contributing
+files are folded into those two. Screenshots from `tools/docs_screenshots.py`:
+a made-up demo library with three-track clips (Game, Chat, Mic) of abstract
+shapes, in Navy. The StreamController plugin's docs live in its own
 repository.
 
 **1. Settings › Recording › Capture.** The monitor to record is picked on a

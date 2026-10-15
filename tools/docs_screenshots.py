@@ -24,20 +24,20 @@ TOOLS = os.path.dirname(os.path.abspath(__file__))
 
 # Made-up games and people: (game, pattern, people, title, favorite).
 CLIPS = (
-    ("Starfall Arena", "testsrc2", ["Sam", "Riley"], "Triple at the last second", True),
-    ("Neon Drift", "mandelbrot", ["Jordan"], "", False),
-    ("Starfall Arena", "smptehdbars", ["Sam"], "Clutch on the bridge", False),
-    ("Hollow Keep", "cellauto", ["Alex", "Riley"], "The boss finally fell", True),
-    ("Orbit Rush", "rgbtestsrc", [], "", False),
-    ("Neon Drift", "testsrc", ["Jordan", "Sam"], "Photo finish", False),
-    ("Rust Valley", "life", ["Alex"], "", False),
-    ("Starfall Arena", "mandelbrot", ["Riley"], "Ace", False),
-    ("Hollow Keep", "testsrc2", [], "", False),
-    ("Orbit Rush", "smptebars", ["Sam", "Jordan"], "Docked with one hit left", True),
-    ("Rust Valley", "cellauto", [], "", False),
-    ("Neon Drift", "rgbtestsrc", ["Alex"], "", False),
-    ("Starfall Arena", "testsrc", ["Sam", "Riley", "Jordan"], "Team wipe", False),
-    ("Hollow Keep", "life", ["Riley"], "", False),
+    ("Starfall Arena", 0, ["Sam", "Riley"], "Triple at the last second", True),
+    ("Neon Drift", 1, ["Jordan"], "", False),
+    ("Starfall Arena", 2, ["Sam"], "Clutch on the bridge", False),
+    ("Hollow Keep", 3, ["Alex", "Riley"], "The boss finally fell", True),
+    ("Orbit Rush", 4, [], "", False),
+    ("Neon Drift", 5, ["Jordan", "Sam"], "Photo finish", False),
+    ("Rust Valley", 6, ["Alex"], "", False),
+    ("Starfall Arena", 7, ["Riley"], "Ace", False),
+    ("Hollow Keep", 8, [], "", False),
+    ("Orbit Rush", 9, ["Sam", "Jordan"], "Docked with one hit left", True),
+    ("Rust Valley", 10, [], "", False),
+    ("Neon Drift", 11, ["Alex"], "", False),
+    ("Starfall Arena", 12, ["Sam", "Riley", "Jordan"], "Team wipe", False),
+    ("Hollow Keep", 13, ["Riley"], "", False),
 )
 
 CAPTURE_OPTIONS = "DP-1|2560x1440\nDP-2|1080x1920\nHDMI-A-1|1920x1080\nregion\nportal\n"
@@ -69,18 +69,59 @@ INPUTS = ((HEADSET_IN, "Elgato Wave:3"),
           ("alsa_input.usb-046d_HD_Pro_Webcam_C920", "HD Pro Webcam C920"))
 
 
-def make_clip(path: str, pattern: str, seconds: int) -> None:
-    # Tones that swell and fade, so every lane has a waveform worth seeing.
-    tones = ((220, 0.7, 0.0), (330, 1.9, 1.0), (550, 0.4, 2.0), (880, 1.3, 0.5))
+# Color sets for the made-up footage: two for the backdrop, three for shapes.
+PALETTES = (
+    ("1b1f4b", "3a1c71", "ffaf7b", "d76d77", "4ecdc4"),
+    ("0f2027", "2c5364", "f7b733", "fc4a1a", "e0e0e0"),
+    ("232526", "414345", "00d2ff", "928dab", "ff6b6b"),
+    ("142850", "27496d", "00909e", "dae1e7", "f4a261"),
+    ("2d1b3d", "6a2c70", "f08a5d", "f9ed69", "3ec1d3"),
+    ("10302f", "1e5945", "a8e6cf", "ffd3b6", "ff8b94"),
+    ("1a1a2e", "16213e", "e94560", "0f3460", "f5f5f5"),
+)
+
+
+def _rgb(hex_color: str) -> tuple[int, int, int]:
+    return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def geometry(look: int) -> str:
+    """An ffmpeg geq filter drawing slowly moving abstract shapes: a big
+    circle, a diagonal band and a square over a gradient."""
+    back1, back2, circle, band, square = map(_rgb, PALETTES[look % len(PALETTES)])
+    flip = "W-X" if look % 2 else "X"
+    cx, cy = f"(W*(0.3+0.08*{look % 3})+W*0.06*sin(T*0.5+{look}))", "(H*0.5+H*0.08*cos(T*0.4))"
+    shapes = (
+        (circle, f"lte(hypot(X-{cx},Y-{cy}),H*{0.2 + 0.06 * (look % 3)})"),
+        (band, f"lte(abs(({flip})-Y*{0.4 + 0.3 * (look % 3)}-W*0.5-W*0.03*sin(T*0.3)),"
+                f"W*{0.03 + 0.02 * (look % 2)})"),
+        (square, f"lte(abs(X-W*{0.8 - 0.12 * (look % 2)}),H*0.12)"
+                  f"*lte(abs(Y-H*(0.3+0.05*sin(T*0.6+{look}))),H*0.12)"),
+    )
+
+    def channel(k: int) -> str:
+        expr = f"{back1[k]}+({back2[k]}-{back1[k]})*(X+Y)/(W+H)"
+        for color, inside in reversed(shapes):
+            expr = f"if({inside},{color[k]},{expr})"
+        return expr
+
+    return f"geq=r='{channel(0)}':g='{channel(1)}':b='{channel(2)}'"
+
+
+def make_clip(path: str, look: int, seconds: int) -> None:
+    # Tones that swell and fade, so every lane has a waveform worth seeing:
+    # Game, Chat and Mic, the three tracks Vertex records.
+    tones = ((220, 0.7, 0.0), (330, 1.9, 1.0), (550, 1.3, 0.5))
     cmd = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi",
-           "-i", f"{pattern}=size=1280x720:rate=30"]
+           "-i", f"color=black:size=480x270:rate=10,{geometry(look)},"
+           "scale=1280:720:flags=bicubic,fps=30"]
     for freq, speed, phase in tones:
         expr = f"0.8*sin(2*PI*{freq}*t)*pow(abs(sin({speed}*t+{phase})),3)"
         cmd += ["-f", "lavfi", "-i", f"aevalsrc='{expr}':s=48000:d={seconds}"]
-    cmd += ["-map", "0:v"] + [x for i in range(4) for x in ("-map", f"{i + 1}:a")]
+    cmd += ["-map", "0:v"] + [x for i in range(3) for x in ("-map", f"{i + 1}:a")]
     cmd += ["-c:v", "libx264", "-preset", "ultrafast", "-g", "30",
             "-c:a", "aac", "-t", str(seconds)]
-    for i, name in enumerate(("Vertex Game", "Vertex Chat", "Vertex Media", "Vertex Mic")):
+    for i, name in enumerate(("Vertex Game", "Vertex Chat", "Vertex Mic")):
         cmd += [f"-metadata:s:a:{i}", f"title={name}"]
     subprocess.run([*cmd, path], check=True)
 
@@ -117,12 +158,12 @@ def build_library(home: str) -> None:
     clips = f"{home}/Videos/Clips"
     library = Library(f"{home}/.local/share/vertex")
     now = time.time()
-    for i, (game, pattern, people, title, favorite) in enumerate(CLIPS):
+    for i, (game, look, people, title, favorite) in enumerate(CLIPS):
         when = now - 3600 * (5 + i * 19)
         stamp = time.strftime("%Y-%m-%d__%H-%M-%S", time.localtime(when))
         name = f"{game.replace(' ', '-')}__{stamp}.mp4"
         path = f"{clips}/{name}"
-        make_clip(path, pattern, 6 + (i * 7) % 25)
+        make_clip(path, look, 6 + (i * 7) % 25)
         os.utime(path, (when, when))
         library.set_tags(name, game, people)
         if title:
@@ -130,9 +171,9 @@ def build_library(home: str) -> None:
         if favorite:
             library.set_favorite(name, True)
         if game == "Hollow Keep" and title:
-            # The editor's shot: a selection, and the music turned down.
+            # The editor's shot: a selection, and a too-loud mic turned down.
             library.set_trim(name, 4.0, 22.0)
-            library.set_volumes(name, {"Vertex Media": {"volume": 0.35, "muted": False},
+            library.set_volumes(name, {"Vertex Mic": {"volume": 0.45, "muted": False},
                                        "Vertex Chat": {"volume": 1.2, "muted": False}})
     library.close()
 
@@ -178,7 +219,6 @@ def main(out: str, size: tuple[int, int]) -> int:
 
     from vertex.config import Config
     from vertex.ui import app as app_mod
-    from vertex.ui.library.state import Facet
     from vertex.ui.main_window import MainWindow
 
     qt = app_mod._create_app()
@@ -211,12 +251,7 @@ def main(out: str, size: tuple[int, int]) -> int:
                     widget.reject()
         return grab
 
-    def library_game():
-        window.navigate("library")
-        window.state.set_facet(Facet("game", "Starfall Arena"))
-
     def editor():
-        window.state.set_facet(Facet())
         clip = next(c for c in window.state.visible if "Hollow" in c.path)
         window.open_clip(clip)
 
@@ -230,23 +265,16 @@ def main(out: str, size: tuple[int, int]) -> int:
             settings.show_page(key)
         return go
 
-    def device_manager():
-        window.navigate("sonar")
-        save("sonar-devices", window.sonar_view.manager)
-
     steps = [
         (play, None),
         (lambda: window.navigate("home"), "home"),
         (lambda: window.navigate("library"), "library"),
-        (library_game, "library-game"),
         (editor, "editor"),
         (export, None),
         (lambda: window.navigate("sonar"), "sonar"),
-        (device_manager, None),
         (settings_page("general"), "settings-general"),
         (settings_page("recording"), "settings-recording"),
         (settings_page("notifications"), "settings-notifications"),
-        (settings_page("shortcuts"), "settings-shortcuts"),
     ]
 
     def run(i=0):

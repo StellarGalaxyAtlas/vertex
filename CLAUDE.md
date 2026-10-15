@@ -2,7 +2,7 @@
 
 Vertex re-implements SteelSeries Moments (clips library, editor, export) and
 SteelSeries Sonar (virtual Game/Chat/Media outputs and a Vertex Mic) for
-Linux. Read `docs/ARCHITECTURE.md` and `CONTRIBUTING.md` before changing code.
+Linux. Read `docs/DEVELOPMENT.md` before changing code.
 
 ## The work list
 
@@ -25,13 +25,12 @@ where the work stands. New requests and bugs get the next free number in
 - Keep the human-written intro and the "Thanks" paragraph in `README.md` word
   for word.
 - Don't open pull requests unless asked.
-- The documentation (README, `docs/GUIDE.md`, `docs/CONTROL.md`,
-  `docs/ARCHITECTURE.md`) was rewritten in item 21. Keep it short and in step
-  when a change alters what a user sees; the install steps carry the
-  maintainer's "written by AI, not verified" warning. Retake the screenshots
-  with `xvfb-run -a python tools/docs_screenshots.py docs/screenshots`
-  (a made-up demo library; then copy first-run.png from
-  `tools/first_run_screenshot.py`'s moments step).
+- The documentation is the README (for users) and `docs/DEVELOPMENT.md`,
+  nothing else (item 21). The maintainer wants it brief: cover everything
+  Vertex offers without much detail. Keep it in step when a change alters
+  what a user sees. The install steps keep the "written by AI, not
+  verified" warning. Retake the screenshots with
+  `xvfb-run -a python tools/docs_screenshots.py docs/screenshots`.
 - No code for upgrades nobody went through: 2.0 isn't released and nobody
   upgraded from 1.x, so settings, data and devices from 1.x or earlier 2.0
   builds aren't carried over. Their library database (version 2) must keep
