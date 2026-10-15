@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 64.
+and bugs get the next free number: 65.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -597,6 +597,17 @@ has no number yet because the video quality works it out, and so reported
 Screen Recorder gets them. Also: `vertex replay status` said "The replay
 buffer is failed."; it now says "stopped after an error".
 
+**64. The replay buffer starts again after a crash** (asked 2026-10-15,
+picked "restart once"). Until now GPU Screen Recorder dying while it recorded
+left the buffer off, with a notice, until it was started by hand. Now Vertex
+starts it again by itself, once: if that start fails, or it dies again within
+a minute of being restarted, it stays off and the "Replay buffer stopped"
+notice shows as before. A start that fails (bad settings, no recorder) is
+never retried. The restart shows as "Restarting…" in the top bar, goes in
+`recorder.log`, and pops up "Replay buffer restarted" only with that
+notification switched on (off by default; its line in Settings ›
+Notifications now reads "After a settings change or a crash").
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -604,7 +615,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 63, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 64, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

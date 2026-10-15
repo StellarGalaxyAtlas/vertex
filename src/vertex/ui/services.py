@@ -484,6 +484,10 @@ class SonarController(QObject):
 
 
 class RecorderController(QObject):
+    # GPU Screen Recorder dying while it records is started again once; dying
+    # again this soon after that restart is left stopped (and said so).
+    RECOVER_WINDOW = 60.0
+
     # A State value, or "restarting" from a restart's stop until it runs again
     # (or fails); and error text.
     state_changed = Signal(str, str)
@@ -507,6 +511,10 @@ class RecorderController(QObject):
         self._sonar_active: bool | None = None
         # The state last passed on, so a stop isn't announced twice.
         self._reported = State.STOPPED
+        # When GSR was last started again after dying, and whether that is
+        # the restart underway.
+        self._recovered_at = float("-inf")
+        self._recovering = False
         context.sonar.status_changed.connect(self._sonar_status)
         # What GSR said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
@@ -625,7 +633,7 @@ class RecorderController(QObject):
             logs.RECORDER.info("Stopping the replay buffer")
         self._wanted = False
         self._restart_pending = False
-        self._restarting = False
+        self._restarting = self._recovering = False
         workers.run(self.recorder.stop)
 
     def toggle(self) -> None:
@@ -695,19 +703,41 @@ class RecorderController(QObject):
         # Only a single, unambiguous game is worth writing down.
         self._game_hint = (time.monotonic(), games.pop() if len(games) == 1 else "")
 
+    def _recover(self, error: str) -> bool:
+        """GSR died while recording: start it again, once. False when it
+        wasn't running yet (a start that fails stays failed), or it died again
+        within RECOVER_WINDOW of the last such restart."""
+        if self._reported != State.RUNNING or self._restarting or not self._wanted:
+            return False
+        now = time.monotonic()
+        if now - self._recovered_at < self.RECOVER_WINDOW:
+            logs.RECORDER.error("GPU Screen Recorder stopped again; leaving the replay "
+                                "buffer off")
+            return False
+        self._recovered_at = now
+        logs.RECORDER.warning("Starting the replay buffer again after it stopped (%s)", error)
+        self._recovering = self._restarting = True
+        self.state_changed.emit("restarting", "")
+        self.start()
+        return True
+
     def _on_state(self, payload) -> None:
         state, error = payload
-        restarted = False
+        if state == State.FAILED and self._recover(error):
+            return
+        restarted = recovered = False
         if self._restarting:
             if state in (State.STOPPED, State.STARTING):
                 return
             self._restarting = False
             restarted = state == State.RUNNING
+            recovered, self._recovering = self._recovering, False
         if state == State.STOPPED and self._reported == State.STOPPED:
             return      # a stop reports itself, and so does GSR exiting
         self._reported = state
         if restarted:
-            self.context.notify("replay_restarted", "Replay buffer restarted")
+            self.context.notify("replay_restarted", "Replay buffer restarted",
+                                "GPU Screen Recorder had stopped" if recovered else "")
         elif state == State.RUNNING:
             seconds = self.context.config.recorder.replay_seconds
             self.context.notify("replay_started", "Replay buffer on",

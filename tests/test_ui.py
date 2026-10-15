@@ -593,6 +593,59 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     assert recorder.phase == "stopped" and pill.title.text() == "Replay off"
 
 
+def test_a_buffer_that_dies_while_recording_starts_again_once(qapp, window, tmp_path,
+                                                             monkeypatch):
+    import signal
+    import stat
+    import sys
+
+    from test_recorder import FAKE_GSR
+    from vertex.recorder import monitors
+    from vertex.ui import screens
+
+    fake_gsr = tmp_path / "gpu-screen-recorder"
+    fake_gsr.write_text(FAKE_GSR.format(python=sys.executable))
+    fake_gsr.chmod(fake_gsr.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setattr(screens, "desktop_screens", lambda: [
+        monitors.Screen("DP-1", 0, 0, 2560, 1440, primary=True)])
+    context = window.context
+    context.config.recorder.command = str(fake_gsr)
+    recorder = context.recorder
+    recorder.start()
+    assert wait_until(qapp, lambda: recorder.phase == "running")
+
+    states, notices = [], []
+    recorder.state_changed.connect(lambda state, _error: states.append(state))
+    context.notified.connect(notices.append)
+    first = recorder.recorder.pid
+    os.kill(first, signal.SIGKILL)
+    assert wait_until(qapp, lambda: states[-1:] == ["running"])
+    assert states == ["restarting", "running"]
+    assert recorder.recorder.pid != first
+    assert [(n.kind, n.body) for n in notices] == [
+        ("replay_restarted", "GPU Screen Recorder had stopped")]
+
+    # Dying again so soon: it stays off, and says so.
+    states.clear()
+    notices.clear()
+    os.kill(recorder.recorder.pid, signal.SIGKILL)
+    assert wait_until(qapp, lambda: recorder.phase == "failed")
+    qapp.processEvents()
+    assert states == ["failed"]
+    assert [n.kind for n in notices] == ["replay_failed"]
+
+    # A start that fails is not retried.
+    recorder._recovered_at = float("-inf")
+    context.config.recorder.extra_args = "bad"
+    states.clear()
+    recorder.start()
+    assert wait_until(qapp, lambda: states[-1:] == ["failed"])
+    time.sleep(0.5)
+    qapp.processEvents()
+    assert "restarting" not in states and recorder.phase == "failed"
+    recorder.stop()
+
+
 def test_sonar_page_drives_the_fake_server(qapp, window, fake_audio):
     window.navigate("sonar")
     window.sonar_view.toggle.setChecked(True)

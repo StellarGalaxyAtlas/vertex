@@ -64,7 +64,7 @@ KINDS = (
          icon="replay"),
     Kind("replay_failed", "clips", "Replay buffer crashed", "", level="error", icon="replay"),
     Kind("replay_restarted", "clips", "Replay buffer restarted",
-         "After a settings change", default=False,
+         "After a settings change or a crash", default=False,
          level="ok", icon="replay"),
     Kind("track_missing", "clips", "Audio device missing", "", level="warn"),
     Kind("sonar_switched", "sonar", "Sonar turned on or off", "",
