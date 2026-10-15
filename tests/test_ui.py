@@ -133,6 +133,10 @@ def test_library_keys_move_a_focus_ring_and_act_on_its_card(qapp, window, monkey
 
     view, state = window.library_view, window.state
     grid = view.grid
+    # Keys go to the active window only (under Xvfb there's no window manager
+    # to make it active).
+    window.activateWindow()
+    QTest.qWaitForWindowActive(window, 2000)
     grid.setFocus()
     assert wait_until(qapp, grid.hasFocus, 5)
     assert grid.focus_row() == -1            # no ring until a key is used
@@ -1789,3 +1793,42 @@ def test_settings_apply_at_once_and_recording_waits_for_apply(qapp, window, monk
     assert Config.load().recorder.replay_seconds == 90
     window.navigate("settings")
     assert settings.apply_button.isHidden()
+
+
+def test_sonar_stands_tall_on_a_big_window_with_level_meters(qapp, window, monkeypatch):
+    from PySide6.QtCore import Qt
+
+    from vertex.audio import levels
+
+    started = []
+    monkeypatch.setattr(levels.Levels, "start", lambda self, sources: started.append(sources))
+    window.resize(1280, 820)
+    window.navigate("sonar")
+    qapp.processEvents()
+    view = window.sonar_view
+    assert not view.big and not view.strips["game"].tall
+    window.resize(2560, 1380)
+    assert wait_until(qapp, lambda: view.big)
+    game = view.strips["game"]
+    assert game.tall and game.slider.orientation() == Qt.Orientation.Vertical
+    # The devices sit right of the channels, which take the height.
+    assert view.manager.geometry().left() > game.geometry().right()
+    assert game.height() > 600
+    # Meters follow the levels, and fall back slowly.
+    window.context.levels.levels.emit({"game": 0.8, "mic": 0.3})
+    assert game.meter.level == 0.8 and view.strips["mic"].meter.level == 0.3
+    window.context.levels.levels.emit({})
+    assert 0.7 < game.meter.level < 0.8
+    assert window.context.levels._wanted == {"sonar"}
+    if window.context.sonar.status.active:
+        assert wait_until(qapp, lambda: started)
+        assert started[0]["game"] == "vertex_game.monitor"
+        assert started[0]["mic"] == "vertex_mic"
+    window.resize(1280, 820)
+    assert wait_until(qapp, lambda: not view.big)
+    assert not game.tall
+    window.navigate("home")
+    assert window.context.levels._wanted == {"home"}
+    window.context.levels.levels.emit({"chat": 0.5})
+    assert window.home_view.channels["chat"].meter.level == 0.5
+    assert window.home_view.faders["chat"].meter.level == 0.5

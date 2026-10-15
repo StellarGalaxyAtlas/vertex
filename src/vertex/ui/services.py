@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from vertex import fmt, logs, notifications
-from vertex.audio import channels, devices
+from vertex.audio import channels, devices, levels
 from vertex.audio.pulse import AudioError, Pactl
 from vertex.audio.sonar import Sonar, SonarStatus
 from vertex.config import Config
@@ -772,6 +772,59 @@ _NOTICE_LEVELS = {"info": logging.INFO, "ok": logging.INFO, "warn": logging.WARN
                   "error": logging.ERROR}
 
 
+class LevelFeed(QObject):
+    """The channels' live levels, for the meters by their faders (item 78).
+    Read only while a page with meters is on screen and Sonar is on."""
+
+    levels = Signal(dict)                # channel id → how far up its meter goes
+
+    def __init__(self, context: Context):
+        super().__init__(context)
+        self.context = context
+        self._levels = levels.Levels()
+        self._wanted: set[str] = set()
+        self._running = False
+        # Starting and stopping in turn, never side by side.
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="levels")
+        self._timer = QTimer(self, interval=1000 // 25)
+        self._timer.timeout.connect(self._tick)
+        context.sonar.status_changed.connect(lambda _s: self._update())
+
+    def want(self, page: str, shown: bool) -> None:
+        """A page with meters came on screen, or left it."""
+        if shown:
+            self._wanted.add(page)
+        else:
+            self._wanted.discard(page)
+        self._update()
+
+    def _update(self) -> None:
+        run = bool(self._wanted) and self.context.config.sonar.enabled and \
+            self.context.sonar.status.active
+        if run == self._running:
+            return
+        self._running = run
+        if run:
+            sources = {channel.id: channel.record_source for channel in channels.ALL}
+            workers.run(lambda: self._levels.start(sources), None, lambda _exc: None,
+                        executor=self._executor)
+            self._timer.start()
+        else:
+            self._timer.stop()
+            workers.run(self._levels.stop, None, lambda _exc: None, executor=self._executor)
+            self.levels.emit({})
+
+    def _tick(self) -> None:
+        self.levels.emit({key: levels.meter_fraction(peak)
+                          for key, peak in self._levels.take().items()})
+
+    def shutdown(self) -> None:
+        self._timer.stop()
+        self._running = False
+        self._executor.shutdown(wait=True)
+        self._levels.stop()
+
+
 class Context(QObject):
     config_changed = Signal()
     library_reset = Signal()             # the library or clips folder changed
@@ -787,6 +840,7 @@ class Context(QObject):
         self.thumbs: ThumbnailService | None = None
         self.sonar = SonarController(self)
         self.recorder = RecorderController(self)
+        self.levels = LevelFeed(self)
         self._save_timer = QTimer(self, singleShot=True, interval=1000)
         self._save_timer.timeout.connect(self.save_config)
 
@@ -833,6 +887,7 @@ class Context(QObject):
         if self._save_timer.isActive():
             self.save_config()
         self.recorder.shutdown()
+        self.levels.shutdown()
         self.sonar.shutdown(take_down=True)
         if self.thumbs is not None:
             self.thumbs.shutdown()

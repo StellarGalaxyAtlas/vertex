@@ -37,7 +37,7 @@ from vertex.ui.library.filters import FilterChip
 from vertex.ui.library.model import ClipModel
 from vertex.ui.library.state import Facet, LibraryState
 from vertex.ui.library.view import ClipGrid
-from vertex.ui.widgets import ElidedLabel, IconButton, button, label
+from vertex.ui.widgets import ElidedLabel, IconButton, LevelMeter, button, label
 
 ROWS = 2                  # rows of newest clips (one, while one row holds them all)
 COLUMNS = (4, 6)          # how many to a row, at the least and the most
@@ -193,6 +193,7 @@ class MixerRow(QWidget):
         self.slider.setAccessibleName(f"{channel.label} volume")
         theme.style(self.slider, self._slider_style)
         self.slider.valueChanged.connect(self._on_slider)
+        self.meter = LevelMeter(lambda: self.colour, self.ORIENTATION)
         self._arrange()
         settings = controller.context.config.sonar.channel(channel.id)
         self.show_status(settings.volume, settings.muted)
@@ -213,6 +214,7 @@ class MixerRow(QWidget):
         top.addWidget(self.mute)
         layout.addLayout(top)
         layout.addWidget(self.slider)
+        layout.addWidget(self.meter)
 
     def _slider_style(self) -> str:
         return f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 2px; }}"
@@ -286,7 +288,13 @@ class MixerFader(MixerRow):
                                         f"font-weight: 700;")
         layout.addWidget(self.value)
         self.slider.setFixedWidth(self._groove + 12)
-        layout.addWidget(self.slider, 1, Qt.AlignmentFlag.AlignHCenter)
+        fader = QHBoxLayout()
+        fader.setSpacing(6)
+        fader.addStretch(1)
+        fader.addWidget(self.slider)
+        fader.addWidget(self.meter)
+        fader.addStretch(1)
+        layout.addLayout(fader, 1)
         self.mute.setProperty("kind", "")
         theme.style(self.mute, lambda: f"QToolButton {{ background: {theme.CONTROL_BG}; "
                                        f"border: 1px solid {theme.LINE}; border-radius: 10px; "
@@ -868,6 +876,7 @@ class HomeView(QWidget):
         self.mixer = MixerArea(rows_host, faders_host)
         tile.body.addWidget(self.mixer, 1)
         self.controller.status_changed.connect(self._show_sonar)
+        self.context.levels.levels.connect(self._show_levels)
         self.controller.streams_changed.connect(self._show_streams)
         self.controller.recorders_changed.connect(self._show_recorders)
         self._show_sonar(self.controller.status)
@@ -895,6 +904,11 @@ class HomeView(QWidget):
             if entry.present and channel_id in self.channels:
                 self.channels[channel_id].show_status(entry.volume, entry.muted)
                 self.faders[channel_id].show_status(entry.volume, entry.muted)
+
+    def _show_levels(self, levels: dict) -> None:
+        for channel_id, level in ((key, levels.get(key, 0.0)) for key in self.channels):
+            self.channels[channel_id].meter.set_level(level)
+            self.faders[channel_id].meter.set_level(level)
 
     def _show_streams(self, streams) -> None:
         names: dict[str, list[str]] = {channel.id: [] for channel in channels.OUTPUTS}
@@ -993,7 +1007,12 @@ class HomeView(QWidget):
         self.show_in_library(Facet("all"))
         self.library_view.filters.people.click()
 
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.context.levels.want("home", False)
+
     def showEvent(self, event):
         super().showEvent(event)
+        self.context.levels.want("home", True)
         self.controller.refresh()
         self.controller.refresh_streams()

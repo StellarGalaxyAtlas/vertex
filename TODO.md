@@ -13,36 +13,6 @@ the way, are in this file as it was at commit 606d1a2
 
 ## Open
 
-**Ideas the maintainer picked (2026-10-15).** Items 70 to 79 come from the
-ideas list (see Notes, "Ideas list"); each keeps its id from that list.
-They are built in five groups, each shown to the maintainer as a mockup
-and built once approved: Library (71 to 73, done), Tray (74, done), Editor (75, done),
-Settings (70, 76, 77, done), Sonar (78, 79).
-
-**78.** Ideas list F4
-**Sonar › Level meters on the channels**
-A live meter next to each fader, on the Sonar page and Home, so you can see
-that the game's sound is coming through and that your mic picks you up,
-without asking someone on Discord.
-- To work out: how to read the levels. `pactl` has no peak readings; a
-  small reader per channel on its monitor (as pavucontrol does) is the
-  likely way. It must stay off the UI thread, cost little CPU, and only
-  run while a page with meters is shown.
-- Colours: meters are audio controls, so no accent (design rules);
-  red stays for recording, so the top of a meter needs another warning
-  colour. Check in a dark and a light scheme.
-
-**79.** Ideas list L1
-**Sonar › The page fills big windows**
-At 2560 × 1380 about 45% of the Sonar page is empty below the device lists.
-The channel cards could grow into tall mixer columns with a vertical fader
-and a level meter (item 78), and the two device panels could move into a
-column on the right. At 1280 px it would fall back to today's layout.
-- After 78, whose meters these columns hold.
-- Items 34 and 36 built today's page; keep what they settled (a panel per
-  kind of device, priority and excluded lists, "also play through").
-  Check at 980, 1280 and 2560 px; mockup first.
-
 **49.**
 **Other programs' notifications over games**
 Asked for with 46 (Discord and the like), after 47. Vertex can't replace
@@ -112,6 +82,8 @@ behind:
 Built and tested in the container; only their system can confirm:
 - 70, 76, 77: Settings at their size; "Send a test" over a game; whether
   folders applying when their field is left suits them.
+- 78, 79: the meters against real sound (the mic's moving when they speak,
+  CPU use of the four `parec`s, Discord not listing them); Sonar at 2560 px.
 - 75: the editor at their screen's size, with hardware video.
 - 74: the tray menu on Plasma: its submenus, ticks and greying.
 - 71 to 73: the Library keys in their desktop's keyboard layout; dragging a
@@ -709,6 +681,23 @@ three sections, Reset's two, and Advanced's Video and Replay buffer, Audio
 and Recorder. "Send a test" next to "Show them over games" shows a sample
 "Clip saved" over whatever is on screen.
 
+**78. Level meters** (ideas list F4, 2026-10-15). A live meter beside each
+channel's fader on the Sonar page and on Home (rows and faders): in the
+channel's colour, falling back slowly, the loudest of the last second held
+as a tick, the top 5% (about -3 dB) in the warning colour. Scale -60 to
+0 dB. Read by one `parec` per channel (an output's monitor, or Vertex Mic)
+at 8 kHz mono, 25 readings a second, only while Home or Sonar is on screen
+and Sonar runs (`audio/levels.py`, `LevelFeed` in `ui/services.py`). The
+streams are named "Peak detect" and `--no-move`, so Sonar treats them as
+meters, not apps recording. Without `parec` (it comes with pactl) the
+meters stay empty.
+
+**79. Sonar fills big windows** (ideas list L1, 2026-10-15). From a page of
+1800 × 900 the channels become tall mixer columns, the fader upright with
+its meter beside it, taking the window's height; the device panels move to a
+column on the right (36% of the width) and reach down as far. Smaller, the
+page is as before, with the meter under each fader.
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -716,9 +705,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 43 to 47, 50, 51, 53 to 64, 70 to 77, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 43 to 47, 50, 51, 53 to 64, 70 to 79, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
-screens; there are nine colour schemes, two of them light. Next: the picked ideas 70 to 79, group by group (Library, Tray, Editor and Settings done). Then 9 (on hold) and
+screens; there are nine colour schemes, two of them light. Next: the maintainer tries 74 to 79 (pushed 2026-10-15 to
+`claude/project-thread-788h94`, not yet on loving-curie); then 9 (on hold) and
 21 (documentation, when the maintainer says). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 

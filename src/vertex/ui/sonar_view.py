@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractItemView,
     QApplication,
+    QBoxLayout,
     QComboBox,
     QFrame,
     QGridLayout,
@@ -46,6 +47,7 @@ from vertex.ui.widgets import (
     ElidedLabel,
     FlowLayout,
     IconButton,
+    LevelMeter,
     Section,
     Toggle,
     button,
@@ -723,14 +725,23 @@ class ChannelColumn(QFrame):
         self.slider.setRange(0, 100)
         self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.slider.setAccessibleName(f"{channel.label} volume")
-        theme.style(self.slider, lambda: (
-            f"QSlider::groove:horizontal {{ height: 6px; background: {theme.SEAM}; "
-            f"border-radius: 3px; }}"
-            f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 3px; }}"
-            f"QSlider::handle:horizontal {{ {theme.handle()} width: 18px; height: 18px; "
-            f"margin: -6px 0; border-radius: 9px; }}"))
+        theme.style(self.slider, self._slider_style)
         self.slider.valueChanged.connect(self._on_slider)
-        layout.addWidget(self.slider)
+        # The fader and its level meter: under each other in a card, side by
+        # side in a tall column (item 79).
+        self.meter = LevelMeter(lambda: self.colour)
+        self.meter.setToolTip(f"What plays on {channel.label}" if channel.is_output
+                              else "What the Mic picks up")
+        self.fader_host = QWidget()
+        self.fader_box = QBoxLayout(QBoxLayout.Direction.TopToBottom, self.fader_host)
+        self.fader_box.setContentsMargins(0, 0, 0, 0)
+        self.fader_box.setSpacing(8)
+        self.fader_box.addStretch(0)
+        self.fader_box.addWidget(self.slider)
+        self.fader_box.addWidget(self.meter)
+        self.fader_box.addStretch(0)
+        layout.addWidget(self.fader_host)
+        self.tall = False
 
         # The real device it plays through (the Mic: the mic behind it). Output
         # channels share one while linked.
@@ -782,6 +793,7 @@ class ChannelColumn(QFrame):
                                         f"{theme.EDGE}; border-radius: 13px;")
         layout.addWidget(self.empty)
         layout.addStretch(1)
+        self._layout = layout
 
         settings = controller.context.config.sonar.channel(channel.id)
         self._quiet = True
@@ -795,6 +807,47 @@ class ChannelColumn(QFrame):
     @property
     def colour(self) -> str:
         return theme.channel_colour(self.channel.id)
+
+    def _slider_style(self) -> str:
+        if self.slider.orientation() == Qt.Orientation.Vertical:
+            return (f"QSlider::groove:vertical {{ width: 10px; background: {theme.SEAM}; "
+                    f"border-radius: 5px; }}"
+                    f"QSlider::add-page:vertical {{ background: {self.colour}; "
+                    f"border-radius: 5px; }}"
+                    f"QSlider::sub-page:vertical {{ background: {theme.SEAM}; "
+                    f"border-radius: 5px; }}"
+                    f"QSlider::handle:vertical {{ {theme.handle()} width: 30px; height: 18px; "
+                    f"margin: 0 -10px; border-radius: 9px; }}")
+        return (f"QSlider::groove:horizontal {{ height: 6px; background: {theme.SEAM}; "
+                f"border-radius: 3px; }}"
+                f"QSlider::sub-page:horizontal {{ background: {self.colour}; "
+                f"border-radius: 3px; }}"
+                f"QSlider::handle:horizontal {{ {theme.handle()} width: 18px; height: 18px; "
+                f"margin: -6px 0; border-radius: 9px; }}")
+
+    def set_tall(self, tall: bool) -> None:
+        """A tall mixer column, its fader upright with the meter beside it and
+        taking the height, or a card with the fader across (item 79)."""
+        if tall == self.tall:
+            return
+        self.tall = tall
+        orientation = Qt.Orientation.Vertical if tall else Qt.Orientation.Horizontal
+        self.slider.setOrientation(orientation)
+        if tall:
+            self.slider.setFixedWidth(34)
+        else:
+            self.slider.setMinimumWidth(0)
+            self.slider.setMaximumWidth(16777215)
+        self.meter.set_orientation(orientation)
+        theme.style(self.slider, self._slider_style)
+        self.fader_box.setDirection(QBoxLayout.Direction.LeftToRight if tall
+                                    else QBoxLayout.Direction.TopToBottom)
+        self.fader_box.setStretch(0, 1 if tall else 0)
+        self.fader_box.setStretch(3, 1 if tall else 0)
+        self.fader_box.setSpacing(14 if tall else 8)
+        self._layout.setStretchFactor(self.fader_host, 1 if tall else 0)
+        self._layout.setStretch(self._layout.count() - 1, 0 if tall else 1)
+        self.fader_host.setMinimumHeight(220 if tall else 0)
 
     def paintEvent(self, _event):
         p = QPainter(self)
@@ -988,6 +1041,7 @@ class ColumnGrid(QWidget):
         super().__init__(parent)
         self.columns = columns
         self.spacing = spacing
+        self.fill = False         # columns as tall as the grid, rather than their content
         self._per_row = 0
         self.grid = QGridLayout(self)
         self.grid.setContentsMargins(0, 0, 0, 0)
@@ -997,6 +1051,12 @@ class ColumnGrid(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._arrange(len(columns))
 
+    def set_fill(self, fill: bool) -> None:
+        if fill != self.fill:
+            self.fill = fill
+            per_row, self._per_row = self._per_row, 0
+            self._arrange(per_row)
+
     def _arrange(self, per_row: int) -> None:
         if per_row == self._per_row:
             return
@@ -1005,7 +1065,7 @@ class ColumnGrid(QWidget):
             self.grid.removeWidget(column)
         for index, column in enumerate(self.columns):
             self.grid.addWidget(column, index // per_row, index % per_row,
-                                Qt.AlignmentFlag.AlignTop)
+                                Qt.Alignment() if self.fill else Qt.AlignmentFlag.AlignTop)
         for index in range(len(self.columns)):
             self.grid.setColumnStretch(index, 1 if index < per_row else 0)
 
@@ -1075,7 +1135,15 @@ class SonarView(QWidget):
         for channel in channels.ALL:
             self.strips[channel.id] = ChannelColumn(self, self.controller, channel)
         self.strips_host = ColumnGrid(list(self.strips.values()))
-        layout.addWidget(self.strips_host)
+        # The channels on the left and the devices on the right on a big
+        # window, the devices under the channels before that (item 79).
+        self.body = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        self.body.setSpacing(16)
+        left = QVBoxLayout()
+        left.setSpacing(16)
+        left.addWidget(self.strips_host, 1)
+        self.body.addLayout(left, 1)
+        layout.addLayout(self.body)
 
         # Apps that picked an output themselves, past every channel. Only
         # shown while there are any.
@@ -1084,7 +1152,7 @@ class SonarView(QWidget):
         self.unrouted_flow = FlowLayout(self.unrouted_host, spacing=8)
         self.unrouted.add(self.unrouted_host)
         self.unrouted.hide()
-        layout.addWidget(self.unrouted)
+        left.addWidget(self.unrouted)
 
         self.manager = QWidget()
         manager = QVBoxLayout(self.manager)
@@ -1108,20 +1176,28 @@ class SonarView(QWidget):
         self.output_panel = DevicePanel(self, "output", "Output devices", "headphones")
         self.mic_panel = DevicePanel(self, "mic", "Microphones", icons.channel_icon_name("mic"))
         # Each kind in a panel of its own, so the two read apart.
+        self.panel_hosts = []
         for panel in (self.output_panel, self.mic_panel):
             host = Panel()
             inside = QVBoxLayout(host)
             inside.setContentsMargins(20, 18, 20, 18)
             inside.addWidget(panel)
+            inside.addStretch(1)
             manager.addWidget(host)
-        layout.addWidget(self.manager)
+            self.panel_hosts.append(host)
+        manager.addStretch(1)
+        self._manager_layout = manager
+        self.body.addWidget(self.manager)
         # What each panel's lists held when last filled: the full lists and
         # the names shown, so a drag can be laid back onto the full lists.
         self._lists: dict[str, tuple[list[str], list[str], set[str]]] = {}
 
         layout.addStretch(1)
+        self._page_layout = layout
+        self.big = False
 
         self.controller.status_changed.connect(self._show_status)
+        context.levels.levels.connect(self._show_levels)
         self._dragging = False
         self._pending: dict[str, list] = {}
         self.controller.streams_changed.connect(lambda s: self._update("streams", s))
@@ -1129,8 +1205,52 @@ class SonarView(QWidget):
         self.controller.devices_changed.connect(self._show_devices)
         self._show_status(self.controller.status)
 
+    # --- Size ------------------------------------------------------------------
+
+    BIG = (1800, 900)        # the page from which channels stand tall beside the devices
+    DEVICES_W = 0.36         # of the page's width, for the devices column
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        width, height = self.BIG
+        self.set_big(self.width() >= width and self.height() >= height)
+        if self.big:
+            self.manager.setFixedWidth(round(self.width() * self.DEVICES_W))
+
+    def set_big(self, big: bool) -> None:
+        if big == self.big:
+            return
+        self.big = big
+        self.body.setDirection(QBoxLayout.Direction.LeftToRight if big
+                               else QBoxLayout.Direction.TopToBottom)
+        if not big:
+            self.manager.setMinimumWidth(0)
+            self.manager.setMaximumWidth(16777215)
+        self.strips_host.set_fill(big)
+        # Beside tall channels, the device panels reach down as far as they do.
+        manager = self._manager_layout
+        for host in self.panel_hosts:
+            manager.setStretchFactor(host, 1 if big else 0)
+        manager.setStretch(manager.count() - 1, 0 if big else 1)
+        for strip in self.strips.values():
+            strip.set_tall(big)
+        # Tall, the channels take the window's height; else the page ends
+        # under its content.
+        layout = self._page_layout
+        layout.setStretchFactor(self.body, 1 if big else 0)
+        layout.setStretch(layout.count() - 1, 0 if big else 1)
+
+    def _show_levels(self, levels: dict) -> None:
+        for channel_id, strip in self.strips.items():
+            strip.meter.set_level(levels.get(channel_id, 0.0))
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.context.levels.want("sonar", False)
+
     def showEvent(self, event):
         super().showEvent(event)
+        self.context.levels.want("sonar", True)
         self.controller.refresh()
         self.controller.refresh_streams()
         self.controller.refresh_devices()
