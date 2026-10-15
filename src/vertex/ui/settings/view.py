@@ -61,7 +61,7 @@ from vertex.ui.widgets import (
 )
 
 # What applies as soon as it changes. The rest of the recorder's settings
-# restart the replay buffer, so they wait for Apply (item 76).
+# restart the replay buffer, so they wait for Apply.
 APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                  "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
                  "notify_over_games")
@@ -93,7 +93,7 @@ def combo(values, current: str, editable: bool = False) -> QComboBox:
 
 def scroll_page(*sections) -> QScrollArea:
     """A page of sections, one under the other. A tuple of sections goes side
-    by side once the page is wide enough (item 77)."""
+    by side once the page is wide enough."""
     page = QWidget()
     layout = QVBoxLayout(page)
     layout.setContentsMargins(0, 0, 12, 24)
@@ -121,7 +121,7 @@ class SettingsView(QWidget):
         outer = QHBoxLayout(self)
         outer.setContentsMargins(theme.CONTENT_MARGIN, 18, theme.CONTENT_MARGIN - 12, 12)
         outer.setSpacing(28)
-        # The pages, in a column on the left (item 77).
+        # The pages, in a column on the left.
         nav = QVBoxLayout()
         nav.setSpacing(14)
         title = label("Settings", "Heading")
@@ -246,7 +246,7 @@ class SettingsView(QWidget):
         status = Section("GPU Screen Recorder")
         self.gsr_status = label("", "Muted", wrap=True)
         status.add(self.gsr_status)
-        # Shown while the recorder is missing, too old or doesn't start (item 70).
+        # Shown while the recorder is missing, too old or doesn't start.
         self.gsr_help = QWidget()
         help_row = QHBoxLayout(self.gsr_help)
         help_row.setContentsMargins(0, 0, 0, 0)

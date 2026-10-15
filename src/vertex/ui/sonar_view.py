@@ -728,7 +728,7 @@ class ChannelColumn(QFrame):
         theme.style(self.slider, self._slider_style)
         self.slider.valueChanged.connect(self._on_slider)
         # The fader and its level meter: under each other in a card, side by
-        # side in a tall column (item 79).
+        # side in a tall column.
         self.meter = LevelMeter(lambda: self.colour)
         self.meter.setToolTip(f"What plays on {channel.label}" if channel.is_output
                               else "What the Mic picks up")
@@ -827,7 +827,7 @@ class ChannelColumn(QFrame):
 
     def set_tall(self, tall: bool) -> None:
         """A tall mixer column, its fader upright with the meter beside it and
-        taking the height, or a card with the fader across (item 79)."""
+        taking the height, or a card with the fader across."""
         if tall == self.tall:
             return
         self.tall = tall
@@ -1136,7 +1136,7 @@ class SonarView(QWidget):
             self.strips[channel.id] = ChannelColumn(self, self.controller, channel)
         self.strips_host = ColumnGrid(list(self.strips.values()))
         # The channels on the left and the devices on the right on a big
-        # window, the devices under the channels before that (item 79).
+        # window, the devices under the channels before that.
         self.body = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         self.body.setSpacing(16)
         left = QVBoxLayout()

@@ -236,7 +236,7 @@ class EditorView(QWidget):
 
     def set_scale(self, scale: float) -> None:
         """Grow the transport, the mixer and the timeline with the window, the
-        way the top bar grows its tabs (item 75)."""
+        way the top bar grows its tabs."""
         self.scale = scale
         for widget, size in ((self.in_button, 20), (self.out_button, 20),
                              (self.play_button, 22), (self.reset_button, 18)):

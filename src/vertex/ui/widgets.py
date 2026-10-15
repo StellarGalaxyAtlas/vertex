@@ -256,7 +256,7 @@ class Toggle(QAbstractButton):
 
 
 class LevelMeter(QWidget):
-    """A channel's live level, next to its fader (item 78): a bar in the
+    """A channel's live level, next to its fader: a bar in the
     channel's colour that falls back slowly, with the loudest of the last
     second held as a tick. Its top, near full scale, is in the warning colour:
     red is for recording, and the accent is never on an audio control."""

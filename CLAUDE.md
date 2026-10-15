@@ -7,18 +7,13 @@ Linux. Read `docs/DEVELOPMENT.md` before changing code.
 ## The work list
 
 `TODO.md` is the to-do list, and it is the copy that lasts between sessions.
-At the start of a session, put its open items into the task panel with the
-same numbering ("1 · Settings › Recording › Capture: …"), and keep both in step:
-when an item changes or is finished, update `TODO.md` as well and push it.
-
-The "Notes" section at the end of `TODO.md` records decisions already made and
-open questions. Read it before starting an item; its "Progress" paragraph says
-where the work stands. New requests and bugs get the next free number in
-`TODO.md`, even when they are done straight away.
+At the start of a session, put its open items into the task panel, and keep
+both in step: when an item changes or is finished, update `TODO.md` as well
+and push it. Code, tests and docs don't mention TODO items.
 
 ## How the maintainer likes to work
 
-- One TODO item at a time, top to bottom unless they say otherwise. Say which
+- One item at a time, top to bottom unless they say otherwise. Say which
   item is next, and ask about anything unclear before building it.
 - No hardcoded special cases or exclusions to work around something specific
   to one system. Raise it with the maintainer instead.
@@ -26,7 +21,7 @@ where the work stands. New requests and bugs get the next free number in
   for word.
 - Don't open pull requests unless asked.
 - The documentation is the README (for users) and `docs/DEVELOPMENT.md`,
-  nothing else (item 21). The maintainer wants it brief: cover everything
+  nothing else. The maintainer wants it brief: cover everything
   Vertex offers without much detail. Keep it in step when a change alters
   what a user sees. The install steps keep the "written by AI, not
   verified" warning. Retake the screenshots with
@@ -79,8 +74,7 @@ where the work stands. New requests and bugs get the next free number in
 
 ## The design
 
-The look the maintainer chose (TODO items 24, 25, 27 to 34, 38 to 45 and
-60): nine colour schemes, Navy the default, two of them light (Polar,
+The look the maintainer chose: nine colour schemes, Navy the default, two of them light (Polar,
 Glacier), all at AA contrast. New UI follows these rules: every text colour at AA
 contrast, the accent never on an audio control, red only for recording, no
 dead space, nothing that only works on a dark ground (white handles, white
@@ -91,13 +85,12 @@ widget. A colour set when a widget is built goes through `theme.style` or
 the maintainer picks another. Text on the accent sits on `ACCENT_FILL` in
 `ON_ACCENT`; what is drawn over video uses `ON_VIDEO`; a slider handle takes
 `theme.handle()`, the logo `theme.logo_ink()`. `theme.LIGHT` says whether
-the scheme in use is a light one. The decisions behind the schemes are in
-the Notes of `TODO.md`.
+the scheme in use is a light one.
 
 ## Reference screenshots
 
 The maintainer takes screenshots of SteelSeries GG (Moments and Sonar) on
-Windows as references for TODO items. Use them to understand the intended
+Windows as references. Use them to understand the intended
 layout and behaviour, but never commit them: they show SteelSeries' own UI,
 and this repository is public. Vertex should be inspired by them, not copy
 them.
@@ -105,8 +98,8 @@ them.
 ## The maintainer's installation
 
 They run one installation, installed with pipx from `main` as the README
-describes (`~/vertex-test` and 1.x are gone). `main` is the only branch
-(item 65): a session works on its own branch, and the maintainer tries it
+describes (`~/vertex-test` and 1.x are gone). `main` is the only branch:
+a session works on its own branch, and the maintainer tries it
 with the command below, adding `@<branch>` at the end of the URL. When they
 say it's good, it goes onto `main` and the session's branch is deleted.
 It works in fish:

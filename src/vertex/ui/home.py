@@ -1,5 +1,5 @@
 """Home: the newest clips, a quick mixer, the games, the disk and the people,
-on one screen (TODO item 32). Vertex opens on it."""
+on one screen. Vertex opens on it."""
 
 from __future__ import annotations
 

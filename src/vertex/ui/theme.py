@@ -1,11 +1,10 @@
 """The colour schemes, the channel colours and the application stylesheet.
 
-Vertex has nine colour schemes (TODO items 30, 38 to 42), picked in Settings ›
-General, in the order they are listed here (TODO item 60). Navy, the default,
-is Vertex's original look; Plum is the "Shelves" design of round 2: a deep plum
-page, a hot magenta accent and a periwinkle second colour for gradients.
-Polar and Glacier are light ones. Each scheme gives every
-token below a value; the UI reads them as `theme.ACCENT` and so on when it
+Vertex has nine colour schemes, picked in Settings › General, in the order
+they are listed here. Navy, the default, is Vertex's original look; Plum is
+the "Shelves" design of round 2: a deep plum page, a hot magenta accent and
+a periwinkle second colour for gradients. Polar and Glacier are light ones.
+Each scheme gives every token below a value; the UI reads them as `theme.ACCENT` and so on when it
 paints, and anything set once when a widget is built (a stylesheet, an icon)
 goes through `themed`, so the whole app changes the moment a scheme is picked
 (`use`).
@@ -63,7 +62,7 @@ def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: st
     page instead of darker, fields sit half way between the page and the
     panels, lines are a step stronger, and edges go darker than what they
     outline rather than lighter. Its page is a clear step darker than its
-    near-white panels, so they stand off it (TODO item 44)."""
+    near-white panels, so they stand off it."""
     fill = fill or accent
     dark_label = sum(int(on_accent[i:i + 2], 16) for i in (1, 3, 5)) < 300
     game, chat, media, mic, desktop = channels
@@ -95,7 +94,7 @@ def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: st
 # name: (label in Settings, what it looks like, its colours)
 SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     # Vertex's colours until round 3, as they were (the hint text one step
-    # lighter, to pass on a hovered card). The default again since item 60.
+    # lighter, to pass on a hovered card).
     "navy": ("Navy", "Vertex's original look", {
         "MAIN_BG": "#0b0e14", "SIDEBAR_BG": "#10141c", "SECTION_BG": "#161b26",
         "CARD_BG": "#1f2533", "CARD_HOVER": "#29303f", "CONTROL_BG": "#262d3c",
@@ -109,7 +108,7 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
         "DESKTOP": "#9b6bd6"}),
     # White text on a deeper pink than the accent, and the selected item in
     # periwinkle: dark text on hot pink was hard to read, and a pink tint on
-    # plum came out wine (TODO item 39).
+    # plum came out wine.
     "plum": ("Plum", "Magenta and periwinkle", _scheme(
         "#150a1f", "#1d0d2b", "#f8f0ff", "#d2bfe6", "#b39dcc", "#ff3ea5", "#ffffff", "#8d6fae",
         "#7d8bff", "#a9b4ff", "#ff4d6a", ("#2fd39b", "#4cb0ff", "#b4e04a", "#ffad33", "#c08cff"),

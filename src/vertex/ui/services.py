@@ -773,7 +773,7 @@ _NOTICE_LEVELS = {"info": logging.INFO, "ok": logging.INFO, "warn": logging.WARN
 
 
 class LevelFeed(QObject):
-    """The channels' live levels, for the meters by their faders (item 78).
+    """The channels' live levels, for the meters by their faders.
     Read only while a page with meters is on screen and Sonar is on."""
 
     levels = Signal(dict)                # channel id → how far up its meter goes

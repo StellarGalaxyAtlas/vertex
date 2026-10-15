@@ -1,4 +1,4 @@
-"""The live levels behind Sonar's meters (item 78)."""
+"""The live levels behind Sonar's meters."""
 
 import array
 import os
