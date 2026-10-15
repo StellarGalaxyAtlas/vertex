@@ -22,7 +22,7 @@ note that there is no audio are drawn on top of each other (seen at
 **Ideas the maintainer picked (2026-10-15).** Items 70 to 79 come from the
 ideas list (see Notes, "Ideas list"); each keeps its id from that list.
 They are built in five groups, each shown to the maintainer as a mockup
-and built once approved: Library (71 to 73, done), Tray (74), Editor (75),
+and built once approved: Library (71 to 73, done), Tray (74, done), Editor (75),
 Settings (70, 76, 77), Sonar (78, 79).
 
 **70.** Ideas list U4
@@ -34,16 +34,6 @@ setup has, plus a button that opens Advanced at the command field.
   `vertex doctor` uses the same "or set its command in Settings" in
   `doctor.py`, where it reads fine. Give the Recording page its own wording
   rather than changing what the CLI prints.
-
-**74.** Ideas list X8
-**Tray › More in the tray menu**
-The tray has Save clip, Save the last 30 seconds, Sonar and Quit. It could
-also switch the output device and microphone, and open the Library or
-Sonar directly.
-- Device switching goes through the same calls as the Sonar page and
-  `vertex device` (`pick_device` in `ui/services.py`): a pick is for now,
-  the priority list stays the lasting order (item 53). Excluded devices
-  are left out of the menu.
 
 **75.** Ideas list L3
 **Editor › Controls grow with the window**
@@ -173,6 +163,7 @@ behind:
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
+- 74: the tray menu on Plasma: its submenus, ticks and greying.
 - 71 to 73: the Library keys in their desktop's keyboard layout; dragging a
   card into Discord (a Flatpak Discord may need the file's folder shared
   with it) and Dolphin; a quick export pasted into Discord from the
@@ -723,6 +714,13 @@ before the first export, Original in the dialog). Quitting cancels a quick
 export still running. The trim and mix are read by `media/export.apply_edit`,
 which the editor uses too.
 
+**74. Tray menu** (ideas list X8, 2026-10-15). Under Show Vertex: Open
+Library and Open Sonar. Under Sonar: Output device and Microphone
+submenus, listing the connected devices in the device manager's order
+(unlisted ones last, excluded ones left out) with the one in use ticked; a
+pick switches for now, as on the Sonar page. Greyed while Sonar is off.
+The order is `devices.pickable`, which `devices.cycle` uses too.
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -730,10 +728,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 64, 71 to 73, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 64, 71 to 74, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
-editor bug), then the picked ideas 70 to 79, group by group (Library done). Then 9 (on hold) and
+editor bug), then the picked ideas 70 to 79, group by group (Library and Tray done). Then 9 (on hold) and
 21 (documentation, when the maintainer says). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 

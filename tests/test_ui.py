@@ -1516,6 +1516,41 @@ def glob_backups(path) -> list[str]:
     return glob.glob(f"{path}.*.bak")
 
 
+def test_tray_opens_pages_and_switches_devices(qapp, window, fake_audio):
+    from vertex.ui.tray import Tray
+
+    context = window.context
+    tray = Tray(window, context)
+
+    def texts(menu):
+        return [(action.text(), action.isChecked()) for action in menu.actions()]
+
+    assert not tray.output_menu.menuAction().isEnabled()     # Sonar off
+    window.navigate("home")
+    next(a for a in tray.contextMenu().actions() if a.text() == "Open Sonar").trigger()
+    assert window.stack.currentWidget() is window.sonar_view
+
+    fake_audio.add_sink("hw_speakers", props={"device.description": "Speakers"})
+    fake_audio.add_sink("hw_hdmi", props={"device.description": "HDMI"})
+    context.sonar.set_enabled(True)
+    assert wait_until(qapp, lambda: context.sonar.status.active
+                      and len(context.sonar.outputs) == 3)
+    context.config.sonar.output_excluded = ["hw_hdmi"]
+    context.config_changed.emit()
+    assert wait_until(qapp, lambda: tray.output_menu.menuAction().isEnabled())
+    current = context.sonar.status.output
+    outputs = texts(tray.output_menu)
+    assert sorted(outputs) == sorted([("hw_headset", current == "hw_headset"),
+                                      ("Speakers", current == "hw_speakers")])
+    assert [text for text, _on in texts(tray.mic_menu)] == ["hw_mic"]
+
+    other = "Speakers" if current != "hw_speakers" else "hw_headset"
+    next(a for a in tray.output_menu.actions() if a.text() == other).trigger()
+    assert wait_until(qapp, lambda: context.sonar.status.output != current)
+    assert wait_until(qapp, lambda: dict(texts(tray.output_menu))[other])
+    tray.deleteLater()
+
+
 def test_control_api_drives_sonar(qapp, window, fake_audio):
     import queue
 

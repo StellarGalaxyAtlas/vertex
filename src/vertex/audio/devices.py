@@ -41,15 +41,20 @@ def choose(priority: list[str], excluded: list[str], connected: list[str],
     return ""
 
 
+def pickable(priority: list[str], excluded: list[str], connected: list[str]) -> list[str]:
+    """The connected devices that aren't excluded, in priority order; connected
+    devices not in the list yet come last."""
+    present = set(connected)
+    order = [name for name in priority if name in present and name not in excluded]
+    return order + [name for name in connected if name not in order and name not in excluded]
+
+
 def cycle(priority: list[str], excluded: list[str], connected: list[str], current: str,
           step: int) -> str:
     """The device `step` places on from `current` (1: next, -1: previous) among
-    the connected devices that aren't excluded, in priority order and wrapping
-    round; connected devices not in the list yet come last. "" when there is
-    no other device to go to."""
-    present = set(connected)
-    order = [name for name in priority if name in present and name not in excluded]
-    order += [name for name in connected if name not in order and name not in excluded]
+    the `pickable` devices, wrapping round. "" when there is no other device
+    to go to."""
+    order = pickable(priority, excluded, connected)
     if not order:
         return ""
     if current not in order:
