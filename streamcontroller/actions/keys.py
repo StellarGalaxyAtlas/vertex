@@ -51,7 +51,7 @@ class SonarInformation(_ChannelKey):
     """Shows a Sonar channel's volume, or that it is muted."""
 
     def show(self, state):
-        self.show_labels(self._title(), self._level(state))
+        self.show_labels(self._title(), "", self._level(state))
 
 
 class SonarVolume(_ChannelKey):
@@ -91,7 +91,7 @@ class SonarVolume(_ChannelKey):
                 self.number_row("Step (%)", "step", 1, 100, VOLUME_STEP)]
 
 
-class SonarChannelToggle(_ChannelKey):
+class SonarToggleChannelMute(_ChannelKey):
     """Mutes or unmutes a Sonar channel, and shows which it is."""
 
     default_channel = "mic"

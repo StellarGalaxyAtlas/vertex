@@ -86,13 +86,13 @@ behind:
 **A StreamController plugin for Vertex**
 In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`, install
 and Flatseal steps in its README), a client of the control socket. Keys, named
-by the maintainer (2026-10-15): Sonar Information (a channel's volume),
+by the maintainer (2026-10-15): Sonar Information (a channel's volume, in the bottom label),
 Sonar Volume (up or down by a step set on the key; on a dial, turning goes
-either way), Sonar Channel Toggle (mute), Sonar Next Microphone, Sonar
+either way), Sonar Toggle Channel Mute, Sonar Next Microphone, Sonar
 Next Output Device, Sonar Toggle Microphone, Sonar Toggle Output Device,
 Replay Buffer Toggle, Replay Save Clip (flashes green when a clip lands)
 and Show Vertex. Action ids stay as first published (Volume is now Sonar
-Information, Mute is Sonar Channel Toggle), so set-up keys keep working. One
+Information, Mute is Sonar Toggle Channel Mute), so set-up keys keep working. One
 subscription follows the state for every key. Decided (maintainer,
 2026-10-14): the toggles' two devices are picked in the key's settings from
 the list Sonar gives (`devices`); a press switches for now (`device set`),
@@ -103,7 +103,7 @@ python3`. Show Vertex on Wayland also asks KWin, through its scripting
 interface on the session bus, to activate Vertex's windows (`vertex.kwin`),
 since Wayland won't let Vertex take the focus itself; untested on a real
 Plasma. The state keys (both toggles,
-Sonar Channel Toggle, Replay Buffer Toggle) take a picture per state in
+Sonar Toggle Channel Mute, Replay Buffer Toggle) take a picture per state in
 their settings (asked 2026-10-15, as the maintainer's Discord plugin
 does); a face without one falls back to `assets/<name>.png` when present
 (mic-1, mic-2, mic-none, output-1/2/none, muted, unmuted, replay-on,

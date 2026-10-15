@@ -5,9 +5,9 @@ devices, and Moments' replay buffer and clips.
 
 | Key | Shows | When pressed |
 | --- | --- | --- |
-| Sonar Information | a channel's volume (Game, Chat, Media or Mic), or "Muted" | nothing |
+| Sonar Information | the channel (Game, Chat, Media or Mic) on top, its volume or "Muted" at the bottom | nothing |
 | Sonar Volume | the step (+5%, -5%) and the channel's volume | turns the channel up or down by the step (both set in the key's settings). On a dial: turn for up or down, press to mute |
-| Sonar Channel Toggle | whether a channel is muted | mutes or unmutes it |
+| Sonar Toggle Channel Mute | whether a channel is muted | mutes or unmutes it |
 | Sonar Next Microphone | the mic in use | the next one in the device manager's list, for now |
 | Sonar Next Output Device | the output in use | the next one in the device manager's list, for now |
 | Sonar Toggle Microphone | Mic 1, Mic 2, or "No mic" when neither is in use | the other one, for now |
@@ -23,7 +23,7 @@ Sonar knows in their settings; pick the first and the second there.
 ## Pictures
 
 The keys that change state (Sonar Toggle Microphone, Sonar Toggle Output
-Device, Sonar Channel Toggle and Replay Buffer Toggle) take a picture for
+Device, Sonar Toggle Channel Mute and Replay Buffer Toggle) take a picture for
 each state in their settings, such as "Mic 1 picture" and "Mic 2 picture",
 and switch to it as the state changes. Leave the key's own image in
 StreamController empty: StreamController keeps an image set there and

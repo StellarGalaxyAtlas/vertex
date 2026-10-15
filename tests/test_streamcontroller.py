@@ -263,7 +263,7 @@ def test_the_keys_names_and_ids(plugin, tmp_path, monkeypatch):
     # Ids stay as first published, so keys already set up keep working.
     assert names == {
         "Volume": "Sonar Information", "VolumeStep": "Sonar Volume",
-        "Mute": "Sonar Channel Toggle", "NextMic": "Sonar Next Microphone",
+        "Mute": "Sonar Toggle Channel Mute", "NextMic": "Sonar Next Microphone",
         "NextOutput": "Sonar Next Output Device", "MicToggle": "Sonar Toggle Microphone",
         "OutputToggle": "Sonar Toggle Output Device", "Replay": "Replay Buffer Toggle",
         "SaveClip": "Replay Save Clip", "Show": "Show Vertex"}
@@ -272,13 +272,13 @@ def test_the_keys_names_and_ids(plugin, tmp_path, monkeypatch):
 def test_information_key(plugin, vertex):
     key, _client = _key(plugin, vertex, plugin.keys.SonarInformation, channel="game")
     key.show(_state(volume=55))
-    assert key.labels == {"top": "Game", "center": "55%", "bottom": ""}
+    assert key.labels == {"top": "Game", "center": "", "bottom": "55%"}
     key.show(_state(muted=True))
-    assert key.labels["center"] == "Muted"
+    assert key.labels["bottom"] == "Muted"
     key.show(_state(active=False))
-    assert key.labels["center"] == "Sonar off"
+    assert key.labels["bottom"] == "Sonar off"
     key.show(None)
-    assert key.labels["center"] == "Vertex off"
+    assert key.labels["bottom"] == "Vertex off"
     key.on_key_down()                                   # only shows
     threading.Event().wait(0.2)
     assert vertex.received == []
@@ -399,7 +399,7 @@ def test_output_toggle(plugin, vertex):
 
 
 def test_mute_and_replay_keys(plugin, vertex):
-    mute, _ = _key(plugin, vertex, plugin.keys.SonarChannelToggle, channel="game")
+    mute, _ = _key(plugin, vertex, plugin.keys.SonarToggleChannelMute, channel="game")
     mute.show(_state(muted=True))
     assert mute.labels == {"top": "Game", "center": "Muted", "bottom": ""}
     mute.show(_state())
@@ -452,7 +452,7 @@ def test_keys_without_pictures_keep_their_image(plugin, vertex):
 def test_picking_and_unpicking_a_picture(plugin, vertex, tmp_path):
     picture = tmp_path / "muted.png"
     picture.write_bytes(b"png")
-    key, client = _key(plugin, vertex, plugin.keys.SonarChannelToggle, channel="game")
+    key, client = _key(plugin, vertex, plugin.keys.SonarToggleChannelMute, channel="game")
     client.state = _state()
     key.show(client.state)
     key.set_image("unmuted", str(picture))

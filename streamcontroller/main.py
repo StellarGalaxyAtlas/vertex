@@ -18,10 +18,10 @@ from .actions.keys import (
     ReplaySaveClip,
     ReplayToggle,
     ShowVertex,
-    SonarChannelToggle,
     SonarInformation,
     SonarNextMic,
     SonarNextOutput,
+    SonarToggleChannelMute,
     SonarToggleMic,
     SonarToggleOutput,
     SonarVolume,
@@ -43,11 +43,12 @@ class VertexPlugin(PluginBase):
         self.vertex.start()
 
         # The ids stay as they were first published, so keys already set up
-        # keep working: Volume is now Sonar Information, Mute Sonar Channel Toggle.
+        # keep working: Volume is now Sonar Information, and Mute is Sonar
+        # Toggle Channel Mute.
         for action, suffix, name, support in (
             (SonarInformation, "Volume", "Sonar Information", KEY_OR_DIAL),
             (SonarVolume, "VolumeStep", "Sonar Volume", KEY_OR_DIAL),
-            (SonarChannelToggle, "Mute", "Sonar Channel Toggle", KEY_ONLY),
+            (SonarToggleChannelMute, "Mute", "Sonar Toggle Channel Mute", KEY_ONLY),
             (SonarNextMic, "NextMic", "Sonar Next Microphone", KEY_ONLY),
             (SonarNextOutput, "NextOutput", "Sonar Next Output Device", KEY_ONLY),
             (SonarToggleMic, "MicToggle", "Sonar Toggle Microphone", KEY_ONLY),
