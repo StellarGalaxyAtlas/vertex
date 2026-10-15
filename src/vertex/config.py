@@ -144,7 +144,7 @@ class Config:
     cache_path: str = ""
 
     close_to_tray: bool = True
-    colour_scheme: str = "plum"                                # a key of ui/theme.SCHEMES
+    colour_scheme: str = "navy"                                # a key of ui/theme.SCHEMES
     card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
     # Desktop pop-ups switched away from their default, by kind (see notifications).
     notifications: dict[str, bool] = field(default_factory=dict)

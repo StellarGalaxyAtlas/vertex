@@ -54,7 +54,7 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     }))
     loaded = config.Config.load(path)
     assert loaded.clip_path == ""
-    assert loaded.colour_scheme == "plum"
+    assert loaded.colour_scheme == "navy"
     assert loaded.card_width == config.CARD_WIDTH_RANGE[1]
     assert loaded.recorder.fps == 60 and loaded.recorder.cursor is True
     assert loaded.recorder.replay_seconds == 30

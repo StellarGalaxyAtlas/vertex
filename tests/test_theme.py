@@ -78,6 +78,12 @@ def test_the_accent_never_looks_like_a_channel(name, each_scheme):
     assert len({theme.colour(channel).lower() for channel in CHANNELS}) == len(CHANNELS)
 
 
+def test_navy_is_the_default_and_leads_the_list():
+    assert theme.DEFAULT_SCHEME == "navy"
+    assert list(theme.SCHEMES) == [
+        "navy", "plum", "spooky", "abyss", "aurora", "midnight", "coral", "polar", "glacier"]
+
+
 def test_an_unknown_scheme_gets_the_default(each_scheme):
     assert theme.select("no-such-scheme") == theme.DEFAULT_SCHEME
     assert theme.scheme == theme.DEFAULT_SCHEME

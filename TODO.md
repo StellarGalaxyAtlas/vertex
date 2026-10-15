@@ -85,6 +85,8 @@ behind:
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
+- 60: Settings › General lists the schemes as Navy, Plum, Spooky, Abyss,
+  Aurora, Midnight blue, Coral, Polar, Glacier; a fresh config opens in Navy.
 - 1: Qt and GPU Screen Recorder name the monitors alike; if not, a monitor
   is drawn to the side of the map instead of in place.
 - 13: the commands against real audio (`vertex state`, `volume`, `mute`,
@@ -558,6 +560,14 @@ does); a face without one falls back to `assets/<name>.png` when present
 (mic-1, mic-2, mic-none, output-1/2/none, muted, unmuted, replay-on,
 replay-off). Drawing those default icons is the next stage.
 
+---
+
+**60. Navy is the default scheme again, and first in the list** (asked
+2026-10-15). The schemes now run Navy, Plum, Spooky, Abyss, Aurora, Midnight
+blue, Coral, Polar, Glacier in Settings › General. Only the default changed:
+a saved pick (Plum included) is kept. Navy's blurb now reads "Vertex's
+original look" instead of "until now".
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -565,7 +575,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 59, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 60, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

@@ -312,13 +312,13 @@ def test_plum_puts_white_text_on_a_deeper_pink():
 def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
     from vertex.ui import theme
 
-    plum, spooky = theme.SCHEMES["plum"][2], theme.SCHEMES["spooky"][2]
+    navy, spooky = theme.SCHEMES["navy"][2], theme.SCHEMES["spooky"][2]
     window.navigate("settings")
     settings = window.settings_view
     settings.show_page("general")
-    assert settings.schemes.value() == "plum" == theme.scheme
+    assert settings.schemes.value() == "navy" == theme.scheme
     pill = window.topbar.recorder
-    assert plum["SECTION_BG"] in pill.styleSheet()
+    assert navy["SECTION_BG"] in pill.styleSheet()
     try:
         # Picking one restyles everything already built, before any Save.
         settings.schemes.cards["spooky"].click()
@@ -330,8 +330,8 @@ def test_a_colour_scheme_shows_at_once_and_save_keeps_it(qapp, window):
         assert settings.is_dirty()
         # Leaving without saving puts the saved one back.
         settings.load()
-        assert theme.scheme == "plum" and settings.schemes.value() == "plum"
-        assert plum["SECTION_BG"] in pill.styleSheet()
+        assert theme.scheme == "navy" and settings.schemes.value() == "navy"
+        assert navy["SECTION_BG"] in pill.styleSheet()
         # Saved, it is the scheme the next start opens with.
         settings.schemes.cards["spooky"].click()
         assert settings.save()

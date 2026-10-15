@@ -1,9 +1,10 @@
 """The colour schemes, the channel colours and the application stylesheet.
 
 Vertex has nine colour schemes (TODO items 30, 38 to 42), picked in Settings ›
-General. Plum, the default, is the "Shelves" design of round 2: a deep plum
-page, a hot magenta accent and a periwinkle second colour for gradients. Navy
-is the look Vertex had before; Polar and Glacier are light ones. Each scheme gives every
+General, in the order they are listed here (TODO item 60). Navy, the default,
+is Vertex's original look; Plum is the "Shelves" design of round 2: a deep plum
+page, a hot magenta accent and a periwinkle second colour for gradients.
+Polar and Glacier are light ones. Each scheme gives every
 token below a value; the UI reads them as `theme.ACCENT` and so on when it
 paints, and anything set once when a widget is built (a stylesheet, an icon)
 goes through `themed`, so the whole app changes the moment a scheme is picked
@@ -93,6 +94,19 @@ def _scheme(ground: str, panel: str, text: str, muted: str, dim: str, accent: st
 
 # name: (label in Settings, what it looks like, its colours)
 SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
+    # Vertex's colours until round 3, as they were (the hint text one step
+    # lighter, to pass on a hovered card). The default again since item 60.
+    "navy": ("Navy", "Vertex's original look", {
+        "MAIN_BG": "#0b0e14", "SIDEBAR_BG": "#10141c", "SECTION_BG": "#161b26",
+        "CARD_BG": "#1f2533", "CARD_HOVER": "#29303f", "CONTROL_BG": "#262d3c",
+        "FIELD_BG": "#0d1017", "LINE": "#2a3141", "SEAM": "#343c4e", "EDGE": "#66718a",
+        "TEXT": "#eef0f3", "TEXT_MUTED": "#aab2bf", "TEXT_DIM": "#9099a9",
+        "ACCENT": "#4a62ec", "ACCENT_FILL": "#4a62ec", "ACCENT_HOVER": "#3d55dd",
+        "ACCENT_EDGE": "#9aabff", "ACCENT_FILL_EDGE": "#9aabff",
+        "ACCENT_SOFT": "#27336a", "ON_ACCENT": "#ffffff", "INK": "#0b0e14",
+        "SELECT": "#9aabff", "SECOND": "#9aabff", "RECORDING": "#ff5c6c",
+        "GAME": "#2fb39b", "CHAT": "#3b82f6", "MEDIA": "#c25d7b", "MIC": "#d98d2b",
+        "DESKTOP": "#9b6bd6"}),
     # White text on a deeper pink than the accent, and the selected item in
     # periwinkle: dark text on hot pink was hard to read, and a pink tint on
     # plum came out wine (TODO item 39).
@@ -134,21 +148,8 @@ SCHEMES: dict[str, tuple[str, str, dict[str, str]]] = {
     "glacier": ("Glacier", "Glacier blue on ice", _scheme(
         "#d1dce7", "#fdfeff", "#0f1e2b", "#3d5163", "#485c6e", "#0a6cb4", "#ffffff", "#76889a",
         "#14a3b8", "#0a5a96", "#d92d3f", ("#0f8a5f", "#4f46e5", "#c0267a", "#b45309", "#7c3aed"))),
-    # Vertex's colours until round 3, as they were (the hint text one step
-    # lighter, to pass on a hovered card).
-    "navy": ("Navy", "Vertex's colours until now", {
-        "MAIN_BG": "#0b0e14", "SIDEBAR_BG": "#10141c", "SECTION_BG": "#161b26",
-        "CARD_BG": "#1f2533", "CARD_HOVER": "#29303f", "CONTROL_BG": "#262d3c",
-        "FIELD_BG": "#0d1017", "LINE": "#2a3141", "SEAM": "#343c4e", "EDGE": "#66718a",
-        "TEXT": "#eef0f3", "TEXT_MUTED": "#aab2bf", "TEXT_DIM": "#9099a9",
-        "ACCENT": "#4a62ec", "ACCENT_FILL": "#4a62ec", "ACCENT_HOVER": "#3d55dd",
-        "ACCENT_EDGE": "#9aabff", "ACCENT_FILL_EDGE": "#9aabff",
-        "ACCENT_SOFT": "#27336a", "ON_ACCENT": "#ffffff", "INK": "#0b0e14",
-        "SELECT": "#9aabff", "SECOND": "#9aabff", "RECORDING": "#ff5c6c",
-        "GAME": "#2fb39b", "CHAT": "#3b82f6", "MEDIA": "#c25d7b", "MIC": "#d98d2b",
-        "DESKTOP": "#9b6bd6"}),
 }
-DEFAULT_SCHEME = "plum"
+DEFAULT_SCHEME = "navy"
 
 # --- The tokens, set from the scheme in use by `select` ------------------------
 # Accent
