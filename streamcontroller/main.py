@@ -15,15 +15,16 @@ from src.backend.PluginManager.ActionInputSupport import ActionInputSupport
 from src.backend.PluginManager.PluginBase import PluginBase
 
 from .actions.keys import (
-    MicToggle,
-    Mute,
-    NextMic,
-    NextOutput,
-    OutputToggle,
-    Replay,
-    SaveClip,
+    ReplaySaveClip,
+    ReplayToggle,
     ShowVertex,
-    Volume,
+    SonarChannelToggle,
+    SonarInformation,
+    SonarNextMic,
+    SonarNextOutput,
+    SonarToggleMic,
+    SonarToggleOutput,
+    SonarVolume,
 )
 from .vertex_client import Vertex
 
@@ -41,15 +42,18 @@ class VertexPlugin(PluginBase):
         self.vertex = Vertex()
         self.vertex.start()
 
+        # The ids stay as they were first published, so keys already set up
+        # keep working: Volume is now Sonar Information, Mute Sonar Channel Toggle.
         for action, suffix, name, support in (
-            (Volume, "Volume", "Volume", KEY_OR_DIAL),
-            (Mute, "Mute", "Mute", KEY_ONLY),
-            (NextOutput, "NextOutput", "Next output device", KEY_ONLY),
-            (NextMic, "NextMic", "Next microphone", KEY_ONLY),
-            (MicToggle, "MicToggle", "Switch between two microphones", KEY_ONLY),
-            (OutputToggle, "OutputToggle", "Switch between two outputs", KEY_ONLY),
-            (Replay, "Replay", "Replay buffer on or off", KEY_ONLY),
-            (SaveClip, "SaveClip", "Save clip", KEY_ONLY),
+            (SonarInformation, "Volume", "Sonar Information", KEY_OR_DIAL),
+            (SonarVolume, "VolumeStep", "Sonar Volume", KEY_OR_DIAL),
+            (SonarChannelToggle, "Mute", "Sonar Channel Toggle", KEY_ONLY),
+            (SonarNextMic, "NextMic", "Sonar Next Microphone", KEY_ONLY),
+            (SonarNextOutput, "NextOutput", "Sonar Next Output Device", KEY_ONLY),
+            (SonarToggleMic, "MicToggle", "Sonar Toggle Microphone", KEY_ONLY),
+            (SonarToggleOutput, "OutputToggle", "Sonar Toggle Output Device", KEY_ONLY),
+            (ReplayToggle, "Replay", "Replay Buffer Toggle", KEY_ONLY),
+            (ReplaySaveClip, "SaveClip", "Replay Save Clip", KEY_ONLY),
             (ShowVertex, "Show", "Show Vertex", KEY_ONLY),
         ):
             self.add_action_holder(ActionHolder(plugin_base=self, action_base=action,

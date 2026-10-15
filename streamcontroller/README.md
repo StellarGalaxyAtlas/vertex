@@ -5,14 +5,15 @@ devices, and Moments' replay buffer and clips.
 
 | Key | Shows | When pressed |
 | --- | --- | --- |
-| Volume | a channel's volume (Game, Chat, Media or Mic) | nothing, or mutes it (a setting). On a dial: turn for volume, press to mute |
-| Mute | whether a channel is muted | mutes or unmutes it |
-| Next output device | the output in use | the next one in the device manager's list, for now |
-| Next microphone | the mic in use | the next one in the device manager's list, for now |
-| Switch between two microphones | Mic 1, Mic 2, or "No mic" when neither is in use | the other one, for now |
-| Switch between two outputs | Output 1, Output 2, or "No output" | the other one, for now |
-| Replay buffer on or off | On, Off, Starting or Failed | starts or stops it |
-| Save clip | the length it saves, or "Replay off" | saves a clip; the key flashes green when it lands |
+| Sonar Information | a channel's volume (Game, Chat, Media or Mic), or "Muted" | nothing |
+| Sonar Volume | the step (+5%, -5%) and the channel's volume | turns the channel up or down by the step (both set in the key's settings). On a dial: turn for up or down, press to mute |
+| Sonar Channel Toggle | whether a channel is muted | mutes or unmutes it |
+| Sonar Next Microphone | the mic in use | the next one in the device manager's list, for now |
+| Sonar Next Output Device | the output in use | the next one in the device manager's list, for now |
+| Sonar Toggle Microphone | Mic 1, Mic 2, or "No mic" when neither is in use | the other one, for now |
+| Sonar Toggle Output Device | Output 1, Output 2, or "No output" | the other one, for now |
+| Replay Buffer Toggle | On, Off, Starting or Failed | starts or stops it |
+| Replay Save Clip | the length it saves, or "Replay off" | saves a clip; the key flashes green when it lands |
 | Show Vertex | | brings Vertex's window to the front |
 
 "For now" means what it means in Vertex: until a device is plugged in. The

@@ -29,6 +29,10 @@ class _Events:
     DOWN, UP, TURN_CW, TURN_CCW = "Down", "Up", "Turn CW", "Turn CCW"
 
 
+class _Dial:
+    Events = _Events
+
+
 class _ActionBase:
     def __init__(self, plugin_base=None, settings=None):
         self.plugin_base = plugin_base
@@ -62,6 +66,20 @@ class _ActionBase:
         if event == _Events.DOWN:
             self.on_key_down()
 
+    def on_key_down(self):
+        pass
+
+
+class _PluginBase:
+    def __init__(self):
+        self.holders = []
+
+    def add_action_holder(self, holder):
+        self.holders.append(holder)
+
+    def register(self, **kwargs):
+        self.registered = kwargs
+
 
 def _stub_streamcontroller(monkeypatch):
     def module(name, **attrs):
@@ -76,7 +94,12 @@ def _stub_streamcontroller(monkeypatch):
     module("loguru", logger=types.SimpleNamespace(debug=print, info=print))
     module("src.backend.PluginManager.ActionBase", ActionBase=_ActionBase)
     module("src.backend.DeckManagement.InputIdentifier",
-           Input=types.SimpleNamespace(Dial=types.SimpleNamespace(Events=_Events)))
+           Input=types.SimpleNamespace(Key="Key", Touchscreen="Touchscreen", Dial=_Dial))
+    module("src.backend.PluginManager.ActionHolder",
+           ActionHolder=lambda **kwargs: types.SimpleNamespace(**kwargs))
+    module("src.backend.PluginManager.ActionInputSupport",
+           ActionInputSupport=types.SimpleNamespace(SUPPORTED=2, UNSUPPORTED=0))
+    module("src.backend.PluginManager.PluginBase", PluginBase=_PluginBase)
     plugins = module("plugins")
     plugins.__path__ = []
     package = module(PACKAGE)
@@ -90,7 +113,8 @@ def plugin(monkeypatch):
         monkeypatch.delitem(sys.modules, name)
     keys = importlib.import_module(PACKAGE + ".actions.keys")
     client = importlib.import_module(PACKAGE + ".vertex_client")
-    return types.SimpleNamespace(keys=keys, client=client)
+    main = importlib.import_module(PACKAGE + ".main")
+    return types.SimpleNamespace(keys=keys, client=client, main=main)
 
 
 # --- A Vertex that answers ----------------------------------------------------------
@@ -224,34 +248,63 @@ def _key(plugin, vertex, cls, **settings):
     return key, client
 
 
-def test_volume_key(plugin, vertex):
-    key, _client = _key(plugin, vertex, plugin.keys.Volume, channel="game", press="mute")
+def test_the_keys_names_and_ids(plugin, tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))      # no Vertex to find
+    registered = plugin.main.VertexPlugin()
+    registered.vertex.stop()
+    names = {holder.action_id_suffix: holder.action_name for holder in registered.holders}
+    # Ids stay as first published, so keys already set up keep working.
+    assert names == {
+        "Volume": "Sonar Information", "VolumeStep": "Sonar Volume",
+        "Mute": "Sonar Channel Toggle", "NextMic": "Sonar Next Microphone",
+        "NextOutput": "Sonar Next Output Device", "MicToggle": "Sonar Toggle Microphone",
+        "OutputToggle": "Sonar Toggle Output Device", "Replay": "Replay Buffer Toggle",
+        "SaveClip": "Replay Save Clip", "Show": "Show Vertex"}
+
+
+def test_information_key(plugin, vertex):
+    key, _client = _key(plugin, vertex, plugin.keys.SonarInformation, channel="game")
     key.show(_state(volume=55))
-    assert key.labels == {"top": "Game", "center": "55%"}
+    assert key.labels == {"top": "Game", "center": "55%", "bottom": ""}
     key.show(_state(muted=True))
     assert key.labels["center"] == "Muted"
     key.show(_state(active=False))
     assert key.labels["center"] == "Sonar off"
     key.show(None)
     assert key.labels["center"] == "Vertex off"
-    key.on_key_down()
-    key.event_callback(_Events.TURN_CW)
-    assert _wait(lambda: len(vertex.received) == 2)
-    assert sorted(vertex.received, key=str) == sorted(
-        [("mute", {"channel": "game"}), ("volume", {"channel": "game", "action": "up",
-                                                    "step": 5})], key=str)
-
-
-def test_volume_key_press_does_nothing_by_default(plugin, vertex):
-    key, _client = _key(plugin, vertex, plugin.keys.Volume)
-    key.on_key_down()
+    key.on_key_down()                                   # only shows
     threading.Event().wait(0.2)
     assert vertex.received == []
 
 
+def test_volume_key_steps_by_its_setting(plugin, vertex):
+    down, _ = _key(plugin, vertex, plugin.keys.SonarVolume, channel="game",
+                   direction="down", step=10)
+    down.show(_state(volume=55))
+    assert down.labels == {"top": "Game", "center": "-10%", "bottom": "55%"}
+    down.on_key_down()
+    assert _wait(lambda: vertex.received == [
+        ("volume", {"channel": "game", "action": "down", "step": 10})])
+    up, _ = _key(plugin, vertex, plugin.keys.SonarVolume)       # the defaults
+    up.show(_state(volume=55))
+    assert up.labels["center"] == "+5%"
+    up.on_key_down()
+    assert _wait(lambda: len(vertex.received) == 2)
+    assert vertex.received[1] == ("volume", {"channel": "game", "action": "up", "step": 5})
+
+
+def test_volume_key_on_a_dial(plugin, vertex):
+    key, _ = _key(plugin, vertex, plugin.keys.SonarVolume, channel="chat", step=2)
+    key.event_callback(_Events.TURN_CCW)
+    assert _wait(lambda: vertex.received == [
+        ("volume", {"channel": "chat", "action": "down", "step": 2})])
+    key.event_callback(_Events.DOWN)
+    assert _wait(lambda: vertex.received[-1] == ("mute", {"channel": "chat"}))
+
+
 def test_next_device_keys(plugin, vertex):
-    output, _ = _key(plugin, vertex, plugin.keys.NextOutput)
-    mic, _ = _key(plugin, vertex, plugin.keys.NextMic)
+    output, _ = _key(plugin, vertex, plugin.keys.SonarNextOutput)
+    mic, _ = _key(plugin, vertex, plugin.keys.SonarNextMic)
     output.show(_state())
     mic.show(_state(mic="Desk mic"))
     assert output.labels == {"top": "Output", "bottom": "Headset"}
@@ -264,7 +317,7 @@ def test_next_device_keys(plugin, vertex):
 
 
 def test_save_clip_key(plugin, vertex):
-    key, _ = _key(plugin, vertex, plugin.keys.SaveClip, seconds=30)
+    key, _ = _key(plugin, vertex, plugin.keys.ReplaySaveClip, seconds=30)
     key.show(_state())
     assert key.labels["bottom"] == "30 s"
     key.show(_state(replay=False))
@@ -280,7 +333,8 @@ def test_failed_command_shows_an_error(plugin, vertex):
 
 
 def test_mic_toggle_faces(plugin, vertex):
-    key, _ = _key(plugin, vertex, plugin.keys.MicToggle, first="desk_mic", second="headset_mic")
+    key, _ = _key(plugin, vertex, plugin.keys.SonarToggleMic, first="desk_mic",
+                  second="headset_mic")
     key.show(_state(mic="Desk mic"))
     assert key.labels == {"top": "Mic 1", "center": "", "bottom": "Desk mic"}
     key.show(_state(mic="Headset mic"))
@@ -294,7 +348,7 @@ def test_mic_toggle_faces(plugin, vertex):
 
 
 def _pressed(plugin, vertex, current, **picks):
-    key, client = _key(plugin, vertex, plugin.keys.MicToggle, **picks)
+    key, client = _key(plugin, vertex, plugin.keys.SonarToggleMic, **picks)
     client.state = _state(mic=current)
     key.on_key_down()
     return key
@@ -319,7 +373,7 @@ def test_mic_toggle_shows_an_error_when_the_other_is_unplugged(plugin, vertex):
 
 
 def test_mic_toggle_lists_sonars_mics(plugin, vertex):
-    key, _ = _key(plugin, vertex, plugin.keys.MicToggle, first="usb_mic")
+    key, _ = _key(plugin, vertex, plugin.keys.SonarToggleMic, first="usb_mic")
     choices, note = key._choices()
     assert choices == [("", "None"), ("desk_mic", "Desk mic"),
                        ("old_mic", "Old mic (not plugged in)"), ("usb_mic", "usb_mic")]
@@ -327,7 +381,7 @@ def test_mic_toggle_lists_sonars_mics(plugin, vertex):
 
 
 def test_output_toggle(plugin, vertex):
-    key, client = _key(plugin, vertex, plugin.keys.OutputToggle, first="headset",
+    key, client = _key(plugin, vertex, plugin.keys.SonarToggleOutput, first="headset",
                        second="speakers")
     key.show(_state())
     assert key.labels == {"top": "Output 1", "center": "", "bottom": "Headset"}
@@ -338,12 +392,12 @@ def test_output_toggle(plugin, vertex):
 
 
 def test_mute_and_replay_keys(plugin, vertex):
-    mute, _ = _key(plugin, vertex, plugin.keys.Mute, channel="game")
+    mute, _ = _key(plugin, vertex, plugin.keys.SonarChannelToggle, channel="game")
     mute.show(_state(muted=True))
     assert mute.labels == {"top": "Game", "center": "Muted", "bottom": ""}
     mute.show(_state())
     assert mute.labels["center"] == "On"
-    replay, _ = _key(plugin, vertex, plugin.keys.Replay)
+    replay, _ = _key(plugin, vertex, plugin.keys.ReplayToggle)
     replay.show(_state(replay=False))
     assert replay.labels["center"] == "Off"
     replay.show(_state())
@@ -357,7 +411,7 @@ def test_mute_and_replay_keys(plugin, vertex):
 
 def test_save_clip_key_flashes_when_a_clip_lands(plugin, vertex, monkeypatch):
     monkeypatch.setattr(plugin.keys, "FLASH_SECONDS", 0.05)
-    key, _ = _key(plugin, vertex, plugin.keys.SaveClip)
+    key, _ = _key(plugin, vertex, plugin.keys.ReplaySaveClip)
     key.on_notice({"kind": "clip_saved"})
     assert key.background == list(plugin.keys.FLASH)
     assert _wait(lambda: key.background == [0, 0, 0, 0])

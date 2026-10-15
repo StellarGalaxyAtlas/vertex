@@ -85,10 +85,14 @@ behind:
 **59.** Waiting on the maintainer's test
 **A StreamController plugin for Vertex**
 In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`, install
-and Flatseal steps in its README), a client of the control socket. Keys:
-Volume (a press can mute; on a dial, turning sets it), Mute, Next output,
-Next microphone, two-mic and two-output toggles, Replay buffer on or off,
-Save clip (flashes green when a clip lands) and Show Vertex. One
+and Flatseal steps in its README), a client of the control socket. Keys, named
+by the maintainer (2026-10-15): Sonar Information (a channel's volume),
+Sonar Volume (up or down by a step set on the key; on a dial, turning goes
+either way), Sonar Channel Toggle (mute), Sonar Next Microphone, Sonar
+Next Output Device, Sonar Toggle Microphone, Sonar Toggle Output Device,
+Replay Buffer Toggle, Replay Save Clip (flashes green when a clip lands)
+and Show Vertex. Action ids stay as first published (Volume is now Sonar
+Information, Mute is Sonar Channel Toggle), so set-up keys keep working. One
 subscription follows the state for every key. Decided (maintainer,
 2026-10-14): the toggles' two devices are picked in the key's settings from
 the list Sonar gives (`devices`); a press switches for now (`device set`),

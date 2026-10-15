@@ -98,3 +98,18 @@ class VertexAction(ActionBase):
             self._redraw(self.vertex.state)
         row.connect("notify::selected", changed)
         return row
+
+    def number_row(self, title: str, key: str, low: int, high: int,
+                   default: int) -> Adw.SpinRow:
+        """A whole-number row for the setting `key`."""
+        row = Adw.SpinRow.new_with_range(low, high, 1)
+        row.set_title(title)
+        row.set_value(self.setting(key, default))
+
+        def changed(spin, _param):
+            settings = self.get_settings()
+            settings[key] = int(spin.get_value())
+            self.set_settings(settings)
+            self._redraw(self.vertex.state)
+        row.connect("notify::value", changed)
+        return row

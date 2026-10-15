@@ -1,6 +1,6 @@
-"""The keys: a channel's volume or mute, the next output or mic, a toggle
-between two mics or two outputs, the replay buffer, save a clip, and bring
-Vertex to the front."""
+"""The keys: a Sonar channel's volume (shown, stepped) and mute, the next
+output or mic, a toggle between two mics or two outputs; the replay buffer
+and saving a clip; and bringing Vertex to the front."""
 
 from __future__ import annotations
 
@@ -16,48 +16,96 @@ SONAR_OFF = "Sonar off"
 VOLUME_STEP = 5
 
 
-class Volume(VertexAction):
-    """Shows a Sonar channel's volume. A press can mute it; on a dial,
-    turning sets the volume and pressing mutes."""
+class _ChannelKey(VertexAction):
+    """A key for one Sonar channel, picked in its settings."""
+
+    default_channel = "game"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.has_configuration = True
 
     def _channel(self) -> str:
-        return self.setting("channel", "game")
+        return self.setting("channel", self.default_channel)
+
+    def _title(self) -> str:
+        channel_id = self._channel()
+        return "Mic" if channel_id == "mic" else dict(CHANNELS)[channel_id]
+
+    def _level(self, state) -> str:
+        """The channel's volume, "Muted", or why there is none."""
+        entry = vc.channel(state, self._channel())
+        if state is None:
+            return NOT_RUNNING
+        if not vc.sonar(state).get("active"):
+            return SONAR_OFF
+        if entry is None:
+            return ""
+        return "Muted" if entry["muted"] else f"{entry['volume']}%"
+
+    def get_config_rows(self):
+        return [self.choice_row("Channel", "channel", CHANNELS, self.default_channel)]
+
+
+class SonarInformation(_ChannelKey):
+    """Shows a Sonar channel's volume, or that it is muted."""
 
     def show(self, state):
-        label = dict(CHANNELS)[self._channel()]
-        entry = vc.channel(state, self._channel())
-        if state is None or entry is None:
-            value = NOT_RUNNING if state is None else ""
-        elif not vc.sonar(state).get("active"):
-            value = SONAR_OFF
-        else:
-            value = "Muted" if entry["muted"] else f"{entry['volume']}%"
-        self.set_top_label(label if self._channel() != "mic" else "Mic")
-        self.set_center_label(value)
+        self.show_labels(self._title(), self._level(state))
+
+
+class SonarVolume(_ChannelKey):
+    """Turns a Sonar channel up or down by a set step. On a dial, turning
+    sets it by that step either way and pressing mutes."""
+
+    def _step(self) -> int:
+        return int(self.setting("step", VOLUME_STEP))
+
+    def _direction(self) -> str:
+        return self.setting("direction", "up")
+
+    def show(self, state):
+        sign = "+" if self._direction() == "up" else "-"
+        self.show_labels(self._title(), f"{sign}{self._step()}%", self._level(state))
+
+    def _turn(self, action: str) -> None:
+        self.send("volume", channel=self._channel(), action=action, step=self._step())
 
     def on_key_down(self):
-        if self.setting("press", "nothing") == "mute":
-            self.send("mute", channel=self._channel())
+        self._turn(self._direction())
 
     def event_callback(self, event, data=None):
         if event == Input.Dial.Events.TURN_CW:
-            self.send("volume", channel=self._channel(), action="up", step=VOLUME_STEP)
+            self._turn("up")
         elif event == Input.Dial.Events.TURN_CCW:
-            self.send("volume", channel=self._channel(), action="down", step=VOLUME_STEP)
+            self._turn("down")
         elif event == Input.Dial.Events.DOWN:
             self.send("mute", channel=self._channel())
         else:
             super().event_callback(event, data)
 
     def get_config_rows(self):
-        return [self.choice_row("Channel", "channel", CHANNELS, "game"),
-                self.choice_row("When pressed", "press",
-                                (("nothing", "Nothing"), ("mute", "Mute or unmute")),
-                                "nothing")]
+        return [*super().get_config_rows(),
+                self.choice_row("When pressed", "direction",
+                                (("up", "Turn up"), ("down", "Turn down")), "up"),
+                self.number_row("Step (%)", "step", 1, 100, VOLUME_STEP)]
+
+
+class SonarChannelToggle(_ChannelKey):
+    """Mutes or unmutes a Sonar channel, and shows which it is."""
+
+    default_channel = "mic"
+
+    def show(self, state):
+        entry = vc.channel(state, self._channel())
+        if state is None or entry is None or not vc.sonar(state).get("active"):
+            self.show_labels(self._title(), self._level(state))
+            return
+        self.show_labels(self._title(), "Muted" if entry["muted"] else "On")
+        self.face("muted" if entry["muted"] else "unmuted")
+
+    def on_key_down(self):
+        self.send("mute", channel=self._channel())
 
 
 class _NextDevice(VertexAction):
@@ -85,48 +133,19 @@ class _NextDevice(VertexAction):
         self.send("device", action="next", **args)
 
 
-class NextOutput(_NextDevice):
+class SonarNextOutput(_NextDevice):
     title = "Output"
 
     def _device(self, state):
         return vc.device_name(vc.sonar(state).get("output"))
 
 
-class NextMic(_NextDevice):
+class SonarNextMic(_NextDevice):
     title = "Mic"
     channel = "mic"
 
     def _device(self, state):
         return vc.device_name(vc.sonar(state).get("mic"))
-
-
-class Mute(VertexAction):
-    """Mutes or unmutes a Sonar channel, and shows which it is."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.has_configuration = True
-
-    def _channel(self) -> str:
-        return self.setting("channel", "mic")
-
-    def show(self, state):
-        channel_id = self._channel()
-        title = "Mic" if channel_id == "mic" else dict(CHANNELS)[channel_id]
-        entry = vc.channel(state, channel_id)
-        if state is None or entry is None:
-            self.show_labels(title, NOT_RUNNING if state is None else "")
-        elif not vc.sonar(state).get("active"):
-            self.show_labels(title, SONAR_OFF)
-        else:
-            self.show_labels(title, "Muted" if entry["muted"] else "On")
-            self.face("muted" if entry["muted"] else "unmuted")
-
-    def on_key_down(self):
-        self.send("mute", channel=self._channel())
-
-    def get_config_rows(self):
-        return [self.choice_row("Channel", "channel", CHANNELS, "mic")]
 
 
 class _Toggle(VertexAction):
@@ -221,7 +240,7 @@ class _Toggle(VertexAction):
                 self.choice_row(f"{self.title} 2", "second", choices, "")]
 
 
-class MicToggle(_Toggle):
+class SonarToggleMic(_Toggle):
     title = "Mic"
     kind = "mics"
     channel = "mic"
@@ -231,7 +250,7 @@ class MicToggle(_Toggle):
         return vc.sonar(state).get("mic")
 
 
-class OutputToggle(_Toggle):
+class SonarToggleOutput(_Toggle):
     title = "Output"
     kind = "outputs"
     none = "No output"
@@ -244,7 +263,7 @@ REPLAY_PHASES = {"running": "On", "stopped": "Off", "starting": "Starting",
                  "restarting": "Starting", "failed": "Failed"}
 
 
-class Replay(VertexAction):
+class ReplayToggle(VertexAction):
     """Starts or stops the replay buffer, and shows whether it runs."""
 
     def show(self, state):
@@ -271,7 +290,7 @@ def _length(seconds: int) -> str:
     return f"{seconds} s" if seconds < 60 else f"{seconds // 60} min"
 
 
-class SaveClip(VertexAction):
+class ReplaySaveClip(VertexAction):
     """Saves the replay buffer to a clip: all of it, or the last few seconds."""
 
     def __init__(self, *args, **kwargs):
