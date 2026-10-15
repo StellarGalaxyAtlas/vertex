@@ -739,9 +739,7 @@ class ChannelColumn(QFrame):
                                            f"QToolButton:hover {{ background: "
                                            f"{theme.CARD_HOVER}; }}")
             self.link.clicked.connect(lambda: view.toggle_link(channel.id))
-            centre = not LINK_STYLE.startswith("left")
-            if centre:
-                link_row.addStretch(1)
+            link_row.addStretch(1)
             link_row.addWidget(self.link)
             link_row.addStretch(1)
         layout.addWidget(self.link_row)
@@ -1074,9 +1072,6 @@ class ColumnGrid(QWidget):
                       (len(self.columns) + 1) // 2)
 
 
-LINK_STYLE = "centre-channels"
-
-
 class LinkLine(QWidget):
     """A neon line over the channels joining the link buttons, while the
     output channels share one device. Clicks go through it."""
@@ -1121,8 +1116,7 @@ class LinkLine(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         # The channels' own colours, blending from one button to the next.
-        colours = [theme.ACCENT_EDGE] * 2 if LINK_STYLE.endswith("accent") else \
-            [strip.colour for strip in self.strips if strip.link is not None]
+        colours = [strip.colour for strip in self.strips if strip.link is not None]
         first, last = rects[0].center(), rects[-1].center()
         for left, right in itertools.pairwise(rects):
             # Only between buttons on one row: wrapped, the channels aren't side by side.
