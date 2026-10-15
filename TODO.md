@@ -542,7 +542,9 @@ keeps naming 10, 60, 300, 600 or 1800 since only those work.
 ---
 
 **59. A StreamController plugin for Vertex.** Tested and approved by the maintainer
-(2026-10-15). In `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`, install
+(2026-10-15). Moved (2026-10-15), with its history, tests and the Stream Deck
+icon sets, to its own repository:
+https://github.com/StellarGalaxyAtlas/vertex-streamcontroller. Was in `streamcontroller/` (plugin id `com_stellargalaxyatlas_Vertex`, install
 and Flatseal steps in its README), a client of the control socket. Keys, named
 by the maintainer (2026-10-15): Sonar Information (a channel's volume, in the bottom label),
 Sonar Volume (up or down by a step set on the key; on a dial, turning goes
