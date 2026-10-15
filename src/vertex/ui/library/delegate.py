@@ -171,6 +171,10 @@ class ClipDelegate(QStyledItemDelegate):
                          metrics.elidedText(text, Qt.TextElideMode.ElideRight,
                                             int(line.right() - x)))
         self._outline(painter, card, hovered)
+        if self.view.focus_row() == index.row():
+            painter.setPen(QPen(QColor(theme.SELECT), 2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(card.adjusted(-4, -4, 4, 4), RADIUS + 4, RADIUS + 4)
         painter.restore()
 
     @staticmethod

@@ -689,7 +689,8 @@ class PathField(QWidget):
 class Banner(QFrame):
     """A transient message, shown as a toast in the bottom-right corner of the
     widget it floats over. It takes no room in any layout, so nothing is kept
-    free for it while there is nothing to say. A click dismisses it."""
+    free for it while there is nothing to say. A click dismisses it, after
+    doing what the message offered, if it offered something."""
 
     COLOURS: ClassVar[dict[str, str]] = {
         "info": "TEXT_MUTED", "ok": "OK", "warn": "WARN", "error": "DANGER"}
@@ -713,16 +714,20 @@ class Banner(QFrame):
         layout.addWidget(self.label, 1)
         self._timer = QTimer(self, singleShot=True)
         self._timer.timeout.connect(self.clear)
+        self._on_click = None
         host.installEventFilter(self)
         self.hide()
 
     def text(self) -> str:
         return self.label.text()
 
-    def show_message(self, text: str, level: str = "info", ms: int = 6000) -> None:
+    def show_message(self, text: str, level: str = "info", ms: int = 6000,
+                     on_click=None) -> None:
+        """Show `text`; `on_click`, if given, runs when the toast is clicked."""
         if not text:
             self.clear()
             return
+        self._on_click = on_click
         colour = self.COLOURS.get(level, "TEXT_MUTED")
         theme.style(self.dot, lambda: f"background: {theme.colour(colour)}; border-radius: 4px;")
         self.label.setText(text)
@@ -736,11 +741,15 @@ class Banner(QFrame):
 
     def clear(self) -> None:
         self._timer.stop()
+        self._on_click = None
         self.label.clear()
         self.hide()
 
     def mousePressEvent(self, event):
+        action = self._on_click
         self.clear()
+        if action is not None:
+            action()
 
     def eventFilter(self, watched, event):
         if watched is self.parentWidget() and event.type() == QEvent.Type.Resize \

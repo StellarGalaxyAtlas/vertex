@@ -784,6 +784,7 @@ class HomeView(QWidget):
         delegate.tags_requested.connect(self.library_view.edit_tags)
         delegate.favorite_toggled.connect(self.state.toggle_favorite)
         delegate.rename_requested.connect(self.grid.edit)
+        self.library_view.connect_keys(self.grid)
         self.grid.customContextMenuRequested.connect(
             lambda point: self.library_view.clip_menu(self.grid, point))
         self.grid.resized.connect(self._fit_timer.start)

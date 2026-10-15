@@ -95,6 +95,7 @@ class MainWindow(QMainWindow):
         self.first_run: FirstRunView | None = None
 
         context.message.connect(self.banner.show_message)
+        self.library_view.notice.connect(self.banner.show_message)
         context.notified.connect(self._notified)
         self.state.status.connect(self.banner.show_message)
         context.recorder.saved.connect(self._clip_saved)
@@ -480,6 +481,7 @@ class MainWindow(QMainWindow):
         if self._on_settings() and not self._may_leave_settings():
             return
         self._quitting = True
+        self.library_view.cancel_exports()
         self._close_editor()
         self.close()
         QApplication.instance().quit()

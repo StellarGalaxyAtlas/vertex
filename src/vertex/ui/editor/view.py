@@ -23,7 +23,7 @@ from vertex.core import clips as clips_mod
 from vertex.logs import CLIPS as log
 from vertex.media import mixing, probe, trim, waveform
 from vertex.media import tracks as track_labels
-from vertex.media.export import copy_estimate
+from vertex.media.export import apply_edit, copy_estimate
 from vertex.media.ffmpeg import MediaError
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.export import ExportDialog
@@ -81,16 +81,8 @@ class EditorView(QWidget):
         library = self.context.library
         if library is None:
             return
-        edit = library.get_edit(self.clip.name)
-        if self.duration:
-            if edit.trim_start is not None:
-                self.trim_start = max(0.0, min(edit.trim_start, self.duration))
-            if edit.trim_end is not None:
-                self.trim_end = max(self.trim_start + 0.1, min(edit.trim_end, self.duration))
-        for track in self.tracks:
-            saved = edit.mix_for(track.name)
-            if saved is not None:
-                track.volume, track.muted = max(0.0, min(1.5, saved.volume)), saved.muted
+        self.trim_start, self.trim_end = apply_edit(library.get_edit(self.clip.name),
+                                                    self.duration, self.tracks)
 
     def _mark_dirty(self) -> None:
         self._save_timer.start()

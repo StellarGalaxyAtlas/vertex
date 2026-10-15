@@ -75,8 +75,9 @@ class ExportDialog(QDialog):
         layout.addWidget(label(f"{fmt.duration(end - start)} selected", "Muted"))
 
         layout.addWidget(label("SIZE", "Group"))
-        self.sizes = Segmented([(name, name) for name, _ in export.SIZE_CHOICES],
-                               export.SIZE_CHOICES[0][0])
+        # It opens on the size last exported at.
+        size, self.limit = export.size_choice(context.config.export_size)
+        self.sizes = Segmented([(name, name) for name, _ in export.SIZE_CHOICES], size)
         self.sizes.changed.connect(self._on_size)
         layout.addWidget(self.sizes)
         self.detail = label("", "Muted", wrap=True)
@@ -181,6 +182,10 @@ class ExportDialog(QDialog):
         self.copy_button.hide()
         self.folder_button.hide()
         self.close_button.setText("Cancel")
+        size = export.size_label(self.limit)
+        if size != self.context.config.export_size:
+            self.context.config.export_size = size
+            self.context.save_config_later()
         verb = "Copying" if self.limit is None else "Converting"
         self.status.setText(f"{verb}…")
         theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")

@@ -20,9 +20,10 @@ note that there is no audio are drawn on top of each other (seen at
 1600 × 1000, in every scheme). Found while checking item 41.
 
 **Ideas the maintainer picked (2026-10-15).** Items 70 to 79 come from the
-ideas list (see Notes, "Ideas list"); each keeps its id from that list. They
-are in the order to build them: small ones first, then Settings, then
-Sonar. A change to how something looks starts with a mockup to pick from.
+ideas list (see Notes, "Ideas list"); each keeps its id from that list.
+They are built in five groups, each shown to the maintainer as a mockup
+and built once approved: Library (71 to 73, done), Tray (74), Editor (75),
+Settings (70, 76, 77), Sonar (78, 79).
 
 **70.** Ideas list U4
 **Settings › Recording › Clearer "recorder not installed" message**
@@ -33,33 +34,6 @@ setup has, plus a button that opens Advanced at the command field.
   `vertex doctor` uses the same "or set its command in Settings" in
   `doctor.py`, where it reads fine. Give the Recording page its own wording
   rather than changing what the CLI prints.
-
-**71.** Ideas list X3
-**Library › Keyboard**
-Arrow keys to move between cards, Enter to open, Delete to delete, F2 to
-rename, F to favorite.
-- The grid (`ClipGrid` in `ui/library/view.py`) has no selection today
-  (`NoSelection`): keys need a current card that is drawn as focused.
-- Home's latest clips use the same grid; decide with the maintainer
-  whether the keys work there too.
-
-**72.** Ideas list X4
-**Library › Drag a clip out of Vertex**
-Drag a card straight into Discord, a browser upload field or the file
-manager. Today that takes Export › Copy file, or Show in folder.
-- A drag carries the clip's file as a `file://` URL (as Copy file in the
-  export dialog does), from the Library and from Home.
-- The card's own drag must not get in the way of a click, the favorite
-  star or a rename.
-
-**73.** Ideas list X7
-**Library › Quick export from the clip menu**
-An "Export for Discord (10 MB)" entry in a card's right-click menu, using
-the size you picked last, without opening the editor.
-- The export dialog doesn't remember the size today (it always starts on
-  Original); remembering it is part of this item.
-- Uses the clip's saved trim and mix, as the editor's export does; shows
-  progress and the result as a toast, with Copy file and Open folder.
 
 **74.** Ideas list X8
 **Tray › More in the tray menu**
@@ -199,6 +173,10 @@ behind:
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
+- 71 to 73: the Library keys in their desktop's keyboard layout; dragging a
+  card into Discord (a Flatpak Discord may need the file's folder shared
+  with it) and Dolphin; a quick export pasted into Discord from the
+  clipboard.
 - 60: Settings › General lists the schemes as Navy, Plum, Spooky, Abyss,
   Aurora, Midnight blue, Coral, Polar, Glacier; a fresh config opens in Navy.
 - 1: Qt and GPU Screen Recorder name the monitors alike; if not, a monitor
@@ -722,6 +700,29 @@ never retried. The restart shows as "Restarting…" in the top bar, goes in
 notification switched on (off by default; its line in Settings ›
 Notifications now reads "After a settings change or a crash").
 
+**71. Library keys** (ideas list X3, 2026-10-15). In the Library and on
+Home's latest clips: the first arrow key shows a focus ring on the current
+card, the next ones move it (Home, End, Page Up and Down too); Enter opens,
+Delete deletes (asking first, as the menu does), F2 renames, F favorites,
+the menu key or Shift+F10 opens the card's menu. A click hides the ring;
+typing letters no longer jumps between cards. After a delete the ring stays
+on the card that took its place. In `ClipGrid` (`ui/library/view.py`).
+
+**72. Drag a clip out** (ideas list X4, 2026-10-15). Pressing on a card and
+dragging hands over the clip's file (a `file://` URL), with a picture of
+the card, to Discord, a browser upload field or the file manager. The
+release after a drag opens nothing; a plain click still opens the clip.
+
+**73. Quick export** (ideas list X7, 2026-10-15). "Quick export · 10 MB"
+in a card's right-click menu, here and on Home: it exports with the clip's
+saved trim and mix, off the UI thread, shows its progress in a toast, and
+puts the file on the clipboard when done; a click on that toast opens the
+export folder. Its size is the one last exported at from the export
+dialog, which now opens on that size too (`export_size` in the config; 10 MB
+before the first export, Original in the dialog). Quitting cancels a quick
+export still running. The trim and mix are read by `media/export.apply_edit`,
+which the editor uses too.
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -729,10 +730,10 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 64, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 64, 71 to 73, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
-editor bug), then the picked ideas 70 to 79 in order. Then 9 (on hold) and
+editor bug), then the picked ideas 70 to 79, group by group (Library done). Then 9 (on hold) and
 21 (documentation, when the maintainer says). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 

@@ -127,6 +127,116 @@ def test_renaming_a_card_keeps_the_typing_while_its_row_changes(qapp, window):
     assert editor.text() == "Big play"
 
 
+def test_library_keys_move_a_focus_ring_and_act_on_its_card(qapp, window, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    view, state = window.library_view, window.state
+    grid = view.grid
+    grid.setFocus()
+    assert wait_until(qapp, grid.hasFocus, 5)
+    assert grid.focus_row() == -1            # no ring until a key is used
+    QTest.keyClick(grid, Qt.Key.Key_Right)   # shows it, on the first card
+    assert grid.focus_row() == 0
+    QTest.keyClick(grid, Qt.Key.Key_Right)
+    assert grid.focus_row() == 1
+    second = state.visible[1]
+
+    QTest.keyClick(grid, Qt.Key.Key_F)
+    assert second.name in state.favorites
+    opened, deleted = [], []
+    window.library_view.open_clip.disconnect()
+    view.open_clip.connect(opened.append)
+    QTest.keyClick(grid, Qt.Key.Key_Return)
+    assert opened == [second]
+    monkeypatch.setattr(view, "delete", deleted.append)
+    grid.delete_key.disconnect()
+    grid.delete_key.connect(view.delete)
+    QTest.keyClick(grid, Qt.Key.Key_Delete)
+    assert deleted == [second]
+    QTest.keyClick(grid, Qt.Key.Key_F2)
+    assert grid.state() == grid.State.EditingState
+    QTest.keyClick(grid.findChild(QLineEdit), Qt.Key.Key_Escape)
+    assert wait_until(qapp, lambda: grid.state() != grid.State.EditingState, 5)
+    grid.setFocus()
+
+    menus = []
+    grid.customContextMenuRequested.disconnect()
+    grid.customContextMenuRequested.connect(menus.append)
+    QTest.keyClick(grid, Qt.Key.Key_F10, Qt.KeyboardModifier.ShiftModifier)
+    assert len(menus) == 1 and grid.indexAt(menus[0]).row() == 1
+
+    # A click hides the ring again.
+    QTest.mouseClick(grid.viewport(), Qt.MouseButton.RightButton, pos=grid.visualRect(
+        grid.model().index(0, 0)).center())
+    assert grid.focus_row() == -1
+
+
+def test_a_card_dragged_out_hands_over_its_file(qapp, window, monkeypatch):
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtGui import QDrag, QMouseEvent
+
+    grid = window.library_view.grid
+    dragged = []
+    monkeypatch.setattr(QDrag, "exec", lambda self, *a: dragged.append(
+        [url.toLocalFile() for url in self.mimeData().urls()]) or Qt.DropAction.CopyAction)
+    opened = []
+    window.library_view.open_clip.disconnect()
+    window.library_view.open_clip.connect(opened.append)
+    start = grid.visualRect(grid.model().index(0, 0)).center()
+
+    def mouse(kind, point, buttons):
+        event = QMouseEvent(kind, point, grid.viewport().mapToGlobal(point),
+                            Qt.MouseButton.LeftButton, buttons, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(grid.viewport(), event)
+
+    mouse(QEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
+    mouse(QEvent.Type.MouseMove, start + QPoint(40, 0), Qt.MouseButton.LeftButton)
+    mouse(QEvent.Type.MouseButtonRelease, start + QPoint(40, 0), Qt.MouseButton.NoButton)
+    assert dragged == [[window.state.visible[0].path]]
+    assert opened == []                       # the drag's release opens nothing
+    # A plain click still opens the clip.
+    mouse(QEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
+    mouse(QEvent.Type.MouseButtonRelease, start, Qt.MouseButton.NoButton)
+    assert opened == [window.state.visible[0]]
+
+
+def test_quick_export_uses_the_saved_trim_and_copies_the_file(qapp, window, tmp_path):
+    from PySide6.QtCore import QTimer
+    from PySide6.QtGui import QGuiApplication
+    from PySide6.QtWidgets import QMenu
+
+    from vertex.media import probe
+
+    view, state, context = window.library_view, window.state, window.context
+    clip = state.find("Replay_2026-01-02_03-04-05.mp4")
+    context.library.set_trim(clip.name, 1.0, 3.0)
+    assert view.quick_size() == ("10 MB", 10 * 1024 * 1024)   # before any export
+    context.config.export_size = "Original"
+    assert view.quick_size()[0] == "Original"
+    notices = []
+    view.notice.connect(lambda text, level, _ms, click: notices.append((text, level, click)))
+    entries = []
+
+    def read_menu():
+        menu = next(w for w in qapp.topLevelWidgets() if isinstance(w, QMenu) and w.isVisible())
+        entries.extend(action.text() for action in menu.actions())
+        menu.close()
+    QTimer.singleShot(200, read_menu)
+    grid = view.grid
+    view.clip_menu(grid, grid.visualRect(view.model.index(state.visible.index(clip))).center())
+    assert "Quick export · Original" in entries
+    view.quick_export(clip)
+    assert wait_until(qapp, lambda: notices and notices[-1][1] != "info", 60), notices
+    text, level, click = notices[-1]
+    assert level == "ok" and "copied" in text and callable(click)
+    exported = [url.toLocalFile() for url in QGuiApplication.clipboard().mimeData().urls()]
+    assert len(exported) == 1 and exported[0].startswith(str(tmp_path / "exports"))
+    assert abs(probe.probe(exported[0]).duration - 2.0) < 0.6
+    # The offscreen platform crashes at exit while the clipboard holds data.
+    QGuiApplication.clipboard().clear()
+
+
 def test_tag_dialog_suggests_and_saves_on_enter(qapp, window):
     from PySide6.QtCore import Qt, QTimer
     from PySide6.QtTest import QTest
