@@ -260,11 +260,8 @@ don't fit), library cards of two lines. The colours went in 25.
 **25. Graphite undone.** It looked "sad" to the maintainer. The colours are
 Vertex's navy and periwinkle again, at AA contrast (A's palette), with the
 layout of 24 kept; a device's slider is neutral grey so the accent never
-marks an audio control. `temp/design/` holds the rules, the palette with
-its measured contrast, two mockups, what was rejected (don't suggest a grey
-palette again) and what is still open (the monitor map's oversized frame,
-first run's empty space, drop-down arrows); `theme.py` is the source of
-truth for the values.
+marks an audio control. Don't suggest a grey palette again; `theme.py` is
+the source of truth for the values.
 
 **26. Rail width.** At 216 px the rail cut names and counts (632 showed as
 63) and its scroll bar covered the counts: each filter row was a fixed 200 px

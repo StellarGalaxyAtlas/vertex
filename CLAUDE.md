@@ -79,10 +79,9 @@ where the work stands. New requests and bugs get the next free number in
 
 ## The design
 
-`temp/design/` holds the look the maintainer chose (TODO items 24, 25 and
-27 to 34, 38 to 42): colour schemes, Plum the default, two of them light
-(Polar, Glacier), all at AA contrast. Read its
-README before UI work. New UI follows its rules: every text colour at AA
+The look the maintainer chose (TODO items 24, 25, 27 to 34, 38 to 45 and
+60): nine colour schemes, Navy the default, two of them light (Polar,
+Glacier), all at AA contrast. New UI follows these rules: every text colour at AA
 contrast, the accent never on an audio control, red only for recording, no
 dead space, nothing that only works on a dark ground (white handles, white
 text outside the video). A grey palette was tried and rejected. The colours

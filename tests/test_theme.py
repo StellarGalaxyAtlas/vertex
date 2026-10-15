@@ -1,4 +1,4 @@
-"""The colour schemes keep the design's rules (temp/design/README.md)."""
+"""The colour schemes keep the design's rules (see the CLAUDE.md design notes)."""
 
 import pytest
 

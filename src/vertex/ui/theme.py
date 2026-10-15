@@ -10,7 +10,7 @@ paints, and anything set once when a widget is built (a stylesheet, an icon)
 goes through `themed`, so the whole app changes the moment a scheme is picked
 (`use`).
 
-Every scheme keeps the rules in temp/design/: every text colour reads at
+Every scheme keeps the design's rules: every text colour reads at
 4.5:1 or better on every ground it sits on, a field's edge at 3:1; the accent
 never colours an audio control (a channel's slider takes the channel's
 colour, a device's slider is neutral); red only means recording. The tests
