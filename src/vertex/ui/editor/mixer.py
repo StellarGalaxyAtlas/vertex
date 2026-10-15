@@ -20,22 +20,21 @@ class TrackRow(QWidget):
     def __init__(self, track: AudioTrack, colour: str, parent=None):
         super().__init__(parent)
         self.track = track
+        self.colour = colour
         self.setFixedHeight(LANE_H)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
-        bar = QFrame()
+        self.bar = bar = QFrame()
         bar.setFixedSize(3, LANE_H - 6)
         theme.style(bar, lambda: f"background: {theme.colour(colour)}; border-radius: 1px;")
         layout.addWidget(bar)
         self.mute = IconButton("volume", "Mute", 16, "TEXT_MUTED")
         self.mute.clicked.connect(self.toggle_mute)
         layout.addWidget(self.mute)
-        icon = QLabel()
-        theme.themed(icon, lambda: icon.setPixmap(
-            icons.pixmap(icons.channel_icon_name(track.channel), colour, 14)), "icon")
-        layout.addWidget(icon)
-        name = label(track.label, "Muted")
+        self.icon = QLabel()
+        layout.addWidget(self.icon)
+        self.name = name = label(track.label, "Muted")
         name.setToolTip(track.name)
         layout.addWidget(name, 1)
         self.slider = QSlider(Qt.Orientation.Horizontal)
@@ -53,7 +52,23 @@ class TrackRow(QWidget):
         self.readout.setFixedWidth(44)
         self.readout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.readout)
+        self.set_scale(1.0)
         self._refresh()
+
+    def set_scale(self, scale: float) -> None:
+        """Grow with the editor: the row keeps the height of its lane."""
+        lane = round(LANE_H * scale)
+        self.setFixedHeight(lane)
+        self.bar.setFixedSize(3, lane - 6)
+        self.mute.set_size(round(16 * scale))
+        size = round(14 * scale)
+        theme.themed(self.icon, lambda: self.icon.setPixmap(
+            icons.pixmap(icons.channel_icon_name(self.track.channel), self.colour, size)), "icon")
+        text = f"font-size: {10 * scale:.1f}pt;"
+        self.name.setStyleSheet(text)
+        self.readout.setStyleSheet(text)
+        self.slider.setFixedWidth(round(130 * scale))
+        self.readout.setFixedWidth(round(44 * scale))
 
     def _refresh(self) -> None:
         muted = self.track.muted

@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import time
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -34,6 +34,16 @@ from vertex.ui.widgets import ChoiceDialog, EditableLabel, IconButton, button, l
 
 SEEK_STEP = 5.0
 SAVE_DELAY_MS = 800
+SCALE_MAX = 1.5      # as the top bar: the controls grow up to this on a big window
+
+
+def editor_scale(width: int, height: int) -> float:
+    """How much the controls grow in an editor this big: not at all up to about
+    1400 × 800, fully from about 2400 × 1300, in steps of 0.05."""
+    def ramp(value: float, low: float, high: float) -> float:
+        return max(0.0, min(1.0, (value - low) / (high - low)))
+    grow = min(ramp(width, 1400, 2400), ramp(height, 800, 1300))
+    return round((1 + (SCALE_MAX - 1) * grow) * 20) / 20
 
 
 class EditorView(QWidget):
@@ -71,6 +81,7 @@ class EditorView(QWidget):
         self._poll_timer.timeout.connect(self._poll)
 
         self.player_widget = None        # created by _build
+        self.scale = 1.0
         self._build()
         QTimer.singleShot(0, self._start_player)
         QTimer.singleShot(150, self._start_waves)
@@ -109,25 +120,23 @@ class EditorView(QWidget):
 
         header = QHBoxLayout()
         header.setSpacing(10)
-        back = button("Back", "ghost", "back", self.back.emit, "Back (Esc)")
+        self.back_button = back = button("Back", "ghost", "back", self.back.emit, "Back (Esc)")
         header.addWidget(back)
         self.title = EditableLabel(self.state.title_of(self.clip), self.clip.name)
         self.title.display.setObjectName("Subheading")
         self.title.committed.connect(self._rename)
         self.title.setMaximumWidth(520)
         header.addWidget(self.title, 1)
-        meta = label(self._meta(), "Muted")
+        self.meta = meta = label(self._meta(), "Muted")
         header.addWidget(meta)
         self.tags_button = QPushButton(self._tag_text())
         self.tags_button.setObjectName("Chip")
-        theme.style(self.tags_button, lambda: (
-            f"QPushButton {{ background: {theme.CARD_BG}; border-radius: 8px; padding: 5px 12px;"
-            f" color: {theme.TEXT_MUTED}; }} QPushButton:hover {{ color: {theme.TEXT}; }}"))
+        theme.style(self.tags_button, self._tags_style)
         self.tags_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.tags_button.clicked.connect(self._edit_tags)
         header.addWidget(self.tags_button)
         header.addStretch(0)
-        delete = button("Delete", "danger", "trash",
+        self.delete_button = delete = button("Delete", "danger", "trash",
                         lambda: self.delete_requested.emit(self.clip))
         header.addWidget(delete)
         layout.addLayout(header)
@@ -144,16 +153,13 @@ class EditorView(QWidget):
         transport.addWidget(self.in_button)
         self.play_button = IconButton("pause", "Play / pause (Space)", 22, "ON_ACCENT",
                                       kind="")
-        theme.style(self.play_button, lambda: (
-            f"QToolButton {{ background: {theme.ACCENT_FILL}; border-radius: 10px; padding: 7px; "
-            f"border: 1px solid {theme.ACCENT_FILL_EDGE}; }}"
-            f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}"))
+        theme.style(self.play_button, self._play_style)
         self.play_button.clicked.connect(self.toggle_play)
         transport.addWidget(self.play_button)
         self.out_button = IconButton("mark-out", "Set end (O)", 20)
         self.out_button.clicked.connect(self.set_out)
         transport.addWidget(self.out_button)
-        reset = IconButton("reset", "Select all", 18)
+        self.reset_button = reset = IconButton("reset", "Select all", 18)
         reset.clicked.connect(self.reset_trim)
         transport.addSpacing(6)
         transport.addWidget(reset)
@@ -178,23 +184,31 @@ class EditorView(QWidget):
         editor = QGridLayout()
         editor.setHorizontalSpacing(8)
         editor.setVerticalSpacing(0)
-        mixer = QWidget()
+        self.mixer = mixer = QWidget()
         mixer.setFixedWidth(PANEL_W)
-        column = QVBoxLayout(mixer)
+        self.mixer_column = column = QVBoxLayout(mixer)
         # Each row sits beside its lane: lanes start LANE_GAP below the ruler.
         column.setContentsMargins(0, RULER_H + LANE_GAP, 0, 0)
         column.setSpacing(LANE_GAP)
-        video_row = label("   Video", "Dim")
-        video_row.setFixedHeight(LANE_H)
-        column.addWidget(video_row)
+        self.video_row = QWidget()
+        self.video_row.setFixedHeight(LANE_H)
+        video = QHBoxLayout(self.video_row)
+        video.setContentsMargins(12, 0, 0, 0)
+        self.video_labels = [label("Video", "Dim")]
+        if not self.tracks:
+            # On the Video row's line, so it never lands on top of it.
+            self.video_labels.append(label("This clip has no audio.", "Dim"))
+        for text in self.video_labels:
+            video.addWidget(text)
+            video.addSpacing(18)
+        video.addStretch(1)
+        column.addWidget(self.video_row)
         self.rows = []
         for position, track in enumerate(self.tracks):
             row = TrackRow(track, theme.channel_colour(track.channel, position))
             row.changed.connect(self._mix_changed)
             column.addWidget(row)
             self.rows.append(row)
-        if not self.tracks:
-            column.addWidget(label("This clip has no audio.", "Dim"))
         column.addStretch(1)
         self.timeline = Timeline()
         self.timeline.set_lanes(self._lanes())
@@ -211,6 +225,57 @@ class EditorView(QWidget):
         editor.setColumnStretch(1, 1)
         layout.addLayout(editor)
         self._update_estimate()
+
+    # --- Size ------------------------------------------------------------------
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        scale = editor_scale(self.width(), self.height())
+        if scale != self.scale:
+            self.set_scale(scale)
+
+    def set_scale(self, scale: float) -> None:
+        """Grow the transport, the mixer and the timeline with the window, the
+        way the top bar grows its tabs (item 75)."""
+        self.scale = scale
+        for widget, size in ((self.in_button, 20), (self.out_button, 20),
+                             (self.play_button, 22), (self.reset_button, 18)):
+            widget.set_size(round(size * scale))
+        theme.style(self.play_button, self._play_style)
+        text = f"font-size: {10 * scale:.1f}pt;"
+        self.title.display.setStyleSheet(f"font-size: {12 * scale:.1f}pt;")
+        self.title.setMaximumWidth(round(520 * scale))
+        self.meta.setStyleSheet(text)
+        theme.style(self.tags_button, self._tags_style)
+        for widget in (self.back_button, self.delete_button, self.trim_button,
+                       self.export_button):
+            widget.setStyleSheet(f"QPushButton {{ {text} padding: {round(7 * scale)}px "
+                                 f"{round(14 * scale)}px; }}")
+            widget.setIconSize(QSize(round(16 * scale), round(16 * scale)))
+        self.time_label.setStyleSheet(text)
+        self.time_label.setMinimumWidth(round(110 * scale))
+        self._update_estimate()
+        for widget in self.video_labels:
+            widget.setStyleSheet(text)
+        self.timeline.set_scale(scale)
+        self.mixer.setFixedWidth(round(PANEL_W * scale))
+        self.mixer_column.setContentsMargins(0, self.timeline.ruler_h + LANE_GAP, 0, 0)
+        self.video_row.setFixedHeight(self.timeline.lane_h)
+        for row in self.rows:
+            row.set_scale(scale)
+        self.mixer.setFixedHeight(self.timeline.height())
+
+    def _tags_style(self) -> str:
+        return (f"QPushButton {{ background: {theme.CARD_BG}; border-radius: 8px; "
+                f"padding: {round(5 * self.scale)}px {round(12 * self.scale)}px; "
+                f"font-size: {10 * self.scale:.1f}pt; color: {theme.TEXT_MUTED}; }} "
+                f"QPushButton:hover {{ color: {theme.TEXT}; }}")
+
+    def _play_style(self) -> str:
+        return (f"QToolButton {{ background: {theme.ACCENT_FILL}; border-radius: "
+                f"{round(10 * self.scale)}px; padding: {round(7 * self.scale)}px; "
+                f"border: 1px solid {theme.ACCENT_FILL_EDGE}; }}"
+                f"QToolButton:hover {{ background: {theme.ACCENT_HOVER}; }}")
 
     def _lanes(self) -> list[tuple[str, bool]]:
         return [(theme.channel_colour(track.channel, position), track.muted)
@@ -402,7 +467,8 @@ class EditorView(QWidget):
         if estimate:
             parts.append(f"≈{fmt.size(estimate, 0)}")
         self.status.setText("  ·  ".join(parts))
-        theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
+        theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED}; "
+                                         f"font-size: {10 * self.scale:.1f}pt;")
 
     # --- Waveforms -------------------------------------------------------------
 

@@ -97,8 +97,16 @@ class IconButton(QToolButton):
         self.setAutoRaise(True)
 
     def set_icon(self, icon_name: str, colour: str = "TEXT") -> None:
+        self._icon = (icon_name, colour)
         theme.themed(self, lambda: self.setIcon(icons.icon(icon_name, colour, self._size)),
                      "icon")
+
+    def set_size(self, size: int) -> None:
+        """Draw the icon at `size` px from now on."""
+        if size != self._size:
+            self._size = size
+            self.setIconSize(QSize(size, size))
+            self.set_icon(*self._icon)
 
 
 def hline() -> QFrame:

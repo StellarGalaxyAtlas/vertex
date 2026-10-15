@@ -1743,3 +1743,20 @@ def test_editor_holds_playback_while_scrubbing_and_mixes_live(qapp, window):
     wait_until(qapp, lambda: False, timeout=0.6)
     assert player.pause and abs(editor.position - 0.5) < 0.05
     window.navigate("library")
+
+
+def test_editor_controls_grow_with_the_window(qapp):
+    from vertex.ui.editor.timeline import LANE_H, Timeline
+    from vertex.ui.editor.view import SCALE_MAX, editor_scale
+
+    assert editor_scale(980, 700) == 1.0
+    assert editor_scale(1280, 820) == 1.0
+    assert editor_scale(2560, 1380) == SCALE_MAX
+    # A wide but short window keeps the room for the video.
+    assert editor_scale(2560, 820) == 1.0
+    timeline = Timeline()
+    timeline.set_lanes([("#336699", False)])
+    small = timeline.height()
+    timeline.set_scale(1.5)
+    assert timeline.lane_h == round(LANE_H * 1.5)
+    assert timeline.height() > small

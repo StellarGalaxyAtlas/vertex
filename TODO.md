@@ -13,16 +13,10 @@ the way, are in this file as it was at commit 606d1a2
 
 ## Open
 
-**43.** Next
-**Editor › "Video" and "This clip has no audio." overlap**
-Under the timeline of a clip without audio, the Video lane's name and the
-note that there is no audio are drawn on top of each other (seen at
-1600 × 1000, in every scheme). Found while checking item 41.
-
 **Ideas the maintainer picked (2026-10-15).** Items 70 to 79 come from the
 ideas list (see Notes, "Ideas list"); each keeps its id from that list.
 They are built in five groups, each shown to the maintainer as a mockup
-and built once approved: Library (71 to 73, done), Tray (74, done), Editor (75),
+and built once approved: Library (71 to 73, done), Tray (74, done), Editor (75, done),
 Settings (70, 76, 77), Sonar (78, 79).
 
 **70.** Ideas list U4
@@ -34,16 +28,6 @@ setup has, plus a button that opens Advanced at the command field.
   `vertex doctor` uses the same "or set its command in Settings" in
   `doctor.py`, where it reads fine. Give the Recording page its own wording
   rather than changing what the CLI prints.
-
-**75.** Ideas list L3
-**Editor › Controls grow with the window**
-At 2560 px the play button, Trim, Export and the track mixer stay the size
-they have at 1280 px. They could scale up to 1.5× like the top bar does,
-and the track names could get a wider column.
-- The top bar's scaling (item 58, `SCALE_MAX` in `ui/topbar.py`) is the
-  model. Check at 980, 1280 and 2560 px; mockup first.
-- Item 43 (the overlapping "Video" and "This clip has no audio.") is in
-  the same place: fix it first.
 
 **76.** Ideas list X6
 **Settings › Apply right away**
@@ -163,6 +147,7 @@ behind:
 ## Waiting on the maintainer
 
 Built and tested in the container; only their system can confirm:
+- 75: the editor at their screen's size, with hardware video.
 - 74: the tray menu on Plasma: its submenus, ticks and greying.
 - 71 to 73: the Library keys in their desktop's keyboard layout; dragging a
   card into Discord (a Flatpak Discord may need the file's folder shared
@@ -721,6 +706,17 @@ submenus, listing the connected devices in the device manager's order
 pick switches for now, as on the Sonar page. Greyed while Sonar is off.
 The order is `devices.pickable`, which `devices.cycle` uses too.
 
+**43. Editor › "Video" and "This clip has no audio." no longer overlap.**
+The note sits on the Video row's line, after its name.
+
+**75. Editor controls grow** (ideas list L3, 2026-10-15). From about
+1400 × 800 the editor's header, transport (play, start and end, Trim,
+Export, the time), the mixer column and the timeline's ruler and lanes
+grow, up to 1.5× from about 2400 × 1300, in steps of 0.05
+(`editor_scale` in `ui/editor/view.py`). A wide but short window keeps
+today's size, so the video keeps its room. The ruler's first and last
+times stay inside the timeline.
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -728,10 +724,9 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 64, 71 to 74, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 43 to 47, 50, 51, 53 to 64, 71 to 75, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
-screens; there are nine colour schemes, two of them light. Next: 43 (an
-editor bug), then the picked ideas 70 to 79, group by group (Library and Tray done). Then 9 (on hold) and
+screens; there are nine colour schemes, two of them light. Next: the picked ideas 70 to 79, group by group (Library, Tray and Editor done). Then 9 (on hold) and
 21 (documentation, when the maintainer says). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 
