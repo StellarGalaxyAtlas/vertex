@@ -42,9 +42,8 @@ This intro section is written by me, the human behind it. The following showcase
 
 **Game clips and Sonar-style audio for Linux: a re-implementation of SteelSeries Moments and Sonar.**
 
-Save the last minute of a game with one key, find any clip in a library of
-hundreds, trim it and turn your mic down without touching the game, and send
-it to your friends at a size Discord accepts.
+Save the last minute of a game with one key, trim it, turn your mic down and
+send it to your friends.
 
 </div>
 
@@ -52,8 +51,7 @@ it to your friends at a size Discord accepts.
   <img src="docs/screenshots/home.png" alt="Vertex's Home page" width="900">
 </p>
 
-> **About the screenshots:** they come from a made-up demo library: invented
-> games and names, and test patterns instead of gameplay.
+> The screenshots show a made-up demo library.
 
 ---
 
@@ -70,10 +68,8 @@ it to your friends at a size Discord accepts.
 - [Thanks](#thanks)
 - [License](#license)
 
-**Home** shows your newest clips, Sonar's faders, your games, the people you
-play with and the disk space left. Your recordings are never modified: titles,
-tags, trims and volumes live in a small library beside them. Vertex has no
-network access, no telemetry and no account.
+Your recordings are never modified. Vertex has no network access, no
+telemetry and no account.
 
 ---
 
@@ -83,16 +79,8 @@ network access, no telemetry and no account.
   <img src="docs/screenshots/library.png" alt="The library" width="900">
 </p>
 
-- Every clip in your clips folder, with thumbnails and a preview on hover.
-- Filter by favorites, game or person, sort by date or game, and search
-  everything. Make the cards bigger or smaller.
-- Rename, tag, favorite, quick export, show in folder or delete from a card
-  or its right-click menu. Keys: arrows, Enter, F2 rename, F favorite,
-  Delete.
-- Drag a card out of the window into Discord or a file manager.
-- Clips named the SteelSeries Moments way
-  (`Apex-Legends__2026-08-11__22-14-07.mp4`) are tagged with their game by
-  themselves.
+All your clips with previews. Filter by game, person or favorites, search,
+tag and rename. Drag a clip out into Discord.
 
 ## Editor and export
 
@@ -103,16 +91,8 @@ network access, no telemetry and no account.
 </tr>
 </table>
 
-- A lane per audio track with its waveform and a live volume slider (0 to
-  150%).
-- Mark the part you want with the handles, or I and O. Space plays, the
-  arrows seek, `,` and `.` step a frame, double-click goes full screen.
-- **Trim** cuts the clip without re-encoding, as a copy or in place (the
-  original goes to the Trash).
-- **Export** mixes the tracks at your volumes into one MP4, at its original
-  quality or sized for 10, 25, 50 or 100 MB, and copies the file to the
-  clipboard to paste into Discord. **Quick export** in a clip's menu does the
-  same in the background.
+A volume slider per audio track, trimming without quality loss, and exports
+sized for Discord, copied to the clipboard.
 
 ## Sonar
 
@@ -120,24 +100,8 @@ network access, no telemetry and no account.
   <img src="docs/screenshots/sonar.png" alt="The Sonar page" width="900">
 </p>
 
-Virtual devices for each kind of sound, like SteelSeries Sonar:
-
-| Channel | For | In your clips |
-|---|---|---|
-| **Game** | games, and any app without a rule | its own track |
-| **Chat** | Discord, TeamSpeak, Mumble | its own track |
-| **Media** | music, the browser | not recorded |
-| **Mic** | your microphone, as **Vertex Mic** for every chat app | its own track |
-
-- Move an app to a channel once and it goes there every time.
-- Each channel has its own volume, mute and level meter. All channels play
-  through one headset, or each through its own, and optionally through a
-  second device too.
-- One priority list for outputs and one for mics decide which device is used.
-  Unplug one and the next takes over. Exclude a device to never use it by
-  itself.
-- Turning Sonar off, or quitting Vertex, removes every virtual device and
-  gives your old defaults back.
+Separate Game, Chat and Media volumes and a shared Vertex Mic. Apps stay on
+their channel, and a priority list picks your headset and mic.
 
 ## Recording and notifications
 
@@ -148,16 +112,8 @@ Virtual devices for each kind of sound, like SteelSeries Sonar:
 </tr>
 </table>
 
-- [GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/)
-  keeps the last 30 seconds to 2 minutes of your screen, encoded on the GPU.
-  Save it with a key, the **Save clip** button, the tray or a Stream Deck.
-- Pick the monitor on a map of your desktop, then the length, quality,
-  resolution and frame rate. The page shows how big a clip gets and how many
-  fit. Every other recorder option is under *Advanced*.
-- New clips appear in the library by themselves, tagged with the game that
-  was playing. If the recorder crashes, Vertex restarts it once.
-- Notifications show over fullscreen games through GPU Screen Recorder's
-  notifier, or as desktop pop-ups. Each kind can be switched off.
+GPU Screen Recorder keeps the last minute or two. Game, chat and mic are
+saved as separate tracks. Notifications can show over games.
 
 ## Settings
 
@@ -165,10 +121,8 @@ Virtual devices for each kind of sound, like SteelSeries Sonar:
   <img src="docs/screenshots/settings-general.png" alt="General settings" width="900">
 </p>
 
-Nine color schemes (two light), folders, close to tray, start with your
-computer, logs, recording, notifications, shortcut commands to copy, importing
-clips from Moments or another folder, and resets. First-run setup walks you
-through folders, Sonar, recording and bringing an existing library along.
+Nine color schemes, recording options, shortcut commands to copy, importing
+from Moments, and resets.
 
 ---
 
