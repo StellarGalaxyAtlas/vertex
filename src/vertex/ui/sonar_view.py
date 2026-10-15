@@ -723,8 +723,8 @@ class ChannelColumn(QFrame):
         layout.addWidget(self.fader_host)
         self.tall = False
 
-        # Whether the output channels share one device, over the device. The
-        # Mic keeps the room empty, so the devices line up.
+        # Whether the output channels share one device, under the device. The
+        # Mic keeps the room empty, so the apps line up.
         self.link = None
         self.link_row = QWidget()
         self.link_row.setFixedHeight(34)
@@ -742,7 +742,6 @@ class ChannelColumn(QFrame):
             link_row.addStretch(1)
             link_row.addWidget(self.link)
             link_row.addStretch(1)
-        layout.addWidget(self.link_row)
 
         # The real device it plays through (the Mic: the mic behind it). Output
         # channels share one while linked.
@@ -750,6 +749,7 @@ class ChannelColumn(QFrame):
         self.device.clicked.connect(lambda: view.choose_device(channel.id))
         layout.addWidget(self.device)
         self.current_device = ""
+        layout.addWidget(self.link_row)
 
         # Whether it also plays through the second device, when one is set.
         self.also_row = QWidget()
