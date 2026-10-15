@@ -1,7 +1,8 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 65.
+and bugs get the next free number: 65 (70 to 79 are taken by the ideas
+list of 2026-10-15).
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -17,6 +18,119 @@ the way, are in this file as it was at commit 606d1a2
 Under the timeline of a clip without audio, the Video lane's name and the
 note that there is no audio are drawn on top of each other (seen at
 1600 × 1000, in every scheme). Found while checking item 41.
+
+**Ideas the maintainer picked (2026-10-15).** Items 70 to 79 come from the
+ideas list (see Notes, "Ideas list"); each keeps its id from that list. They
+are in the order to build them: small ones first, then Settings, then
+Sonar. A change to how something looks starts with a mockup to pick from.
+
+**70.** Ideas list U4
+**Settings › Recording › Clearer "recorder not installed" message**
+Settings › Recording says "set its command in Settings" when you are already
+in Settings. It could show the "How to install it" button that first-run
+setup has, plus a button that opens Advanced at the command field.
+- The text comes from `recorder/gsr.py` (`detect`) and is shown as is;
+  `vertex doctor` uses the same "or set its command in Settings" in
+  `doctor.py`, where it reads fine. Give the Recording page its own wording
+  rather than changing what the CLI prints.
+
+**71.** Ideas list X3
+**Library › Keyboard**
+Arrow keys to move between cards, Enter to open, Delete to delete, F2 to
+rename, F to favorite.
+- The grid (`ClipGrid` in `ui/library/view.py`) has no selection today
+  (`NoSelection`): keys need a current card that is drawn as focused.
+- Home's latest clips use the same grid; decide with the maintainer
+  whether the keys work there too.
+
+**72.** Ideas list X4
+**Library › Drag a clip out of Vertex**
+Drag a card straight into Discord, a browser upload field or the file
+manager. Today that takes Export › Copy file, or Show in folder.
+- A drag carries the clip's file as a `file://` URL (as Copy file in the
+  export dialog does), from the Library and from Home.
+- The card's own drag must not get in the way of a click, the favorite
+  star or a rename.
+
+**73.** Ideas list X7
+**Library › Quick export from the clip menu**
+An "Export for Discord (10 MB)" entry in a card's right-click menu, using
+the size you picked last, without opening the editor.
+- The export dialog doesn't remember the size today (it always starts on
+  Original); remembering it is part of this item.
+- Uses the clip's saved trim and mix, as the editor's export does; shows
+  progress and the result as a toast, with Copy file and Open folder.
+
+**74.** Ideas list X8
+**Tray › More in the tray menu**
+The tray has Save clip, Save the last 30 seconds, Sonar and Quit. It could
+also switch the output device and microphone, and open the Library or
+Sonar directly.
+- Device switching goes through the same calls as the Sonar page and
+  `vertex device` (`pick_device` in `ui/services.py`): a pick is for now,
+  the priority list stays the lasting order (item 53). Excluded devices
+  are left out of the menu.
+
+**75.** Ideas list L3
+**Editor › Controls grow with the window**
+At 2560 px the play button, Trim, Export and the track mixer stay the size
+they have at 1280 px. They could scale up to 1.5× like the top bar does,
+and the track names could get a wider column.
+- The top bar's scaling (item 58, `SCALE_MAX` in `ui/topbar.py`) is the
+  model. Check at 980, 1280 and 2560 px; mockup first.
+- Item 43 (the overlapping "Video" and "This clip has no audio.") is in
+  the same place: fix it first.
+
+**76.** Ideas list X6
+**Settings › Apply right away**
+Every change in Settings waits for Save, and leaving asks whether to save.
+Switches and lists could apply as soon as they change, the way the colour
+scheme already does. Only recording changes that restart the replay buffer
+would get an Apply button.
+- Today: Save and Revert in the header, `is_dirty` in
+  `ui/settings/view.py`, and the "leave without saving?" question in
+  `ui/main_window.py` (`_may_leave_settings`). All of that goes, except
+  for the recording settings.
+- To ask the maintainer: whether folder changes (clips, exports) apply
+  right away too, or wait for Apply like recording.
+- Before 77, because 77 lays out the header and pages again.
+
+**77.** Ideas list L2
+**Settings › Use the width**
+On a wide screen each setting's name sits at the far left and its switch
+about 2,000 px away at the far right, and the text stays small. The page
+tabs could become a list with icons in a left column, and on wide windows
+the sections could sit in two columns (Notifications: Clips next to Sonar;
+General: Folders next to Behavior).
+- From the mockup: a "Send a test" button next to "Show them over games",
+  which shows a sample notification over a game.
+- Keep the Import and setup style the maintainer likes (bold title, a
+  line of text, a full-width button). Check at 980, 1280 and 2560 px with
+  no dead space; mockup first.
+
+**78.** Ideas list F4
+**Sonar › Level meters on the channels**
+A live meter next to each fader, on the Sonar page and Home, so you can see
+that the game's sound is coming through and that your mic picks you up,
+without asking someone on Discord.
+- To work out: how to read the levels. `pactl` has no peak readings; a
+  small reader per channel on its monitor (as pavucontrol does) is the
+  likely way. It must stay off the UI thread, cost little CPU, and only
+  run while a page with meters is shown.
+- Colours: meters are audio controls, so no accent (design rules);
+  red stays for recording, so the top of a meter needs another warning
+  colour. Check in a dark and a light scheme.
+
+**79.** Ideas list L1
+**Sonar › The page fills big windows**
+At 2560 × 1380 about 45% of the Sonar page is empty below the device lists.
+The channel cards could grow into tall mixer columns with a vertical fader
+and a level meter (item 78), and the two device panels could move into a
+column on the right. At 1280 px it would fall back to today's layout.
+- After 78, whose meters these columns hold.
+- Items 34 and 36 built today's page; keep what they settled (a panel per
+  kind of device, priority and excluded lists, "also play through").
+  Check at 980, 1280 and 2560 px; mockup first.
 
 **49.**
 **Other programs' notifications over games**
@@ -618,8 +732,8 @@ committed.
 **Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 64, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
-editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer
-says). Waiting on the maintainer: the checks listed above. The session that
+editor bug), then the picked ideas 70 to 79 in order. Then 9 (on hold) and
+21 (documentation, when the maintainer says). Waiting on the maintainer: the checks listed above. The session that
 ended 2026-10-14 finished with 45; nothing was left half done.
 
 **Colour schemes.** Decided along the way (items 30, 38 to 45): the picker
@@ -640,3 +754,15 @@ device manager's output and mic tabs), described in the history; none of
 Moments. They show behaviour: Vertex keeps its own look, and they are never
 committed (CLAUDE.md). The mixer's Master column, EQ presets and ChatMix
 were not asked for.
+
+**Ideas list.** On 2026-10-15 Claude looked through the whole app and
+proposed 26 changes, each with an id (L layout, U UI, X UX, F features),
+with mockups: https://claude.ai/artifact/4xYZDY9hvGL1f5d6bCY8PL (private to
+the maintainer). The maintainer picked L1, L2, L3, U4, X3, X4, X6, X7, X8
+and F4 for now (items 70 to 79). The rest stay ideas, built only when
+the maintainer asks: L4
+smaller scheme previews, L5 storage tile, U1 readable clip names, U2
+replay switch, U3 date headers, X1 undo after delete, X2 several clips at
+once, X5 editor previous and next, F1 clean-up of old clips, F2 whole
+sessions, F3 screenshots, F5 ChatMix, F6 mic noise suppression, F7 volume
+per app, F8 audio profiles, F9 highlight reel.
