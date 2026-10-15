@@ -1,11 +1,12 @@
 """Screenshot the Sonar page against a fake audio server, for UI work.
 
-usage: xvfb-run -a python tools/sonar_screenshot.py OUT_PREFIX [WIDTH ...]
+usage: xvfb-run -a python tools/sonar_screenshot.py OUT_PREFIX [WIDTH[xHEIGHT] ...]
 
 Loads vertex from this checkout's src/ (so a worktree's version is used, not
 whatever is installed), plays a few fake apps, and saves OUT_PREFIX-<width>.png
 (the whole window) and OUT_PREFIX-<width>-manager.png (the device manager)
-for each width: by default 1280 (the default window) and 980 (the minimum).
+for each width: by default 1280 (the default window) and 980 (the minimum),
+860 high unless a height is given (2560x1380 shows the tall channels).
 Needs no audio server and never touches your real config.
 """
 
@@ -64,7 +65,7 @@ def fake_server():
     return fake
 
 
-def main(prefix: str, widths: list[int]) -> int:
+def main(prefix: str, sizes: list[tuple[int, int]]) -> int:
     sys.path[:0] = [os.path.join(REPO, "src"), os.path.join(REPO, "tests")]
     isolate()
     import vertex
@@ -85,7 +86,7 @@ def main(prefix: str, widths: list[int]) -> int:
     window = MainWindow(context)
     window.start_services()
     window.navigate("sonar")
-    window.resize(widths[0], 860)
+    window.resize(*sizes[0])
     window.show()
 
     def play():
@@ -98,16 +99,17 @@ def main(prefix: str, widths: list[int]) -> int:
         context.sonar.refresh_devices()
 
     def shoot(i=0):
-        if i == len(widths):
+        if i == len(sizes):
             window.close()
             qt.quit()
             return
-        window.resize(widths[i], 860)
+        window.resize(*sizes[i])
+        width = sizes[i][0]
 
         def grab():
-            window.grab().save(f"{prefix}-{widths[i]}.png")
-            window.sonar_view.manager.grab().save(f"{prefix}-{widths[i]}-manager.png")
-            print("saved", f"{prefix}-{widths[i]}.png")
+            window.grab().save(f"{prefix}-{width}.png")
+            window.sonar_view.manager.grab().save(f"{prefix}-{width}-manager.png")
+            print("saved", f"{prefix}-{width}.png")
             shoot(i + 1)
         QTimer.singleShot(600, grab)
 
@@ -121,4 +123,5 @@ def main(prefix: str, widths: list[int]) -> int:
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    sys.exit(main(sys.argv[1], [int(w) for w in sys.argv[2:]] or [1280, 980]))
+    sizes = [tuple(int(n) for n in (arg + "x860").split("x")[:2]) for arg in sys.argv[2:]]
+    sys.exit(main(sys.argv[1], sizes or [(1280, 860), (980, 860)]))

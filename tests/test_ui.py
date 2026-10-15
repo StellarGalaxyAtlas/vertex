@@ -17,8 +17,8 @@ pytest.importorskip("PySide6")
 if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEvent, QObject
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtCore import QEvent, QObject, QPoint
+from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton
 
 from vertex.config import Config
 
@@ -810,6 +810,13 @@ def test_sonar_lists_apps_under_channels_and_routes_drops(qapp, window, fake_aud
     assert wait_until(qapp, lambda: "spotify" in keys("game"))
     assert "spotify" not in window.context.config.sonar.app_rules
 
+    # An app that isn't playing isn't shown, though its channel is kept.
+    view.route("steam", "chat")
+    assert wait_until(qapp, lambda: window.context.config.sonar.app_rules.get("steam"))
+    window.context.sonar.refresh_streams()
+    qapp.processEvents()
+    assert "steam" not in keys("chat") and keys("chat") == []
+
 
 def test_app_left_half_behind_after_a_drop_heals(qapp, window, fake_audio):
     """Reported bug: a dropped app showed on both channels."""
@@ -1009,9 +1016,13 @@ def test_each_channel_shows_and_picks_its_device(qapp, window, fake_audio):
     popup.pick("hw_speakers")
     assert wait_until(qapp, lambda: all(strips[c].current_device == "hw_speakers"
                                         for c in ("game", "chat", "media")))
+    assert view.link_line.linked
+    # Picking a device is all the list offers.
+    assert not any(isinstance(b, QPushButton) and b.text() == "Device manager"
+                   for b in popup.findChildren(QPushButton))
     # Unlinked: each its own.
     view.toggle_link("chat")
-    assert wait_until(qapp, lambda: not sonar.linked)
+    assert wait_until(qapp, lambda: not sonar.linked and not view.link_line.linked)
     view.choose_device("media").pick("hw_headset")
     assert wait_until(qapp, lambda: strips["media"].current_device == "hw_headset")
     assert strips["game"].current_device == "hw_speakers"
@@ -1795,7 +1806,7 @@ def test_settings_apply_at_once_and_recording_waits_for_apply(qapp, window, monk
     assert settings.apply_button.isHidden()
 
 
-def test_sonar_stands_tall_on_a_big_window_with_level_meters(qapp, window, monkeypatch):
+def test_sonar_stands_tall_on_a_big_window(qapp, window, monkeypatch):
     from PySide6.QtCore import Qt
 
     from vertex.audio import levels
@@ -1814,21 +1825,21 @@ def test_sonar_stands_tall_on_a_big_window_with_level_meters(qapp, window, monke
     # The devices sit right of the channels, which take the height.
     assert view.manager.geometry().left() > game.geometry().right()
     assert game.height() > 600
-    # Meters follow the levels, and fall back slowly.
-    window.context.levels.levels.emit({"game": 0.8, "mic": 0.3})
-    assert game.meter.level == 0.8 and view.strips["mic"].meter.level == 0.3
-    window.context.levels.levels.emit({})
-    assert 0.7 < game.meter.level < 0.8
-    assert window.context.levels._wanted == {"sonar"}
-    if window.context.sonar.status.active:
-        assert wait_until(qapp, lambda: started)
-        assert started[0]["game"] == "vertex_game.monitor"
-        assert started[0]["mic"] == "vertex_mic"
+    # The fader shares the height with the apps, and the devices line up.
+    assert game.apps_area.height() > 150
+    assert len({strip.device.mapTo(view, QPoint(0, 0)).y()
+                for strip in view.strips.values()}) == 1
+    # Sonar's page has no meters of its own.
+    assert window.context.levels._wanted == set()
     window.resize(1280, 820)
     assert wait_until(qapp, lambda: not view.big)
     assert not game.tall
     window.navigate("home")
     assert window.context.levels._wanted == {"home"}
+    if window.context.sonar.status.active:
+        assert wait_until(qapp, lambda: started)
+        assert started[0]["game"] == "vertex_game.monitor"
+        assert started[0]["mic"] == "vertex_mic"
     window.context.levels.levels.emit({"chat": 0.5})
     assert window.home_view.channels["chat"].meter.level == 0.5
     assert window.home_view.faders["chat"].meter.level == 0.5

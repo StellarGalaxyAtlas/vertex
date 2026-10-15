@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QMimeData, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+import itertools
+
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -47,10 +49,8 @@ from vertex.ui.widgets import (
     ElidedLabel,
     FlowLayout,
     IconButton,
-    LevelMeter,
     Section,
     Toggle,
-    button,
     label,
 )
 
@@ -222,7 +222,6 @@ class DeviceList(QFrame):
     current one ticked. Picking one emits `picked` with its name."""
 
     picked = Signal(str)
-    manage = Signal()
 
     def __init__(self, title: str, devices: list[tuple[str, str]], current: str,
                  parent=None, excluded: list[tuple[str, str]] = ()):
@@ -259,23 +258,10 @@ class DeviceList(QFrame):
                 self.buttons[name] = item
         if not devices and not excluded:
             layout.addWidget(label("No devices found", "Dim"))
-        layout.addSpacing(6)
-        manager = button("Device manager", "primary", on_click=self._manage)
-        # Its own look: the list's buttons are plain, left-aligned rows.
-        manager.setStyleSheet(
-            f"QPushButton {{ background: {theme.ACCENT_FILL}; color: {theme.ON_ACCENT}; "
-            f"text-align: center; "
-            f"padding: 8px; border-radius: 8px; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: {theme.ACCENT_HOVER}; }}")
-        layout.addWidget(manager)
 
     def pick(self, name: str) -> None:
         self.close()
         self.picked.emit(name)
-
-    def _manage(self) -> None:
-        self.close()
-        self.manage.emit()
 
     def show_under(self, anchor: QWidget) -> None:
         self.setMinimumWidth(max(anchor.width(), 260))
@@ -530,7 +516,7 @@ class DevicePanel(QWidget):
         self.second_device = ""
         if kind == "output":
             column.addSpacing(4)
-            column.addWidget(label("ALSO PLAY THROUGH", "Group"))
+            column.addWidget(label("PLAY AUDIO ON SECOND DEVICE", "Group"))
             self.second = QComboBox()
             self.second.setSizeAdjustPolicy(
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
@@ -727,27 +713,23 @@ class ChannelColumn(QFrame):
         self.slider.setAccessibleName(f"{channel.label} volume")
         theme.style(self.slider, self._slider_style)
         self.slider.valueChanged.connect(self._on_slider)
-        # The fader and its level meter: under each other in a card, side by
-        # side in a tall column.
-        self.meter = LevelMeter(lambda: self.colour)
-        self.meter.setToolTip(f"What plays on {channel.label}" if channel.is_output
-                              else "What the Mic picks up")
+        # The fader: across in a card, upright in a tall column.
         self.fader_host = QWidget()
         self.fader_box = QBoxLayout(QBoxLayout.Direction.TopToBottom, self.fader_host)
         self.fader_box.setContentsMargins(0, 0, 0, 0)
-        self.fader_box.setSpacing(8)
         self.fader_box.addStretch(0)
         self.fader_box.addWidget(self.slider)
-        self.fader_box.addWidget(self.meter)
         self.fader_box.addStretch(0)
         layout.addWidget(self.fader_host)
         self.tall = False
 
-        # The real device it plays through (the Mic: the mic behind it). Output
-        # channels share one while linked.
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        # Whether the output channels share one device, over the device. The
+        # Mic keeps the room empty, so the devices line up.
         self.link = None
+        self.link_row = QWidget()
+        self.link_row.setFixedHeight(34)
+        link_row = QHBoxLayout(self.link_row)
+        link_row.setContentsMargins(0, 0, 0, 0)
         if channel.is_output:
             self.link = IconButton("link", "", 16, "ACCENT_EDGE", kind="")
             self.link.setFixedSize(34, 34)
@@ -757,12 +739,19 @@ class ChannelColumn(QFrame):
                                            f"QToolButton:hover {{ background: "
                                            f"{theme.CARD_HOVER}; }}")
             self.link.clicked.connect(lambda: view.toggle_link(channel.id))
-            row.addWidget(self.link)
+            centre = not LINK_STYLE.startswith("left")
+            if centre:
+                link_row.addStretch(1)
+            link_row.addWidget(self.link)
+            link_row.addStretch(1)
+        layout.addWidget(self.link_row)
+
+        # The real device it plays through (the Mic: the mic behind it). Output
+        # channels share one while linked.
         self.device = DeviceButton()
         self.device.clicked.connect(lambda: view.choose_device(channel.id))
-        row.addWidget(self.device, 1)
+        layout.addWidget(self.device)
         self.current_device = ""
-        layout.addLayout(row)
 
         # Whether it also plays through the second device, when one is set.
         self.also_row = QWidget()
@@ -779,19 +768,26 @@ class ChannelColumn(QFrame):
         layout.addWidget(self.also_row)
         self.also_row.hide()
 
+        # The apps on it: in a tall column, a share of the height of its own.
         layout.addSpacing(4)
-        layout.addWidget(label("RECORDING FROM IT" if not channel.is_output else "APPS",
-                               "Group"))
+        self.apps_area = QWidget()
+        area = QVBoxLayout(self.apps_area)
+        area.setContentsMargins(0, 0, 0, 0)
+        area.setSpacing(10)
+        area.addWidget(label("RECORDING FROM IT" if not channel.is_output else "APPS",
+                             "Group"))
         self.apps_host = QWidget()
         self.apps = FlowLayout(self.apps_host, spacing=6)
-        layout.addWidget(self.apps_host)
+        area.addWidget(self.apps_host)
         empty = ("Drop an app here" if channel.is_output else "No apps")
         self.empty = label(empty, "Dim")
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty.setMinimumHeight(32)
         theme.style(self.empty, lambda: f"color: {theme.TEXT_DIM}; border: 1px dashed "
                                         f"{theme.EDGE}; border-radius: 13px;")
-        layout.addWidget(self.empty)
+        area.addWidget(self.empty)
+        area.addStretch(1)
+        layout.addWidget(self.apps_area)
         layout.addStretch(1)
         self._layout = layout
 
@@ -825,9 +821,11 @@ class ChannelColumn(QFrame):
                 f"QSlider::handle:horizontal {{ {theme.handle()} width: 18px; height: 18px; "
                 f"margin: -6px 0; border-radius: 9px; }}")
 
+    FADER_SHARE, APPS_SHARE = 5, 2      # of a tall column's spare height
+
     def set_tall(self, tall: bool) -> None:
-        """A tall mixer column, its fader upright with the meter beside it and
-        taking the height, or a card with the fader across."""
+        """A tall mixer column, its fader upright and sharing the height with
+        the apps, or a card with the fader across."""
         if tall == self.tall:
             return
         self.tall = tall
@@ -838,14 +836,13 @@ class ChannelColumn(QFrame):
         else:
             self.slider.setMinimumWidth(0)
             self.slider.setMaximumWidth(16777215)
-        self.meter.set_orientation(orientation)
         theme.style(self.slider, self._slider_style)
         self.fader_box.setDirection(QBoxLayout.Direction.LeftToRight if tall
                                     else QBoxLayout.Direction.TopToBottom)
         self.fader_box.setStretch(0, 1 if tall else 0)
-        self.fader_box.setStretch(3, 1 if tall else 0)
-        self.fader_box.setSpacing(14 if tall else 8)
-        self._layout.setStretchFactor(self.fader_host, 1 if tall else 0)
+        self.fader_box.setStretch(2, 1 if tall else 0)
+        self._layout.setStretchFactor(self.fader_host, self.FADER_SHARE if tall else 0)
+        self._layout.setStretchFactor(self.apps_area, self.APPS_SHARE if tall else 0)
         self._layout.setStretch(self._layout.count() - 1, 0 if tall else 1)
         self.fader_host.setMinimumHeight(220 if tall else 0)
 
@@ -1077,6 +1074,72 @@ class ColumnGrid(QWidget):
                       (len(self.columns) + 1) // 2)
 
 
+LINK_STYLE = "centre-channels"
+
+
+class LinkLine(QWidget):
+    """A neon line over the channels joining the link buttons, while the
+    output channels share one device. Clicks go through it."""
+
+    def __init__(self, grid: QWidget, strips: list, parent=None):
+        super().__init__(grid)
+        self.strips = strips
+        self.linked = False
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        grid.installEventFilter(self)
+        for strip in strips:
+            strip.installEventFilter(self)
+
+    def set_linked(self, linked: bool) -> None:
+        if linked != self.linked:
+            self.linked = linked
+            self.update()
+
+    def eventFilter(self, watched, event):
+        if event.type() in (QEvent.Type.Resize, QEvent.Type.Move, QEvent.Type.LayoutRequest):
+            if watched is self.parent():
+                self.setGeometry(self.parent().rect())
+            self.raise_()
+            self.update()
+        return False
+
+    def _buttons(self) -> list[QRectF]:
+        rects = []
+        for strip in self.strips:
+            link = strip.link
+            if link is None or not link.isVisible():
+                continue
+            corner = link.mapTo(self.parent(), QPoint(0, 0))
+            rects.append(QRectF(corner.x(), corner.y(), link.width(), link.height()))
+        return rects
+
+    def paintEvent(self, _event):
+        rects = self._buttons()
+        if not self.linked or len(rects) < 2:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # The channels' own colours, blending from one button to the next.
+        colours = [theme.ACCENT_EDGE] * 2 if LINK_STYLE.endswith("accent") else \
+            [strip.colour for strip in self.strips if strip.link is not None]
+        first, last = rects[0].center(), rects[-1].center()
+        for left, right in itertools.pairwise(rects):
+            # Only between buttons on one row: wrapped, the channels aren't side by side.
+            if abs(left.center().y() - right.center().y()) > 1:
+                continue
+            y = left.center().y()
+            start, end = QPointF(left.right() + 3, y), QPointF(right.left() - 3, y)
+            for width, alpha in ((18, 0.07), (10, 0.16), (5, 0.35), (2.5, 1.0)):
+                ramp = QLinearGradient(first, last)
+                for index, colour in enumerate(colours):
+                    ramp.setColorAt(index / (len(colours) - 1), _alpha(colour, alpha))
+                pen = QPen(QBrush(ramp), width)
+                pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                p.setPen(pen)
+                p.drawLine(start, end)
+
+
 class SonarView(QWidget):
     def __init__(self, context, parent=None):
         super().__init__(parent)
@@ -1135,6 +1198,7 @@ class SonarView(QWidget):
         for channel in channels.ALL:
             self.strips[channel.id] = ChannelColumn(self, self.controller, channel)
         self.strips_host = ColumnGrid(list(self.strips.values()))
+        self.link_line = LinkLine(self.strips_host, list(self.strips.values()))
         # The channels on the left and the devices on the right on a big
         # window, the devices under the channels before that.
         self.body = QBoxLayout(QBoxLayout.Direction.TopToBottom)
@@ -1197,7 +1261,6 @@ class SonarView(QWidget):
         self.big = False
 
         self.controller.status_changed.connect(self._show_status)
-        context.levels.levels.connect(self._show_levels)
         self._dragging = False
         self._pending: dict[str, list] = {}
         self.controller.streams_changed.connect(lambda s: self._update("streams", s))
@@ -1240,17 +1303,8 @@ class SonarView(QWidget):
         layout.setStretchFactor(self.body, 1 if big else 0)
         layout.setStretch(layout.count() - 1, 0 if big else 1)
 
-    def _show_levels(self, levels: dict) -> None:
-        for channel_id, strip in self.strips.items():
-            strip.meter.set_level(levels.get(channel_id, 0.0))
-
-    def hideEvent(self, event):
-        super().hideEvent(event)
-        self.context.levels.want("sonar", False)
-
     def showEvent(self, event):
         super().showEvent(event)
-        self.context.levels.want("sonar", True)
         self.controller.refresh()
         self.controller.refresh_streams()
         self.controller.refresh_devices()
@@ -1307,6 +1361,7 @@ class SonarView(QWidget):
             self.strips[channel.id].show_also(self._label(second) if second else "",
                                               sonar.channel(channel.id).also_second,
                                               bool(second))
+        self.link_line.set_linked(sonar.linked)
         self._show_manager(status)
 
     def _ordered(self, kind: str) -> tuple[list[str], list[str]]:
@@ -1367,9 +1422,6 @@ class SonarView(QWidget):
         self.controller.set_show_disconnected(shown)
         self._show_manager(self.controller.status)
 
-    def show_manager(self) -> None:
-        self.scroll.verticalScrollBar().setValue(self.manager.y())
-
     def choose_device(self, channel_id: str) -> DeviceList:
         channel = channels.BY_ID[channel_id]
         column = self.strips[channel_id]
@@ -1382,7 +1434,6 @@ class SonarView(QWidget):
             column.current_device, self,
             excluded=[(name, self._label(name)) for name in excluded if name in present])
         self._popup.picked.connect(lambda name: self._pick_device(channel_id, name))
-        self._popup.manage.connect(self.show_manager)
         self._popup.show_under(column.device)
         return self._popup
 
@@ -1435,14 +1486,11 @@ class SonarView(QWidget):
             self._show_recorders(items)
 
     def _show_streams(self, streams: list[AppStream]) -> None:
-        """Each app under the channel it plays on; apps with a rule that are
-        not playing are shown faintly under the channel they will go to."""
+        """Each app under the channel it plays on, while it plays."""
         rules = dict(self.context.config.sonar.app_rules)
         per_channel: dict[str, dict[str, AppChip]] = {c.id: {} for c in channels.OUTPUTS}
         unrouted: dict[str, AppChip] = {}
-        playing = set()
         for stream in streams:
-            playing.add(stream.key)
             if stream.channel in per_channel:
                 bucket = per_channel[stream.channel]
                 if stream.key not in bucket or stream.stuck:
@@ -1451,12 +1499,6 @@ class SonarView(QWidget):
                 unrouted[stream.key] = self._chip(
                     stream, rules.get(stream.key),
                     f"on {stream.device}" if stream.device else "")
-        for key, channel_id in sorted(rules.items()):
-            if key not in playing and channel_id in per_channel:
-                per_channel[channel_id][key] = AppChip(
-                    self, key, key, note="not playing", rule=channel_id, dim=True,
-                    tooltip=f"{key} goes to {channels.BY_ID[channel_id].label} whenever it "
-                            f"plays. Drag it to change that; right-click to reset it.")
         for channel_id, chips in per_channel.items():
             self.strips[channel_id].set_apps(list(chips.values()))
 
