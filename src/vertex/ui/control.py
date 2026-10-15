@@ -107,7 +107,8 @@ class Commands(QObject):
         recorder = self.context.recorder
         action = control.choice_arg(args, "action", ("start", "stop", "toggle", "status"))
         if action == "status":
-            return control.ok(f"The replay buffer is {recorder.phase}.",
+            phase = "stopped after an error" if recorder.phase == "failed" else recorder.phase
+            return control.ok(f"The replay buffer is {phase}.",
                               **self.state()["replay"])
         if action == "start" or (action == "toggle" and not recorder.running):
             recorder.start()

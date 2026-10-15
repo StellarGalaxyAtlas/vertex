@@ -18,7 +18,7 @@ if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QObject
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLineEdit
 
 from vertex.config import Config
 
@@ -110,6 +110,21 @@ def test_library_lists_and_tags_clips(qapp, window):
     state.set_query("")
     assert state.set_title(clip, "Big play") == "Big play"
     assert state.title_of(clip) == "Big play"
+
+
+def test_renaming_a_card_keeps_the_typing_while_its_row_changes(qapp, window):
+    view = window.library_view
+    window.navigate("library")
+    index = view.model.index(0)
+    view.grid.edit(index)
+    qapp.processEvents()
+    editor = view.grid.indexWidget(index) or view.grid.findChild(QLineEdit)
+    assert editor is not None
+    editor.setText("Big play")
+    # A hover-preview frame or a thumbnail arriving changes the row.
+    view.model.dataChanged.emit(index, index)
+    qapp.processEvents()
+    assert editor.text() == "Big play"
 
 
 def test_tag_dialog_suggests_and_saves_on_enter(qapp, window):

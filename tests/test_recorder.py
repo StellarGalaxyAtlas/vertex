@@ -394,3 +394,11 @@ class TestReplayRecorder:
         pid = recorder.pid
         assert pid and os.getpgid(pid) == pid      # its own process group
         recorder.stop()
+
+
+def test_doctor_finds_nothing_wrong_with_the_default_settings(fake_gsr):
+    from vertex import doctor
+
+    config = Config(recorder=RecorderConfig(command=fake_gsr))
+    check = next(c for c in doctor.run_checks(config) if c.name == "recorder settings")
+    assert check.ok, check.detail

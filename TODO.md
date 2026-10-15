@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 60.
+and bugs get the next free number: 64.
 
 Finished items are kept short: what was built, and the decisions that still
 matter. Their full write-ups, with the reasoning and the questions settled on
@@ -584,6 +584,19 @@ asked as a switch) and the Logs folder (default `logs` in the state folder,
 `~/.local/state/vertex/logs`). Uncaught errors land in `vertex.log`. Only
 the running app writes logs, not `vertex save-clip` and co.
 
+**62. Renaming a clip card kept losing the typing** (bug, found 2026-10-15
+testing the whole app). The card's name field was filled in again from the
+library each time its row changed, and the hover preview changes it every
+frame: with the pointer resting on the card, typed letters vanished. The
+field is now filled once, when renaming starts (Library and Home).
+
+**63. `vertex doctor` warned about the default recording settings** (bug,
+found with 62). It checked the settings as saved, where "constant bitrate"
+has no number yet because the video quality works it out, and so reported
+"Constant bitrate needs a bitrate" for everyone. It now checks them as GPU
+Screen Recorder gets them. Also: `vertex replay status` said "The replay
+buffer is failed."; it now says "stopped after an error".
+
 ## Notes
 
 **Documentation.** Don't touch the repo's documentation (README, `docs/`,
@@ -591,7 +604,7 @@ the screenshots in it) until the maintainer says so; it is written at the
 end (item 21). Screenshots taken to check UI work are fine, and never
 committed.
 
-**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 61, including the
+**Progress.** Done: 1–8 (8a, 8b), 10–20, 22–42, 44 to 47, 50, 51, 53 to 63, including the
 bugs 14, 16, 18 and 26. The new look of round 3 is built and scales on big
 screens; there are nine colour schemes, two of them light. Next: 43 (an
 editor bug). Then 9 (on hold) and 21 (documentation, when the maintainer

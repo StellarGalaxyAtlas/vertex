@@ -241,6 +241,12 @@ class ClipDelegate(QStyledItemDelegate):
         return editor
 
     def setEditorData(self, editor, index):
+        # The view calls this again on every change to the row: each frame of
+        # the hover preview, a thumbnail arriving. Filling the field only once
+        # keeps what is being typed.
+        if editor.property("filled"):
+            return
+        editor.setProperty("filled", True)
         editor.setText(index.data(Qt.ItemDataRole.EditRole) or "")
         editor.selectAll()
 

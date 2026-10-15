@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from vertex import config as config_mod
 from vertex import paths
 from vertex.audio.pulse import AudioError, Pactl
-from vertex.recorder import gsr, notifier
+from vertex.recorder import gsr, notifier, presets
 
 
 @dataclass
@@ -97,7 +97,9 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
                         detail, fix, required=False))
 
     if found.available:
-        problems = gsr.validate(config.recorder)
+        # As the recorder passes them: a bitrate left to the quality level is
+        # worked out first (the monitor's size only changes how high).
+        problems = gsr.validate(presets.resolve(config.recorder, []))
         checks.append(Check("recorder settings", not problems, "; ".join(problems) or "valid",
                             "fix them in Settings → Recording", required=False))
 
