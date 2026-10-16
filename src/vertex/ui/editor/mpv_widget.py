@@ -45,6 +45,10 @@ class MpvWidget(QOpenGLWidget):
             vo="libmpv", keep_open="yes", idle="yes", osc=False,
             input_default_bindings=False, input_vo_keyboard=False,
             audio_client_name="Vertex", title="Vertex", hr_seek="yes",
+            # Plain bilinear scaling: the preview is shrunk to fit the editor,
+            # where mpv's sharper default scalers look the same but cost an
+            # older integrated GPU its frame rate. Exports are not affected.
+            profile="fast",
         )
         # Decoded frames stay on the GPU and are drawn from there; copying
         # them back to the CPU costs a weak laptop most of its frame rate.
