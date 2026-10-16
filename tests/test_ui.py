@@ -177,7 +177,7 @@ def test_library_keys_move_a_focus_ring_and_act_on_its_card(qapp, window, monkey
     assert grid.focus_row() == -1
 
 
-def test_a_card_dragged_out_hands_over_its_file(qapp, window, monkeypatch):
+def test_a_card_is_not_dragged_out(qapp, window, monkeypatch):
     from PySide6.QtCore import QPoint, Qt
     from PySide6.QtGui import QDrag, QMouseEvent
 
@@ -198,8 +198,8 @@ def test_a_card_dragged_out_hands_over_its_file(qapp, window, monkeypatch):
     mouse(QEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
     mouse(QEvent.Type.MouseMove, start + QPoint(40, 0), Qt.MouseButton.LeftButton)
     mouse(QEvent.Type.MouseButtonRelease, start + QPoint(40, 0), Qt.MouseButton.NoButton)
-    assert dragged == [[window.state.visible[0].path]]
-    assert opened == []                       # the drag's release opens nothing
+    assert dragged == []                      # the full-size file is never handed out
+    opened.clear()
     # A plain click still opens the clip.
     mouse(QEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
     mouse(QEvent.Type.MouseButtonRelease, start, Qt.MouseButton.NoButton)
@@ -1145,6 +1145,36 @@ def test_dialogs(qapp, window, sample_clip):
     assert wait_until(qapp, lambda: bool(dialog.out_path), timeout=60)
     assert os.path.getsize(dialog.out_path) <= 10 * 1024 * 1024
     dialog.reject()
+
+
+def test_share_renders_into_the_cache(qapp, window, sample_clip, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QDrag, QGuiApplication
+
+    from vertex.media import export, probe
+    from vertex.ui.dialogs.export import ExportDialog
+
+    info = probe.probe(sample_clip)
+    clip = window.state.visible[0]
+    dialog = ExportDialog(window, window.context, clip, 0.0, 3.0, info.tracks, info, share=True)
+    assert dialog.export_button.text() == "Share"
+    dialog._export()
+    assert wait_until(qapp, lambda: bool(dialog.out_path), timeout=60)
+    cache = window.context.config.resolved_cache_dir()
+    assert os.path.dirname(dialog.out_path) == export.share_dir(cache)
+    urls = QGuiApplication.clipboard().mimeData().urls()
+    assert [url.toLocalFile() for url in urls] == [dialog.out_path]
+    # The finished file drags out of the preview.
+    dragged = []
+    monkeypatch.setattr(QDrag, "exec", lambda self, *a: dragged.append(
+        [url.toLocalFile() for url in self.mimeData().urls()]) or Qt.DropAction.CopyAction)
+    dialog.preview.drag()
+    assert dragged == [[dialog.out_path]]
+    dialog.reject()
+    assert os.path.exists(dialog.out_path)    # kept until Vertex next starts
+    assert export.clear_shares(cache, older_than=60) == 0
+    assert export.clear_shares(cache) == 1
+    assert not os.path.exists(dialog.out_path)
 
 
 def _setup(qapp, tmp_path):

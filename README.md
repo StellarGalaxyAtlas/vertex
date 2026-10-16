@@ -80,7 +80,7 @@ telemetry and no account.
 </p>
 
 All your clips with previews. Filter by game, person or favorites, search,
-tag and rename. Drag a clip out into Discord.
+tag and rename.
 
 ## Editor and export
 
@@ -91,8 +91,9 @@ tag and rename. Drag a clip out into Discord.
 </tr>
 </table>
 
-A volume slider per audio track, trimming without quality loss, and exports
-sized for Discord, copied to the clipboard.
+A volume slider per audio track and trimming without quality loss. Share
+sizes the clip for Discord and copies it, ready to paste or drag into a chat;
+Export saves it in your Exports folder.
 
 ## Sonar
 

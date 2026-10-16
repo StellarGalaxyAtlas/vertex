@@ -5,18 +5,16 @@ from __future__ import annotations
 import os
 import subprocess
 
-from PySide6.QtCore import QMimeData, QModelIndex, QPoint, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QModelIndex, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
-    QDrag,
     QGuiApplication,
     QKeySequence,
     QShortcut,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QHBoxLayout,
     QLabel,
     QListView,
@@ -55,8 +53,7 @@ class ClipGrid(QListView):
 
     The keyboard moves a focus ring between cards (shown only once a key is
     used): Enter opens, Delete deletes, F2 renames, F favorites, the menu key
-    or Shift+F10 opens the card's menu. A card dragged out of the grid hands
-    over its file, to Discord, a browser or the file manager."""
+    or Shift+F10 opens the card's menu."""
 
     hovered_row = Signal(int)
     zoomed = Signal(int)             # Ctrl+scroll: notches, + for bigger cards
@@ -86,8 +83,6 @@ class ClipGrid(QListView):
         self._hovered = -1
         self.card_width = CARD_WIDTH_DEFAULT
         self.keyboard = False        # the focus ring shows: a key moved it last
-        self._press: tuple[QPoint, QModelIndex] | None = None
-        self._dragged = False
         self._last_row = 0           # where the ring comes back after the cards reload
 
     def focus_row(self) -> int:
@@ -167,40 +162,7 @@ class ClipGrid(QListView):
 
     def mousePressEvent(self, event):
         self._show_ring(False)
-        self._dragged = False
-        index = self.indexAt(event.position().toPoint())
-        self._press = (event.position().toPoint(), index) \
-            if event.button() == Qt.MouseButton.LeftButton and index.isValid() else None
         super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        self._press = None
-        if self._dragged:
-            # The press became a drag: the release opens nothing.
-            self._dragged = False
-            event.accept()
-            return
-        super().mouseReleaseEvent(event)
-
-    def _drag(self, index: QModelIndex) -> None:
-        clip = index.data(ClipRole)
-        if clip is None or not clip.path:
-            return
-        self._dragged = True
-        data = QMimeData()
-        data.setUrls([QUrl.fromLocalFile(clip.path)])
-        drag = QDrag(self)
-        drag.setMimeData(data)
-        card = self.viewport().grab(self.visualRect(index))
-        if not card.isNull():
-            ratio = card.devicePixelRatio() or 1.0
-            width = min(240, round(card.width() / ratio))
-            picture = card.scaledToWidth(round(width * ratio),
-                                         Qt.TransformationMode.SmoothTransformation)
-            picture.setDevicePixelRatio(ratio)
-            drag.setPixmap(picture)
-            drag.setHotSpot(QPoint(width // 2, round(picture.height() / ratio) // 2))
-        drag.exec(Qt.DropAction.CopyAction)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -251,14 +213,6 @@ class ClipGrid(QListView):
         super().wheelEvent(event)
 
     def mouseMoveEvent(self, event):
-        if self._press is not None and event.buttons() & Qt.MouseButton.LeftButton and \
-                self.state() != QAbstractItemView.State.EditingState and \
-                (event.position().toPoint() - self._press[0]).manhattanLength() >= \
-                QApplication.startDragDistance():
-            index = self._press[1]
-            self._press = None
-            self._drag(index)
-            return
         super().mouseMoveEvent(event)
         row = self.indexAt(event.position().toPoint()).row()
         if row != self._hovered:

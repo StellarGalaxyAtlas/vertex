@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import tempfile
 import threading
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -241,6 +242,32 @@ def export_target(folder: str, clip_name: str, limit: int | None) -> str:
         candidate = os.path.join(folder, f"{base} {count}.mp4")
         count += 1
     return candidate
+
+
+def share_dir(cache_dir: str) -> str:
+    """Where shared clips are written: in the cache, emptied as Vertex starts."""
+    return os.path.join(cache_dir, "shared")
+
+
+def clear_shares(cache_dir: str, older_than: float = 0.0) -> int:
+    """Delete the shared clips written more than `older_than` seconds ago (all
+    of them by default). Returns how many were deleted."""
+    folder = share_dir(cache_dir)
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return 0
+    cutoff = time.time() - older_than
+    deleted = 0
+    for name in names:
+        path = os.path.join(folder, name)
+        try:
+            if os.path.isfile(path) and os.path.getmtime(path) <= cutoff:
+                os.remove(path)
+                deleted += 1
+        except OSError:
+            pass
+    return deleted
 
 
 @dataclass

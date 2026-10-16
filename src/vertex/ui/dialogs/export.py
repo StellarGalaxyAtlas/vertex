@@ -1,9 +1,11 @@
-"""The export sheet: pick a size, export, then share the file.
+"""The share and export sheet: pick a size, render, then hand the file on.
 
 Modelled on Moments' share sheet. "Original" copies the video untouched and
 only mixes the audio down; the capped sizes re-encode to fit the limits chat
-platforms enforce. When it is done the file can be copied to the clipboard and
-pasted straight into a chat window.
+platforms enforce. Sharing renders into Vertex's cache, emptied each time
+Vertex starts, and puts the file on the clipboard; exporting saves it in the Exports folder.
+Either way the file can then be copied, or dragged from the preview straight
+into a chat window.
 """
 
 from __future__ import annotations
@@ -12,9 +14,10 @@ import os
 import shutil
 import tempfile
 
-from PySide6.QtCore import QMimeData, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QPixmap
+from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QDrag, QGuiApplication, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -32,6 +35,7 @@ from vertex.ui import theme, workers
 from vertex.ui.widgets import Segmented, button, label
 
 PREVIEW_W = 460
+DAY = 24 * 60 * 60
 
 
 def copy_file_to_clipboard(path: str) -> None:
@@ -45,29 +49,84 @@ def copy_file_to_clipboard(path: str) -> None:
     QGuiApplication.clipboard().setMimeData(data)
 
 
+class FilePreview(QLabel):
+    """The preview picture. Once the file is written it can be dragged out,
+    into Discord, a browser or the file manager."""
+
+    def __init__(self):
+        super().__init__("…")
+        self.path = ""
+        self._press: QPoint | None = None
+
+    def set_path(self, path: str) -> None:
+        self.path = path
+        self.setCursor(Qt.CursorShape.OpenHandCursor if path else Qt.CursorShape.ArrowCursor)
+        self.setToolTip("Drag into a chat" if path else "")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.path:
+            self._press = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._press = None
+        super().mouseReleaseEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._press is not None and event.buttons() & Qt.MouseButton.LeftButton and \
+                (event.position().toPoint() - self._press).manhattanLength() >= \
+                QApplication.startDragDistance():
+            self._press = None
+            self.drag()
+            return
+        super().mouseMoveEvent(event)
+
+    def drag(self) -> None:
+        data = QMimeData()
+        data.setUrls([QUrl.fromLocalFile(self.path)])
+        drag = QDrag(self)
+        drag.setMimeData(data)
+        picture = self.pixmap()
+        if picture is not None and not picture.isNull():
+            ratio = picture.devicePixelRatio() or 1.0
+            small = picture.scaledToWidth(round(200 * ratio),
+                                          Qt.TransformationMode.SmoothTransformation)
+            small.setDevicePixelRatio(ratio)
+            drag.setPixmap(small)
+            drag.setHotSpot(QPoint(100, round(small.height() / ratio) // 2))
+        drag.exec(Qt.DropAction.CopyAction)
+
+
 class ExportDialog(QDialog):
-    def __init__(self, parent, context, clip, start: float, end: float, tracks, info):
+    """`share` renders into the cache and copies the file to the clipboard;
+    otherwise the file is exported into the Exports folder."""
+
+    def __init__(self, parent, context, clip, start: float, end: float, tracks, info,
+                 share: bool = False):
         super().__init__(parent)
         self.context = context
         self.clip = clip
         self.start, self.end = start, end
         self.tracks = tracks
         self.info = info
+        self.share = share
         self.limit: int | None = None
-        self.folder = (context.config.resolved_export_dir()
-                       or os.path.dirname(os.path.abspath(clip.path)))
+        cache = context.config.resolved_cache_dir()
+        self.folder = export.share_dir(cache) if share else (
+            context.config.resolved_export_dir() or os.path.dirname(os.path.abspath(clip.path)))
         self.out_path = ""
         self._cancel = workers.Cancel()
         self._running = False
         self._workdir = tempfile.mkdtemp(prefix="vertex-preview-")
-        self.setWindowTitle("Export clip")
+        title = "Share clip" if share else "Export clip"
+        self.setWindowTitle(title)
         self.setMinimumWidth(PREVIEW_W + 48)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
-        layout.addWidget(label("Export clip", "Subheading"))
-        self.preview = QLabel("…")
+        layout.addWidget(label(title, "Subheading"))
+        self.preview = FilePreview()
         self.preview.setFixedSize(PREVIEW_W, PREVIEW_W * 9 // 16)
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         theme.style(self.preview, lambda: f"background: {theme.VIDEO_BG}; border-radius: 10px;")
@@ -86,7 +145,8 @@ class ExportDialog(QDialog):
         destination = QHBoxLayout()
         self.where = label("", "Dim")
         destination.addWidget(self.where, 1)
-        destination.addWidget(button("Change…", "ghost", on_click=self._choose_folder))
+        if not share:
+            destination.addWidget(button("Change…", "ghost", on_click=self._choose_folder))
         layout.addLayout(destination)
 
         self.progress = QProgressBar()
@@ -107,7 +167,8 @@ class ExportDialog(QDialog):
         buttons.addWidget(self.folder_button)
         buttons.addStretch(1)
         self.close_button = button("Close", on_click=self._close_or_cancel)
-        self.export_button = button("Export", "primary", "export", self._export)
+        self.export_button = button("Share" if share else "Export", "primary",
+                                    "export" if share else "folder", self._export)
         buttons.addWidget(self.close_button)
         buttons.addWidget(self.export_button)
         layout.addLayout(buttons)
@@ -148,7 +209,9 @@ class ExportDialog(QDialog):
             self.export_button.setEnabled(possible)
 
     def _show_where(self) -> None:
-        self.where.setText(f"Saves to {paths.tilde(self.folder)}")
+        self.where.setText("Copies the file, ready to paste. Vertex deletes it when it "
+                           "next starts." if self.share
+                           else f"Saves to {paths.tilde(self.folder)}")
 
     def _choose_folder(self) -> None:
         chosen = QFileDialog.getExistingDirectory(self, "Export to", self.folder)
@@ -181,7 +244,12 @@ class ExportDialog(QDialog):
         self.export_button.setEnabled(False)
         self.copy_button.hide()
         self.folder_button.hide()
+        self.preview.set_path("")
         self.close_button.setText("Cancel")
+        if self.share:
+            # For anyone who never quits Vertex: a day is long enough to paste.
+            cache = self.context.config.resolved_cache_dir()
+            workers.run(lambda: export.clear_shares(cache, older_than=DAY))
         size = export.size_label(self.limit)
         if size != self.context.config.export_size:
             self.context.config.export_size = size
@@ -214,11 +282,16 @@ class ExportDialog(QDialog):
         self.progress.setValue(1000)
         self._release()
         over = "  —  over the size limit" if result.over_limit else ""
-        self.status.setText(f"Saved {os.path.basename(result.path)} · "
-                            f"{fmt.size(result.size)}{over}")
+        done = "Copied" if self.share else "Saved"
+        if self.share:
+            copy_file_to_clipboard(result.path)
+        self.status.setText(f"{done} {os.path.basename(result.path)} · "
+                            f"{fmt.size(result.size)}{over}. Paste it into a chat, "
+                            "or drag the picture there.")
         theme.style(self.status, lambda: f"color: {theme.WARN if over else theme.OK};")
+        self.preview.set_path(result.path)
         self.copy_button.show()
-        self.folder_button.show()
+        self.folder_button.setVisible(not self.share)
 
     def _failed(self, exc: BaseException) -> None:
         self._running = False
@@ -226,7 +299,7 @@ class ExportDialog(QDialog):
         self._release()
         if isinstance(exc, Cancelled):
             log.info("Export of %s cancelled", self.clip.path)
-            self.status.setText("Export cancelled.")
+            self.status.setText("Sharing cancelled." if self.share else "Export cancelled.")
             theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
         else:
             log.error("Couldn't export %s: %s", self.clip.path, exc)

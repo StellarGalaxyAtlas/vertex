@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from vertex import APP_NAME, desktop, kwin, logs, notifications, reset
 from vertex.audio import channels
 from vertex.config import Config
+from vertex.media import export
 from vertex.media.thumbnails import ThumbnailCache
 from vertex.recorder import notifier
 from vertex.ui import icons, theme, workers
@@ -328,6 +329,8 @@ class MainWindow(QMainWindow):
         self._services_started = True
         context = self.context
         context.open_library()
+        cache = context.config.resolved_cache_dir()
+        workers.run(lambda: export.clear_shares(cache))
         if tags is not None:
             self._write_setup_tags(*tags)
         self.state.reload()

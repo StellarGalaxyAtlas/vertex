@@ -175,10 +175,13 @@ class EditorView(QWidget):
         self.trim_button = button("Trim", icon="scissors", on_click=self.confirm_trim,
                                   tooltip="Trim to selection")
         transport.addWidget(self.trim_button)
-        self.export_button = button("Export", "primary", "export", self.start_export,
-                                    "Export selection")
+        self.export_button = button("Export", icon="folder", on_click=self.start_export,
+                                    tooltip="Export the selection to your Exports folder")
         transport.addWidget(self.export_button)
-        for widget in (self.trim_button, self.export_button):
+        self.share_button = button("Share", "primary", "export", self.start_share,
+                                   "Copy the selection, ready to paste into a chat")
+        transport.addWidget(self.share_button)
+        for widget in (self.trim_button, self.export_button, self.share_button):
             widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addLayout(transport)
 
@@ -249,7 +252,7 @@ class EditorView(QWidget):
         self.meta.setStyleSheet(text)
         theme.style(self.tags_button, self._tags_style)
         for widget in (self.back_button, self.delete_button, self.trim_button,
-                       self.export_button):
+                       self.export_button, self.share_button):
             widget.setStyleSheet(f"QPushButton {{ {text} padding: {round(7 * scale)}px "
                                  f"{round(14 * scale)}px; }}")
             widget.setIconSize(QSize(round(16 * scale), round(16 * scale)))
@@ -525,7 +528,10 @@ class EditorView(QWidget):
 
     # --- Export -----------------------------------------------------------------
 
-    def start_export(self) -> None:
+    def start_share(self) -> None:
+        self.start_export(share=True)
+
+    def start_export(self, share: bool = False) -> None:
         if self.selection < 0.05:
             self.status.setText("The selection is empty.")
             return
@@ -533,7 +539,7 @@ class EditorView(QWidget):
                 not self.player_widget.player.pause:
             self.toggle_play()
         dialog = ExportDialog(self, self.context, self.clip, self.trim_start, self.trim_end,
-                              [*self.tracks], self.info)
+                              [*self.tracks], self.info, share)
         dialog.exec()
 
     # --- Trim to disk -----------------------------------------------------------
@@ -563,6 +569,7 @@ class EditorView(QWidget):
             target = clips_mod.staging_path(self.clip.path, "vertex-trim")
         self.trim_button.setEnabled(False)
         self.export_button.setEnabled(False)
+        self.share_button.setEnabled(False)
         self.status.setText("Trimming…")
         start, end, source = self.trim_start, self.trim_end, self.clip.path
         log.info("Trimming %s to %s–%s (%s)", source,
@@ -582,6 +589,7 @@ class EditorView(QWidget):
             return
         self.trim_button.setEnabled(True)
         self.export_button.setEnabled(True)
+        self.share_button.setEnabled(True)
         if mode == "copy":
             log.info("Saved the trim as %s", target)
         if mode == "copy" and self.context.library is not None:
@@ -600,6 +608,7 @@ class EditorView(QWidget):
             return
         self.trim_button.setEnabled(True)
         self.export_button.setEnabled(True)
+        self.share_button.setEnabled(True)
         self.status.setText(str(exc))
         theme.style(self.status, lambda: f"color: {theme.DANGER};")
 
