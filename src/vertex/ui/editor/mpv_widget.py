@@ -46,8 +46,11 @@ class MpvWidget(QOpenGLWidget):
             input_default_bindings=False, input_vo_keyboard=False,
             audio_client_name="Vertex", title="Vertex", hr_seek="yes",
         )
+        # Decoded frames stay on the GPU and are drawn from there; copying
+        # them back to the CPU costs a weak laptop most of its frame rate.
+        # Where that can't work, mpv falls back to a copy-back decoder itself.
         try:
-            self.player = mpv.MPV(hwdec="auto-copy-safe", **options)
+            self.player = mpv.MPV(hwdec="auto-safe", **options)
         except (TypeError, AttributeError, ValueError):
             self.player = mpv.MPV(**options)     # an mpv without that hwdec mode
         self._render = None
