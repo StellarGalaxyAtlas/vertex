@@ -1303,7 +1303,8 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio, monkeypatch):
     assert view.install_title.text() == "Install GPU Screen Recorder"
     # Its notifier is looked for on the same step.
     assert not view.notifier_row.isHidden() and not view.notifier_check.isHidden()
-    assert "also install gpu-screen-recorder-notification" in view.notifier_status.text()
+    assert view.notifier_status.text().startswith("Optional:")
+    assert view.gsr_status.text() == "GPU Screen Recorder isn't installed."
 
     view.config.recorder.command = str(script)         # installed both; Check again
     monkeypatch.setattr("vertex.recorder.notifier.find", lambda: "/usr/bin/gsr-notify")

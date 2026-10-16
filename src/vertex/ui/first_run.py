@@ -373,7 +373,6 @@ class FirstRunView(QWidget):
         self.recheck_button.setEnabled(True)
         usable = info.available and not info.too_old
         self.install.setVisible(not usable)
-        self.gsr_status.setVisible(usable)
         self.rec_autostart.setEnabled(usable)
         self.choices.set_capture_options(options)
         self._choices_changed()
@@ -384,18 +383,22 @@ class FirstRunView(QWidget):
                 self.rec_autostart.setChecked(True)
             return
         self.rec_autostart.setChecked(False)
+        theme.style(self.gsr_status, lambda: f"color: {theme.WARN};")
         later = "Or carry on and set it up later in Settings."
         if info.too_old:
+            self.gsr_status.setText(f"GPU Screen Recorder {info.version_text} is too old.")
             minimum = ".".join(map(str, gsr.MIN_VERSION))
             self.install_title.setText("Update GPU Screen Recorder")
             self.install_text.setText(f"Version {minimum} or newer is needed (you have "
                                       f"{info.version_text}). {later}")
             self.install_button.setText("How to update it")
         elif not info.missing:
+            self.gsr_status.setText("GPU Screen Recorder didn't start.")
             self.install_title.setText("GPU Screen Recorder didn't start")
             self.install_text.setText(f"{info.error} {later}")
             self.install_button.setText("How to install it")
         else:
+            self.gsr_status.setText("GPU Screen Recorder isn't installed.")
             self.install_title.setText("Install GPU Screen Recorder")
             self.install_text.setText(f"Vertex records with GPU Screen Recorder, which isn't "
                                       f"installed. {later}")
@@ -410,8 +413,8 @@ class FirstRunView(QWidget):
         else:
             # Only a warning: everything else works without it.
             self.notifier_status.setText(
-                "For ShadowPlay-style notifications over games, also install "
-                "gpu-screen-recorder-notification. Without it they show on the desktop.")
+                "Optional: for ShadowPlay-style notifications over games, also install "
+                "gpu-screen-recorder-notification.")
             theme.style(self.notifier_status, lambda: f"color: {theme.WARN};")
         self.notifier_row.show()
 
