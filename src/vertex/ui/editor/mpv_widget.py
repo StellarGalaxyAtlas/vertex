@@ -68,6 +68,18 @@ class MpvWidget(QOpenGLWidget):
             "w": int(self.width() * ratio), "h": int(self.height() * ratio),
             "fbo": self.defaultFramebufferObject()})
 
+    def decoder(self) -> tuple[str, str] | None:
+        """The playing video ("h264 2560x1440") and the hardware decoder mpv
+        uses for it ("" = decoded on the CPU); None until a frame is decoded."""
+        try:
+            codec, width, height = self.player.video_format, self.player.width, self.player.height
+            hwdec = self.player.hwdec_current
+        except Exception:
+            return None
+        if not codec:
+            return None
+        return f"{codec} {width}x{height}", "" if hwdec in (None, "no") else hwdec
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()

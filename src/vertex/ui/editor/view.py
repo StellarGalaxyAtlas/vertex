@@ -68,6 +68,7 @@ class EditorView(QWidget):
         self.position = 0.0
         self._suppress_until = 0.0
         self._resume_after_scrub = False
+        self._decoder_logged = False
         self._closing = False
         self._waves_cancel = workers.Cancel()
         self._waves_started = False
@@ -357,10 +358,21 @@ class EditorView(QWidget):
             self.timeline.set_duration(duration)
             self.timeline.set_trim(self.trim_start, self.trim_end)
             self._start_waves()
+        if not self._decoder_logged:
+            self._log_decoder()
         if position is not None and time.monotonic() > self._suppress_until:
             self.position = position
             self.timeline.set_position(position)
             self._update_time()
+
+    def _log_decoder(self) -> None:
+        decoder = self.player_widget.decoder()
+        if decoder is None:
+            return
+        self._decoder_logged = True
+        codec, hwdec = decoder
+        log.info("Playing %s: %s, %s", os.path.basename(self.clip.path), codec,
+                 f"hardware decoding ({hwdec})" if hwdec else "decoded on the CPU")
 
     def _update_time(self) -> None:
         self.time_label.setText(f"{fmt.duration(self.position)} / {fmt.duration(self.duration)}")
