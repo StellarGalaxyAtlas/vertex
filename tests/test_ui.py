@@ -1273,7 +1273,7 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio, monkeypatch):
     assert view.install_title.text() == "Install GPU Screen Recorder"
     # Its notifier is looked for on the same step.
     assert not view.notifier_row.isHidden() and not view.notifier_check.isHidden()
-    assert "Install gpu-screen-recorder-notification" in view.notifier_status.text()
+    assert "also install gpu-screen-recorder-notification" in view.notifier_status.text()
 
     view.config.recorder.command = str(script)         # installed both; Check again
     monkeypatch.setattr("vertex.recorder.notifier.find", lambda: "/usr/bin/gsr-notify")
@@ -1372,6 +1372,25 @@ def test_notifications_pop_up_over_games_with_gsr_notifier(qapp, window, monkeyp
     count = len(toasts)
     context.notify("clip_saved", "Clip saved", "c.mp4")
     assert len(toasts) == count and popped[-1].body == "c.mp4"
+
+
+def test_over_games_switch_greyed_out_without_the_notifier(qapp, window, monkeypatch):
+    page = window.settings_view.notifications
+    monkeypatch.setattr("vertex.recorder.notifier.find", lambda: None)
+    window.navigate("settings")
+    assert not page.over_games.isEnabled() and not page.over_games.isChecked()
+    assert not page.test_button.isEnabled()
+    assert "isn't installed" in page.over_games_row.hint.text()
+    # Greyed out, the saved choice stays as it was.
+    assert window.settings_view.save() and Config.load().notify_over_games
+
+    # Installed while Vertex runs: opening Settings again finds it.
+    window.navigate("home")
+    monkeypatch.setattr("vertex.recorder.notifier.find", lambda: "/usr/bin/gsr-notify")
+    window.navigate("settings")
+    assert page.over_games.isEnabled() and page.over_games.isChecked()
+    assert page.test_button.isEnabled()
+    assert page.over_games_row.hint.text() == "Uses GPU Screen Recorder's overlay"
 
 
 def test_setup_runs_again_from_settings(qapp, window, monkeypatch):

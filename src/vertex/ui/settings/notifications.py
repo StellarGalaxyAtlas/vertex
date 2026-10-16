@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from vertex import notifications
 from vertex.recorder import notifier
+from vertex.ui import theme
 from vertex.ui.widgets import Section, Toggle, button
 
 
@@ -16,23 +17,19 @@ class NotificationsPage:
         pop_ups = Section(
             "Desktop notifications", "Shown when Vertex isn't in front")
         self.over_games = Toggle()
-        found = notifier.find() is not None
-        self.over_games.setEnabled(found)
+        self._over_games_on = False      # the saved choice, kept while it can't be used
         # A sample over whatever is on screen, to see how it looks in a game.
         controls = QWidget()
         row = QHBoxLayout(controls)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(14)
         self.test_button = button("Send a test", on_click=send_test)
-        self.test_button.setEnabled(found and self.over_games.isChecked())
         self.over_games.toggled.connect(lambda on: self.test_button.setEnabled(
             on and self.over_games.isEnabled()))
         row.addWidget(self.test_button)
         row.addWidget(self.over_games)
-        pop_ups.add_row(
-            "Show them over games", controls,
-            "Uses GPU Screen Recorder's overlay" if found else
-            "Requires gpu-screen-recorder-notification")
+        self.over_games_row = pop_ups.add_row("Show them over games", controls, " ")
+        self._show_notifier()
         self.sections = [pop_ups]
         for category in notifications.CATEGORIES:
             section = Section(category.name, category.description)
@@ -42,8 +39,31 @@ class NotificationsPage:
                 self.switches[kind.id] = switch
             self.sections.append(section)
 
+    def _show_notifier(self) -> bool:
+        """Grey the switch out while GSR's notifier isn't installed. Looked for
+        each time Settings opens, so installing it needs no restart."""
+        found = notifier.find() is not None
+        self.over_games.setEnabled(found)
+        self.over_games.setChecked(found and self._over_games_on)
+        self.test_button.setEnabled(found and self._over_games_on)
+        hint = self.over_games_row.hint
+        if found:
+            hint.setText("Uses GPU Screen Recorder's overlay")
+            theme.style(hint, lambda: "")
+        else:
+            hint.setText("Needs gpu-screen-recorder-notification, which isn't installed")
+            theme.style(hint, lambda: f"color: {theme.WARN};")
+        return found
+
+    def over_games_choice(self) -> bool:
+        """What to store: the switch, or the saved choice while it is greyed out."""
+        if self.over_games.isEnabled():
+            self._over_games_on = self.over_games.isChecked()
+        return self._over_games_on
+
     def load(self, choices: dict[str, bool], over_games: bool) -> None:
-        self.over_games.setChecked(over_games)
+        self._over_games_on = over_games
+        self._show_notifier()
         for kind, switch in self.switches.items():
             switch.setChecked(notifications.enabled(choices, kind))
 

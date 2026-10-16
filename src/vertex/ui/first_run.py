@@ -408,9 +408,11 @@ class FirstRunView(QWidget):
             self.notifier_status.setText("In-game notifications available")
             theme.style(self.notifier_status, lambda: f"color: {theme.OK};")
         else:
+            # Only a warning: everything else works without it.
             self.notifier_status.setText(
-                "Install gpu-screen-recorder-notification for in-game notifications")
-            theme.style(self.notifier_status, lambda: f"color: {theme.TEXT_MUTED};")
+                "For ShadowPlay-style notifications over games, also install "
+                "gpu-screen-recorder-notification. Without it they show on the desktop.")
+            theme.style(self.notifier_status, lambda: f"color: {theme.WARN};")
         self.notifier_row.show()
 
     def _check_recording(self) -> bool:

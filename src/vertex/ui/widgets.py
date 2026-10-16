@@ -607,8 +607,9 @@ def setting_row(title: str, widget: QWidget, hint: str = "") -> QWidget:
     text = QVBoxLayout()
     text.setSpacing(2)
     text.addWidget(label(title))
-    if hint:
-        text.addWidget(label(hint, "Dim", wrap=True))
+    row.hint = label(hint, "Dim", wrap=True)
+    row.hint.setVisible(bool(hint))
+    text.addWidget(row.hint)
     layout.addLayout(text, 1)
     layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
     return row

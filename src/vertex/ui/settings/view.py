@@ -475,7 +475,7 @@ class SettingsView(QWidget):
         config.close_to_tray = self.close_to_tray.isChecked()
         config.colour_scheme = self.schemes.value()
         config.notifications = self.notifications.choices()
-        config.notify_over_games = self.notifications.over_games.isChecked()
+        config.notify_over_games = self.notifications.over_games_choice()
         rec = config.recorder
         rec.command = self.command.text().strip() or "gpu-screen-recorder"
         rec.autostart = self.rec_autostart.isChecked()
