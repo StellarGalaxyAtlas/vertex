@@ -723,6 +723,16 @@ class ChannelColumn(QFrame):
         layout.addWidget(self.fader_host)
         self.tall = False
 
+        # A line between the fader and the device, with room on both sides.
+        rule = QWidget()
+        rule_box = QVBoxLayout(rule)
+        rule_box.setContentsMargins(0, 8, 0, 8)
+        self.rule = QFrame()
+        self.rule.setFixedHeight(1)
+        theme.style(self.rule, lambda: f"background: {theme.LINE};")
+        rule_box.addWidget(self.rule)
+        layout.addWidget(rule)
+
         # Whether the output channels share one device, under the device. The
         # Mic keeps the room empty, so the apps line up.
         self.link = None
