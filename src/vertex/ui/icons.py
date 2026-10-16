@@ -8,6 +8,7 @@ glyphs render differently on every font stack.
 from __future__ import annotations
 
 import math
+import os
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
@@ -520,6 +521,20 @@ def desktop_ink() -> str:
     desktop, light otherwise (dark, or the desktop doesn't say)."""
     scheme = QGuiApplication.styleHints().colorScheme()
     return "dark" if scheme == Qt.ColorScheme.Light else "light"
+
+
+def desktop_ink_outside_app() -> str:
+    """desktop_ink() for a command run without the window: Qt is started just
+    to ask, so the answer is the one Vertex itself will get."""
+    if QGuiApplication.instance() is None:
+        if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
+            return paths.DEFAULT_LOGO_VARIANT
+        app = QGuiApplication(["vertex"])
+        try:
+            return desktop_ink()
+        finally:
+            app.shutdown()
+    return desktop_ink()
 
 
 def names() -> list[str]:

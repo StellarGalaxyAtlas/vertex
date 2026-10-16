@@ -68,7 +68,7 @@ def _parser() -> argparse.ArgumentParser:
 
     install = commands.add_parser("install-desktop", help="add Vertex to the start menu")
     install.add_argument("--icon", choices=("light", "dark"), default=None,
-                         help="logo ink for the icon (light suits dark panels)")
+                         help="logo ink for the icon (default: what suits your desktop)")
     install.add_argument("--autostart", action=argparse.BooleanOptionalAction, default=None,
                          help="start Vertex in the tray when you log in")
     commands.add_parser("uninstall-desktop", help="remove the start menu entry and autostart")
@@ -226,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "install-desktop":
         from vertex import desktop, paths
 
-        variant = args.icon or paths.DEFAULT_LOGO_VARIANT
+        variant = args.icon or desktop.desktop_ink()
         for path in desktop.install(variant, args.autostart):
             print(f"  wrote {paths.tilde(str(path))}")
         return 0

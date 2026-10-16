@@ -190,3 +190,14 @@ def test_entry_is_added_once_and_stays_removed(isolated_home):
     desktop.uninstall()
     assert desktop.ensure("light") == []
     assert not desktop.desktop_file().exists()
+
+
+def test_install_desktop_draws_the_icon_for_the_desktop(isolated_home, monkeypatch):
+    # The ink comes from a child process asking Qt; one that dies gives the default.
+    answers = iter(["dark\n", ""])
+    monkeypatch.setattr(desktop.subprocess, "run", lambda *_a, **_k: type(
+        "Done", (), {"stdout": next(answers)})())
+    monkeypatch.setattr(desktop, "refresh_caches", lambda: None)
+    assert cli.main(["install-desktop"]) == 0
+    assert desktop.icon_ink() == "dark"
+    assert desktop.desktop_ink() == paths.DEFAULT_LOGO_VARIANT

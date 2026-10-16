@@ -53,6 +53,19 @@ def icon_ink() -> str:
         return ""
 
 
+def desktop_ink() -> str:
+    """The logo ink that suits the desktop, asked of Qt the way the window
+    asks it. Qt runs in a child process: without a usable display it aborts,
+    and then the default ink is used."""
+    probe = "from vertex.ui import icons; print(icons.desktop_ink_outside_app())"
+    try:
+        done = subprocess.run([sys.executable, "-c", probe], capture_output=True,
+                              text=True, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return paths.DEFAULT_LOGO_VARIANT
+    return paths.logo_variant(done.stdout.strip())
+
+
 def launch_command() -> list[str]:
     """How to start this Vertex: its own `vertex` script if that is on PATH
     and is ours, else this interpreter running the package."""
