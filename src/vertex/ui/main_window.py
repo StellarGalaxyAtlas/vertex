@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self._quitting = False
         self._told_about_tray = False
         self._services_started = False
+        self.start_menu_job = None
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(icons.desktop_ink()))
         # The icon on the desktop's panels follows its light or dark look.
@@ -339,10 +340,14 @@ class MainWindow(QMainWindow):
         context.recorder.detect()
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:
             context.recorder.start()
-        # Into the start menu on the first run; never again once removed.
+
+    def add_to_start_menu(self) -> None:
+        """Into the start menu on the first start, before setup is done, so
+        quitting setup still leaves the entry; never again once removed."""
         ink = icons.desktop_ink()
-        self.start_menu_job = workers.run(lambda: desktop.ensure(ink), None,
-                                          lambda _exc: None)
+        self.start_menu_job = workers.run(
+            lambda: desktop.ensure(ink), None,
+            lambda exc: logs.APP.warning("Couldn't add the start menu entry: %s", exc))
 
     def _ink_changed(self, *_args) -> None:
         """The desktop turned light or dark: the icons on it follow."""
@@ -352,8 +357,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(icon)
         if self.tray is not None:
             self.tray.setIcon(icon)
-        self.start_menu_job = workers.run(lambda: desktop.ensure(ink), None,
-                                          lambda _exc: None)
+        self.add_to_start_menu()
 
     def _settings_saved(self, folders_changed: bool) -> None:
         if folders_changed:

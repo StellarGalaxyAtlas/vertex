@@ -73,6 +73,7 @@ def window(qapp, tmp_path, library_dir, fake_audio):
     config.save()
     context = Context(config)
     win = MainWindow(context)
+    win.add_to_start_menu()             # as starting Vertex does
     win.start_services()
     win.navigate("library")
     win.resize(1280, 800)
@@ -356,7 +357,7 @@ def test_library_cards_fill_their_row_at_any_size(qapp, window):
     view.card_size.setValue(CARD_WIDTH_DEFAULT)
 
 
-def test_first_run_adds_the_start_menu_entry(qapp, window):
+def test_starting_adds_the_start_menu_entry(qapp, window):
     from vertex import desktop
 
     assert wait_until(qapp, lambda: desktop.desktop_file().exists())
@@ -1171,7 +1172,8 @@ def _moments_library(folder):
 
 
 def _close(win):
-    futures.wait([win.start_menu_job], timeout=30)    # see the window fixture
+    if win.start_menu_job is not None:
+        futures.wait([win.start_menu_job], timeout=30)    # see the window fixture
     win._quitting = True
     win.context.shutdown()
 

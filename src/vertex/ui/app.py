@@ -49,6 +49,7 @@ def run(background: bool = False) -> int:
         except ipc.NotRunning:
             pass
         return 0
+    window.add_to_start_menu()
     if logs.apply(config.keep_logs, config.resolved_log_dir()):
         logs.started()
         logs.APP.info("Logs in %s", logs.folder())
