@@ -12,11 +12,12 @@ instant: it is how the editor's mixer applies changes live.
 
 from __future__ import annotations
 
+import glob
 import locale
 
 import mpv
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QOpenGLContext
+from PySide6.QtGui import QGuiApplication, QNativeInterface, QOpenGLContext
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 
@@ -29,6 +30,26 @@ def _get_proc_address(_ctx, name: bytes) -> int:
 
 
 _PROC_ADDRESS = mpv.MpvGlGetProcAddressFn(_get_proc_address)
+
+
+def _native_display() -> dict:
+    """The desktop's display connection, as a render parameter for mpv.
+
+    mpv needs it to draw hardware-decoded frames straight from the GPU;
+    without it, every frame is copied back through the CPU first. Only
+    offered where there is a GPU to decode on: libva crashes trying to set
+    up a display that has none.
+    """
+    if not glob.glob("/dev/dri/renderD*"):
+        return {}
+    native = QGuiApplication.instance().nativeInterface()
+    if isinstance(native, QNativeInterface.QWaylandApplication):
+        display, key = native.display(), "wl_display"
+    elif isinstance(native, QNativeInterface.QX11Application):
+        display, key = native.display(), "x11_display"
+    else:
+        return {}
+    return {key: int(display)} if display else {}
 
 
 class MpvWidget(QOpenGLWidget):
@@ -63,7 +84,8 @@ class MpvWidget(QOpenGLWidget):
 
     def initializeGL(self):
         self._render = mpv.MpvRenderContext(
-            self.player, "opengl", opengl_init_params={"get_proc_address": _PROC_ADDRESS})
+            self.player, "opengl", opengl_init_params={"get_proc_address": _PROC_ADDRESS},
+            **_native_display())
         # Runs on mpv's thread whenever a new frame is due; repaint on ours.
         self._render.update_cb = self._frame_ready.emit
 
