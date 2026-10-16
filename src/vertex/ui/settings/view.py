@@ -168,8 +168,8 @@ class SettingsView(QWidget):
         first, *kinds = self.notifications.sections
         self.pages["notifications"] = scroll_page(first, *_pairs(kinds))
         self.stack.addWidget(self.pages["notifications"])
-        intro, *groups = ShortcutsPage().sections
-        self.pages["shortcuts"] = scroll_page(intro, *_pairs(groups))
+        top, *groups = ShortcutsPage().sections
+        self.pages["shortcuts"] = scroll_page(top, *_pairs(groups))
         self.stack.addWidget(self.pages["shortcuts"])
         self._build_import()
         resets = ResetPage(self)

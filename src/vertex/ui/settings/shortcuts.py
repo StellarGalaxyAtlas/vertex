@@ -1,13 +1,16 @@
 """Settings › Shortcuts: the `vertex` commands worth binding to a key, ready
-to copy, and how to use them from a terminal."""
+to copy, where to get the Stream Deck plugin, and how to use them from a
+terminal."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QFontDatabase, QGuiApplication
+from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QWidget
 
 from vertex.ui.widgets import Section, button, label, setting_row
+
+PLUGIN_URL = "https://github.com/StellarGalaxyAtlas/vertex-streamcontroller"
 
 # (group, [(command, what it does, more)]). Every command must parse with the
 # `vertex` command's own parser; a test checks.
@@ -64,7 +67,19 @@ class ShortcutsPage:
             "Keyboard shortcuts",
             "Add these commands as custom shortcuts in your desktop's keyboard settings. "
             "They work in games too, while Vertex is running.")
-        self.sections = [intro]
+        deck = Section(
+            "Stream Deck",
+            "Got a Stream Deck? Use the Vertex plugin for StreamController to control "
+            "Vertex from it.")
+        get = QWidget()
+        row = QHBoxLayout(get)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(button("Get the plugin", "primary",
+                             on_click=lambda: QDesktopServices.openUrl(QUrl(PLUGIN_URL))))
+        row.addStretch(1)
+        deck.add(get)
+        # The first entry is the page's top row: side by side on a wide page.
+        self.sections = [(intro, deck)]
         for group, commands in COMMANDS:
             section = Section(group)
             for command, title, more in commands:

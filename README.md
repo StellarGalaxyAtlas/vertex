@@ -194,7 +194,7 @@ the output device or mic.
 **Stream Deck:** the
 [Vertex plugin for StreamController](https://github.com/StellarGalaxyAtlas/vertex-streamcontroller)
 has keys and dials for volumes, mutes, devices, the replay buffer and saving
-clips.
+clips. *Settings › Shortcuts* links to it.
 
 ---
 
