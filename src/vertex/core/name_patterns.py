@@ -304,11 +304,13 @@ PRESETS: tuple[Preset, ...] = (
                        "{game} {date:YYYY.MM.DD} - {time:HH.mm.ss}{skip}"),
            "Call of Duty Black Ops II 2023.01.27 - 19.38.28.03.DVR.mp4", checked=True),
     Preset(NamePattern("Xbox Game Bar", "{game} {date:YYYY-MM-DD} {time:HH-mm-ss}"),
-           "Halo Infinite 2024-06-16 19-45-23.mp4"),
+           "Minecraft 2024-05-18 20-32-45.mp4"),
     Preset(NamePattern("OBS Studio", "{skip}{date:YYYY-MM-DD} {time:HH-mm-ss}"),
            "Replay 2024-06-16 19-45-23.mkv"),
-    Preset(NamePattern("AMD Adrenalin", "{skip}{date:YYYY.MM.DD}-{time:HH.mm}{skip}"),
-           "Replay_2024.06.16-19.45.mp4"),
+    # "_replay_" before the date in an instant replay, and seconds or a
+    # counter after the time in some driver versions.
+    Preset(NamePattern("AMD Adrenalin", "{game}_{skip}{date:YYYY.MM.DD}-{time:HH.mm}{skip}"),
+           "Cyberpunk 2077_replay_2024.05.18-20.32.mp4"),
     Preset(NamePattern("GPU Screen Recorder", "Replay_{date:YYYY-MM-DD}_{time:HH-mm-ss}"),
            "Replay_2024-06-16_19-45-23.mp4", checked=True),
 )

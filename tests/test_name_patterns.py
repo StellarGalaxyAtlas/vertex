@@ -9,6 +9,7 @@ from vertex.core.name_patterns import (
     Mark,
     NamePattern,
     PatternError,
+    Reading,
     formats_for,
     from_marks,
     parse,
@@ -34,6 +35,15 @@ def test_medal_names_give_the_game_with_its_words_apart():
     assert medal.read("MedalTVApexLegends20260101120000001 (trimmed).mp4").game == \
         "Apex Legends"
     assert medal.read("THE-FINALS__2024-06-16__19-45-23.mp4") is None
+
+
+def test_the_amd_preset_reads_replays_seconds_and_counters():
+    amd = next(p for p in PRESETS if p.app == "AMD Adrenalin").pattern
+    for name in ("Cyberpunk 2077_2024.05.18-20.32.mp4",
+                 "Cyberpunk 2077_replay_2024.05.18-20.32.mp4",
+                 "Cyberpunk 2077_2024.05.18-20.32.45.mp4",
+                 "Cyberpunk 2077_2024.05.18-20.32_1.mp4"):
+        assert amd.read(name) == Reading("Cyberpunk 2077", _when(2024, 5, 18, 20, 32)), name
 
 
 def test_a_template_round_trips_and_bad_ones_are_refused():

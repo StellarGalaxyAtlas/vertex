@@ -55,7 +55,10 @@ with the logs if it still doesn't start.
 **Check the file-name presets against real clips**
 Built (2026-10-20): presets plus marking up a name, in setup and Settings.
 Medal, Moments, ShadowPlay and GPU Screen Recorder are proven; OBS (its
-default naming), Game Bar and AMD Adrenalin are from memory and say so.
+default naming), Game Bar and AMD Adrenalin follow written descriptions
+of their names and say they're not checked. Game Bar's older names
+(`Minecraft 5_18_2024 8_32_45 PM.mp4`) aren't read: no format code reads
+an unpadded number or AM/PM.
 Steam and Outplayed have no preset yet. Needs real file names from those
 apps, and which app wrote `THE-FINALS2025-02-2816-49-17.mp4` (marking it up
 reads it already).
