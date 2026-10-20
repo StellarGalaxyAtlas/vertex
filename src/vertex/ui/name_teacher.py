@@ -6,13 +6,15 @@ from __future__ import annotations
 import datetime
 import os
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
     QVBoxLayout,
@@ -20,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import fmt
+from vertex.core import naming
 from vertex.core.name_patterns import (
     PRESETS,
     WHEN_KINDS,
@@ -29,8 +32,8 @@ from vertex.core.name_patterns import (
     formats_for,
     from_marks,
 )
-from vertex.ui import theme
-from vertex.ui.widgets import FlowLayout, Toggle, button, label
+from vertex.ui import icons, theme
+from vertex.ui.widgets import FlowLayout, IconButton, Toggle, button, label
 
 OWN = "Something else"
 OWN_APP = "Your clips"
@@ -170,6 +173,11 @@ class NameTeacher(QWidget):
             self._marks = []
         self._own_pattern = pattern if self._app == OWN else None
         self._show_choice(pattern)
+
+    def leave_out(self, apps) -> None:
+        """Hide the buttons of apps that are taught already."""
+        for app, choice in self.app_buttons.items():
+            choice.setVisible(app not in apps)
 
     def pattern(self) -> NamePattern | None:
         """The pattern as it stands, or None if there isn't one (yet)."""
@@ -360,3 +368,256 @@ class NameTeacher(QWidget):
             self.preview.addWidget(label(when, "Muted"), row, 2)
         self.preview_title.show()
         self.preview_host.show()
+
+
+# --- The apps Vertex reads names with ----------------------------------------------
+
+
+def _same(one: NamePattern, other: NamePattern) -> bool:
+    """Whether `other` takes `one`'s place: the same app, or for names marked
+    by hand, the same marks."""
+    return one.app == other.app and (one.app != OWN_APP or one.template == other.template)
+
+
+class _Grip(QLabel):
+    """The handle a source row is dragged by."""
+
+    def __init__(self, sources: NameSources, row: QWidget):
+        super().__init__()
+        self._sources, self._row = sources, row
+        theme.themed(self, lambda: self.setPixmap(
+            icons.icon("grip", "TEXT_DIM", 16).pixmap(QSize(16, 16))), "icon")
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setToolTip("Drag to change the order")
+
+    def mousePressEvent(self, event):
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        self._sources._drag(self._row, event.globalPosition().toPoint().y())
+
+    def mouseReleaseEvent(self, event):
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self._sources._dropped()
+
+
+class NameSources(QWidget):
+    """The apps Vertex reads clip names with, tried top to bottom, and adding
+    another one, taught from the clips none of them reads yet.
+
+    `changed` comes when the list changes, `added` when an app joins it, and
+    `draft_changed` while one is being taught."""
+
+    changed = Signal()
+    added = Signal()
+    draft_changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._patterns: list[NamePattern] = []
+        self._rows: list[QWidget] = []
+        self._names: list[str] = []
+        self._folder = ""
+        self._moved = False
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        self.hint = label("Tried top to bottom: a name the first can't read goes to the "
+                          "next.", "Muted", wrap=True)
+        layout.addWidget(self.hint)
+        self.rows_host = QWidget()
+        self.rows = QVBoxLayout(self.rows_host)
+        self.rows.setContentsMargins(0, 0, 0, 0)
+        self.rows.setSpacing(6)
+        layout.addWidget(self.rows_host)
+        self.always = QFrame()
+        self.always.setObjectName("AlwaysRow")
+        theme.style(self.always, lambda: (
+            f"#AlwaysRow {{ border: 1px dashed {theme.SEAM}; "
+            f"border-radius: {theme.RADIUS_SMALL}px; }}"))
+        always = QHBoxLayout(self.always)
+        always.setContentsMargins(12, 8, 12, 8)
+        always.addWidget(label("SteelSeries Moments and GPU Screen Recorder names, always",
+                               "Muted"), 1)
+        self.always_count = label("", "Muted")
+        always.addWidget(self.always_count)
+        layout.addWidget(self.always)
+        bar = QHBoxLayout()
+        self.add_button = button("Add another app", icon="plus", on_click=self.start_adding)
+        bar.addWidget(self.add_button)
+        bar.addStretch(1)
+        self.status = label("")
+        bar.addWidget(self.status)
+        layout.addLayout(bar)
+
+        self.adding = QWidget()
+        adding = QVBoxLayout(self.adding)
+        adding.setContentsMargins(0, 8, 0, 0)
+        adding.setSpacing(12)
+        self.adding_title = label("", "Subheading")
+        adding.addWidget(self.adding_title)
+        self.teacher = NameTeacher()
+        self.teacher.changed.connect(self._draft_changed)
+        adding.addWidget(self.teacher)
+        done = QHBoxLayout()
+        done.addStretch(1)
+        self.cancel = button("Cancel", on_click=self.stop_adding)
+        done.addWidget(self.cancel)
+        self.add_to_list = button("Add to the list", "primary", on_click=self._add)
+        done.addWidget(self.add_to_list)
+        adding.addLayout(done)
+        self.adding.hide()
+        layout.addWidget(self.adding)
+        self._build_rows()
+        self._refresh()
+
+    # --- What it holds ----------------------------------------------------------
+
+    def patterns(self) -> list[NamePattern]:
+        return list(self._patterns)
+
+    def set_patterns(self, patterns) -> None:
+        self._patterns = list(patterns)
+        self._build_rows()
+        self._refresh()
+
+    def set_names(self, names, folder: str = "") -> None:
+        """The user's own clip names (in `folder`), to count and teach from."""
+        self._names, self._folder = sorted(names), folder
+        self._refresh()
+        if not self._patterns and self.unread() and self.adding.isHidden():
+            self.start_adding()           # nothing to show yet but what to teach
+
+    def unread(self) -> list[str]:
+        """The names none of the apps (nor what Vertex always knows) reads."""
+        return [name for name in self._names
+                if naming.reader_of(name, self._patterns) is None]
+
+    def draft(self) -> NamePattern | None:
+        """The app being added, as taught so far."""
+        return None if self.adding.isHidden() else self.teacher.pattern()
+
+    # --- Adding and removing ------------------------------------------------------
+
+    def start_adding(self) -> None:
+        self.teacher.set_pattern(None)
+        self.teacher.leave_out({p.app for p in self._patterns if p.app != OWN_APP})
+        self.adding.show()
+        self.add_button.hide()
+        self._teach_from()
+        self.draft_changed.emit()
+
+    def stop_adding(self) -> None:
+        self.adding.hide()
+        self.add_button.show()
+        self.draft_changed.emit()
+
+    def _add(self) -> None:
+        pattern = self.teacher.pattern()
+        if pattern is None:
+            return
+        self._patterns = [p for p in self._patterns if not _same(pattern, p)] + [pattern]
+        self.stop_adding()
+        self._build_rows()
+        self._refresh()
+        self.changed.emit()
+        self.added.emit()
+
+    def _remove(self, row: QWidget) -> None:
+        index = self._rows.index(row)
+        del self._patterns[index]
+        self._build_rows()
+        self._refresh()
+        self.changed.emit()
+
+    def _draft_changed(self) -> None:
+        self.add_to_list.setEnabled(self.teacher.pattern() is not None)
+        self.draft_changed.emit()
+
+    def _teach_from(self) -> None:
+        """The clips nothing reads are the ones to teach from; once every clip
+        is read, any of them."""
+        self.teacher.set_names(self.unread() or self._names, self._folder)
+
+    # --- Order --------------------------------------------------------------------
+
+    def _drag(self, row: QWidget, y: int) -> None:
+        """Move the dragged row to where the pointer is."""
+        index = self._rows.index(row)
+        target = index
+        for other, widget in enumerate(self._rows):
+            middle = widget.mapToGlobal(widget.rect().center()).y()
+            if other < index and y < middle:
+                target = min(target, other)
+            elif other > index and y > middle:
+                target = other
+        if target == index:
+            return
+        self._rows.insert(target, self._rows.pop(index))
+        self._patterns.insert(target, self._patterns.pop(index))
+        self.rows.removeWidget(row)
+        self.rows.insertWidget(target, row)
+        self._moved = True
+
+    def _dropped(self) -> None:
+        if self._moved:
+            self._moved = False
+            self._refresh()
+            self.changed.emit()
+
+    # --- Showing it ---------------------------------------------------------------
+
+    def _build_rows(self) -> None:
+        for row in self._rows:
+            row.deleteLater()
+        self._rows = []
+        for pattern in self._patterns:
+            row = QFrame()
+            row.setObjectName("SourceRow")
+            theme.style(row, lambda: (
+                f"#SourceRow {{ background: {theme.CARD_BG}; "
+                f"border-radius: {theme.RADIUS_SMALL}px; }}"))
+            line = QHBoxLayout(row)
+            line.setContentsMargins(10, 6, 6, 6)
+            line.setSpacing(10)
+            line.addWidget(_Grip(self, row))
+            name = label(pattern.app)
+            name.setStyleSheet("font-weight: 600;")
+            line.addWidget(name)
+            if pattern.app == OWN_APP:
+                line.addWidget(label(pattern.template, "Muted"))
+            line.addStretch(1)
+            row.count = label("", "Muted")
+            line.addWidget(row.count)
+            remove = IconButton("close", f"Stop reading {pattern.app} names", 12, "TEXT_MUTED")
+            remove.clicked.connect(lambda _c=False, r=row: self._remove(r))
+            line.addWidget(remove)
+            self.rows.addWidget(row)
+            self._rows.append(row)
+        self.rows_host.setVisible(bool(self._rows))
+        another = "Add another app" if self._rows else "Add an app"
+        self.adding_title.setText(another)
+        self.add_button.setText(another)
+        self.hint.setVisible(len(self._rows) > 1)
+
+    def _refresh(self) -> None:
+        readers = [naming.reader_of(name, self._patterns) for name in self._names]
+        for index, row in enumerate(self._rows):
+            count = readers.count(index)
+            row.count.setText(f"reads {fmt.plural(count, 'clip')}" if self._names else "")
+        always = readers.count(naming.BUILT_IN)
+        self.always_count.setText(f"reads {fmt.plural(always, 'clip')}" if always else "")
+        unread = readers.count(None)
+        if not self._names:
+            self.status.setText("")
+        elif unread:
+            self.status.setText(f"{unread} of {fmt.plural(len(self._names), 'clip')} "
+                                f"aren't read yet")
+            theme.style(self.status, lambda: f"color: {theme.WARN};")
+        else:
+            self.status.setText(f"Vertex reads all {fmt.plural(len(self._names), 'clip')}")
+            theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED};")
+        if not self.adding.isHidden():
+            self._teach_from()
+        self.add_to_list.setEnabled(self.teacher.pattern() is not None)
