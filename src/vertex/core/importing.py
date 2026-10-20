@@ -5,6 +5,9 @@ user can see it and change their mind:
 
 * a CopyPlan copies recordings from another folder into the clips folder;
 * an ImportPlan tags clips with the games their file names record.
+
+Reading the names of the clips already in the library again, after an app
+or a game name was added, is worked out the same way (plan_reread).
 """
 
 from __future__ import annotations
@@ -261,3 +264,54 @@ def plan_import(folder: str, known_games=(), tagged=(), patterns=None,
     fixed = {game: fixed_name(game, names or {}) for game in plan.games}
     plan.stored_as = {game: known.get(game_key(fixed[game]), fixed[game]) for game in plan.games}
     return plan
+
+
+@dataclass
+class Reread:
+    """What reading one clip's name again changes: its game, its date or
+    both. An empty `game` or a zero `when` leaves that as it is."""
+
+    filename: str
+    game_was: str
+    game: str = ""
+    when_was: float = 0.0
+    when: float = 0.0
+
+
+@dataclass
+class RereadGroup:
+    """The changes from one game to another ("" for "Dates only")."""
+
+    game_was: str
+    game: str
+    changes: list[Reread] = field(default_factory=list)
+
+    @property
+    def dates(self) -> int:
+        return sum(1 for change in self.changes if change.when)
+
+
+def plan_reread(names, tags: dict[str, str], dates: dict[str, float], patterns=None,
+                game_names=None) -> list[RereadGroup]:
+    """What reading the clips called `names` again would change, grouped by
+    game, the most clips first; dates only, last. `tags` and `dates` are what
+    the library has; a game already in use keeps its spelling, and a game
+    that only changes spelling isn't a change."""
+    known = {game_key(game): game for game in tags.values() if game}
+    groups: dict[tuple[str, str], RereadGroup] = {}
+    for name in sorted(names):
+        game_was = tags.get(name, "")
+        game = fixed_name(game_from_filename(name, patterns), game_names or {})
+        game = known.get(game_key(game), game)
+        if not game or game_key(game) == game_key(game_was):
+            game = ""
+        when, when_was = recorded_at(name, patterns), dates.get(name, 0.0)
+        if not when or abs(when - when_was) < 1:
+            when = 0.0
+        if not game and not when:
+            continue
+        key = (game_was, game) if game else ("", "")
+        group = groups.setdefault(key, RereadGroup(*key))
+        group.changes.append(Reread(name, game_was, game, when_was, when))
+    return sorted(groups.values(), key=lambda g: (not g.game, -len(g.changes),
+                                                  g.game.casefold()))

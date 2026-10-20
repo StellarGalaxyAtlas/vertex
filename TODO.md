@@ -92,10 +92,9 @@ exclusive and borderless fullscreen.
 
 **82.**
 **"Tag games from file names" in Settings does nothing after setup**
-Becomes "Read tags again" (picked 2026-10-20): read every clip's name again
-with the apps list and game names, show what would change, ticked, and
-apply. Mockup windows-port/mockups/8-read-tags-again.png (A: a dialog
-per clip, B: under the apps list, grouped by game); waiting for the pick.
+Built (2026-10-20) as option B of windows-port/mockups/8-read-tags-again.png:
+the section is gone, and under the apps list Settings shows what reading the
+names again changes, one ticked line per game, applied with one button.
 
 ### Later
 

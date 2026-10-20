@@ -46,6 +46,10 @@ Vertex on Windows 10 and 11, without Sonar.
   next one is taught from the clips none reads yet. A game ending in a
   number keeps it when the date follows straight on (Medal's
   "Helldivers2" + "20260817…" is Helldivers 2, not Helldivers).
+- Under the apps in Settings › Import and setup, what reading the clips'
+  names again would change, one ticked line per game (old → new, opening
+  to its clips), applied at once; it follows the apps list and the game
+  names as they change. It replaces "Tag games from file names".
 - Importing clips reads the folders inside the chosen one too (Moments and
   Medal keep a folder per game), with a list to leave folders out.
 - Hotkeys on Windows, set in Settings › Shortcuts by pressing them: save a

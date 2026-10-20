@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import desktop, logs, paths, system
+from vertex import desktop, fmt, logs, paths, system
 from vertex.config import (
     AUDIO_CODECS,
     BITRATE_MODES,
@@ -35,16 +35,17 @@ from vertex.config import (
     Config,
     default_config,
 )
-from vertex.core import storage
+from vertex.core import importing, storage
 from vertex.core.clips import is_clip
 from vertex.media import roles
 from vertex.recorder import backend, gsr, obs
 from vertex.ui import theme, workers
-from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
+from vertex.ui.dialogs.importing import CopyClipsDialog
 from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.settings.game_names import GameNames
 from vertex.ui.settings.notifications import NotificationsPage
+from vertex.ui.settings.reread import RereadList
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
@@ -418,9 +419,6 @@ class SettingsView(QWidget):
     def _build_import(self) -> None:
         copy_section = Section("Import clips", "From Moments, Medal or another folder")
         copy_section.add(button("Import clips…", on_click=self._copy_clips))
-        tag_section = Section("Tag games from file names",
-                              "Reads the game and date from the names Vertex knows")
-        tag_section.add(button("Review tags…", on_click=self._tag_clips))
         setup = Section("Run setup again", "Starts with your current settings")
         setup.add(button("Run setup again…", on_click=self.setup_requested.emit))
         names = Section("Clip file names", "The apps your clips come from, so Vertex can "
@@ -428,20 +426,26 @@ class SettingsView(QWidget):
         self.sources = NameSources()
         self.sources.changed.connect(self._save_names)
         self.sources.added.connect(lambda: self.banner.show_message(
-            "Saved. Review tags to tag the clips you have.", "ok"))
+            "Saved. What it changes for your clips is listed below.", "ok"))
         names.add(self.sources)
+        self.reread = RereadList()
+        self.reread.apply.connect(self._apply_reread)
+        names.add(self.reread)
+        self._clip_names: list[str] = []
+        self._reread_token = 0
         renames = Section("Game names", "Games you renamed in the library: new clips are "
                                         "tagged with the new name too")
         self.game_names = GameNames()
         self.game_names.removed.connect(self._forget_game_name)
         renames.add(self.game_names)
-        self.pages["import"] = scroll_page((copy_section, tag_section, setup), names, renames)
+        self.pages["import"] = scroll_page((copy_section, setup), names, renames)
         self.stack.addWidget(self.pages["import"])
 
     def _forget_game_name(self, name: str) -> None:
         names = {old: new for old, new in self.context.config.game_names.items() if old != name}
         self.context.set_game_names(names)
         self.game_names.set_names(names)
+        self._reread()
 
     # --- Load / collect / save -------------------------------------------------
 
@@ -771,22 +775,46 @@ class SettingsView(QWidget):
         def names():
             return [name for name in os.listdir(folder) if is_clip(name)]
 
-        workers.run(names, lambda found: self.sources.set_names(found, folder),
-                    lambda _exc: None)
+        def found(clips: list[str]) -> None:
+            self._clip_names = clips
+            self.sources.set_names(clips, folder)
+            self._reread()
+
+        workers.run(names, found, lambda _exc: None)
 
     def _save_names(self) -> None:
         self.context.config.name_patterns = [p.to_dict() for p in self.sources.patterns()]
         self.context.save_config()
+        self._reread()
 
-    def _tag_clips(self) -> None:
+    def _reread(self) -> None:
+        """Work out again what reading the names would change."""
+        library = self.context.library
+        self._reread_token += 1
+        token = self._reread_token
+        if library is None or not self._clip_names:
+            self.reread.set_groups([])
+            return
+        # The library is read here, on the thread that opened it.
+        tags = {name: game for name, (game, _people) in library.tags().items()}
+        dates = library.recorded_dates()
+        names, patterns = list(self._clip_names), self.context.config.patterns()
+        game_names = dict(self.context.config.game_names)
+        def done(groups) -> None:
+            if token == self._reread_token:
+                self.reread.set_groups(groups)
+
+        workers.run(lambda: importing.plan_reread(names, tags, dates, patterns, game_names),
+                    done, lambda exc: logs.APP.error("Couldn't read the names again: %s", exc))
+
+    def _apply_reread(self, games: dict, dates: dict) -> None:
         if self.context.library is None:
             return
-        dialog = TagImportDialog(self, self.context.library,
-                                 self.context.config.resolved_clip_dir())
-        if dialog.exec():
-            self.imported.emit()
-            self.banner.show_message(f"Tagged {dialog.written} clips.", "ok")
-
+        self.context.library.apply_reread(games, dates)
+        self.imported.emit()
+        self.banner.show_message(
+            f"Read {fmt.plural(len(set(games) | set(dates)), 'clip')} again.", "ok")
+        self._reread()
 
 def _pairs(sections: list) -> list:
     """Sections two by two, to sit side by side on a wide page; an odd one out
