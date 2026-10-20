@@ -73,6 +73,11 @@ class TestTrackLabels:
         assert [(t.label, t.channel) for t in labelled] == [
             ("Game", "game"), ("Chat", "chat"), ("Media", "media"), ("Microphone", "mic")]
 
+    def test_a_music_track_is_its_own_lane(self):
+        labelled = tracks.label_tracks(_tracks("Vertex Game", "Vertex Mic", "Vertex Music"))
+        assert [t.label for t in labelled] == ["Game", "Music", "Microphone"]
+        assert tracks.guess_source("Spotify music") == "music"
+
     def test_aux_tracks_are_numbered_not_called_the_mic(self):
         labelled = tracks.label_tracks(_tracks("Vertex Game", "Devices: Monitor of Vertex Aux"))
         assert [(t.label, t.channel) for t in labelled] == [("Audio 1", ""), ("Audio 2", "")]

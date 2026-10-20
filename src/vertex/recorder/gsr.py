@@ -168,6 +168,7 @@ class Track:
     source: str      # what GSR records: "default_output", "app:Discord", "device:…"
     title: str       # the track title written into the clip ("" = GSR's own)
     channel: str = ""
+    volume: int = 100   # percent, where the recorder can set it
 
     def argument(self, named: bool) -> str:
         if named and self.title:
@@ -177,7 +178,7 @@ class Track:
 
 # A clip's audio tracks: the lane each becomes, and the setting naming its device.
 AUDIO_ROLES = ((roles.GAME.id, "game_audio"), (roles.CHAT.id, "chat_audio"),
-               (roles.MIC.id, "mic_audio"))
+               (roles.MUSIC.id, "music_audio"), (roles.MIC.id, "mic_audio"))
 
 
 def audio_tracks(config: Config) -> list[Track]:
@@ -188,7 +189,8 @@ def audio_tracks(config: Config) -> list[Track]:
     for role, setting in AUDIO_ROLES:
         source = getattr(config.recorder, setting).strip()
         if source:
-            tracks.append(Track(source, roles.BY_ID[role].track_title, role))
+            volume = getattr(config.recorder, f"{role}_volume", 100)
+            tracks.append(Track(source, roles.BY_ID[role].track_title, role, volume))
     return tracks
 
 

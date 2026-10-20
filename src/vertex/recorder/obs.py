@@ -373,7 +373,7 @@ def validate(rec: RecorderConfig) -> list[str]:
         problems.append(f"{NAME} can't record {rec.video_codec}; pick H.264, HEVC or AV1.")
     elif rec.encoder == "cpu" and rec.video_codec not in ("auto", "h264"):
         problems.append("CPU encoding only supports H.264.")
-    for setting in ("game_audio", "chat_audio", "mic_audio"):
+    for setting in ("game_audio", "chat_audio", "music_audio", "mic_audio"):
         if getattr(rec, setting).startswith("app:"):
             problems.append(f"Recording one app's sound isn't available with {NAME} yet.")
             break
@@ -403,6 +403,7 @@ class AudioInput:
     device: str           # the endpoint id, or "default"
     track: int            # 1-based
     title: str            # what the clip's track is called
+    volume: int = 100     # percent
 
 
 def audio_input(track: Track, number: int) -> AudioInput:
@@ -413,7 +414,7 @@ def audio_input(track: Track, number: int) -> AudioInput:
         output, device = is_output(source), source
     kind = "wasapi_output_capture" if output else "wasapi_input_capture"
     return AudioInput(track.title or f"Vertex Track {number}", kind, device, number,
-                      track.title)
+                      track.title, track.volume)
 
 
 @dataclass(frozen=True)
@@ -476,7 +477,8 @@ def describe(setup: Plan) -> str:
     for audio in setup.inputs:
         what = "default " + ("output" if audio.kind == "wasapi_output_capture" else "input") \
             if audio.device == "default" else audio.device
-        lines.append(f"Track {audio.track}: {audio.name} ({what})")
+        volume = f", at {audio.volume}%" if audio.volume != 100 else ""
+        lines.append(f"Track {audio.track}: {audio.name} ({what}{volume})")
     values = {key: value for _section, key, value in setup.profile}
     lines.append(f"Encoder {values['RecEncoder']}, quality {values['RecQuality']}, "
                  f"{values['RecFormat2']}, last {setup.seconds} s")

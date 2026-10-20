@@ -25,10 +25,11 @@ LABELS = {
     DESKTOP: "Desktop",
     roles.CHAT.id: "Chat",
     roles.MEDIA.id: "Media",
+    roles.MUSIC.id: "Music",
     roles.MIC.id: "Microphone",
 }
 # The order lanes appear in, whatever order the streams have in the file.
-ORDER = (roles.GAME.id, DESKTOP, roles.CHAT.id, roles.MEDIA.id, roles.MIC.id)
+ORDER = (roles.GAME.id, DESKTOP, roles.CHAT.id, roles.MEDIA.id, roles.MUSIC.id, roles.MIC.id)
 
 # Recorders name the field as well as the device — "device:Virtual_Game_Sink",
 # "Devices: Monitor of Game Audio".
@@ -66,8 +67,10 @@ def guess_source(device: str) -> str | None:
         return roles.GAME.id
     if "chat" in lowered or "voice" in lowered:
         return roles.CHAT.id
-    if "media" in lowered or "music" in lowered:
+    if "media" in lowered:
         return roles.MEDIA.id
+    if "music" in lowered:
+        return roles.MUSIC.id
     # An Aux output has no lane of its own; numbered beats called the mic.
     if re.search(r"\baux\b", lowered):
         return None

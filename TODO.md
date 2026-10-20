@@ -63,26 +63,14 @@ Steam and Outplayed have no preset yet. Needs real file names from those
 apps, and which app wrote `THE-FINALS2025-02-2816-49-17.mp4` (marking it up
 reads it already).
 
-### Recording
+### Recording and the editor
 
-**77.**
-**A fourth track: Music**
-Mockup: windows-port/mockups/2-recording-tracks.png. Optional, off until a
-device is picked. The editor shows its lane only in clips that have it.
-
-**78.**
-**Recording volume per track**
-Same mockup. A 0–100% slider per track in Settings › Recording, set as the
-OBS source's volume, so clips play back right at 100%.
-
-### Editor
-
-**79.**
-**Playback volume in the editor**
-Mockup: windows-port/mockups/3-editor-playback-volume.png. One slider by
-the time readout, 0–300%, that makes playback louder or quieter while
-watching a clip. Only playback: the clip, its track mix and exports stay
-as they are. Remembered between clips.
+**77–79.**
+**Music track, recording volume per track, playback volume in the editor**
+Built (2026-10-20) as in mockups 2 and 3: an optional Music track (its own
+lane, off until a device is picked), a 0–100% recording volume per track
+set on the OBS source, and a 0–300% playback volume in the editor. To try
+on the friend's PC: that OBS records each track at its volume.
 
 ### Later
 

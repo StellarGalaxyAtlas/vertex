@@ -630,9 +630,31 @@ def test_tracks_are_chosen_on_the_recording_page(qapp, window, monkeypatch):
     settings.mic_audio.setCurrentIndex(settings.mic_audio.findData("device:alsa_input.usb-headset"))
     assert "Vertex Chat" not in settings.preview.toPlainText()
     assert "name:Vertex Mic|device:alsa_input.usb-headset" in settings.preview.toPlainText()
+    assert texts(settings.music_audio) == ["None", "Default output", "Arctis Nova Pro"]
+    assert not settings.tracks.volumes                  # GSR records devices as they are
     assert settings.save()
     saved = Config.load().recorder
     assert (saved.chat_audio, saved.mic_audio) == ("", "device:alsa_input.usb-headset")
+
+
+def test_each_track_has_a_recording_volume_where_the_recorder_sets_one(qapp, monkeypatch):
+    from vertex.config import RecorderConfig
+    from vertex.ui.settings.tracks import TrackTable
+
+    table = TrackTable(with_volume=True)
+    for device in table.devices.values():
+        device.addItem("None", "")
+        device.addItem("Default output", "default_output")
+    table.devices["game"].setCurrentIndex(1)
+    table.load(RecorderConfig(game_volume=80))
+    assert table.readouts["game"].text() == "80%" and table.volumes["game"].isEnabled()
+    assert not table.volumes["music"].isEnabled()         # records nothing
+    changed = []
+    table.changed.connect(lambda: changed.append(True))
+    table.volumes["game"].setValue(55)
+    rec = RecorderConfig()
+    table.apply(rec)
+    assert (rec.game_volume, rec.music_volume, changed) == (55, 100, [True])
 
 
 def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, monkeypatch):
@@ -1369,6 +1391,14 @@ def test_editor_plays_mixes_and_trims(qapp, window):
     editor._save()
     edit = window.context.library.get_edit(clip.name)
     assert edit.trim_start == 0.5 and edit.mix_for("Vertex Mic").volume == 0.4
+    # Playback volume: only what is heard, kept for the next clip.
+    editor.volume.setValue(250)
+    assert editor.player_widget.player.volume == 250 and editor.volume_readout.text() == "250%"
+    editor.volume_button.click()
+    assert editor.player_widget.player.volume == 0
+    editor.volume_button.click()
+    assert editor.volume.value() == 250 and window.context.config.playback_volume == 250
+    assert window.context.library.get_edit(clip.name).mix_for("Vertex Mic").volume == 0.4
     editor._start_trim("copy")
     assert wait_until(qapp, lambda: editor._trim_job is None, timeout=30)
     assert any("(trimmed)" in name for name in os.listdir(os.path.dirname(clip.path)))

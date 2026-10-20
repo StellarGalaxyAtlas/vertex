@@ -183,6 +183,23 @@ class TestReplayBuffer:
         assert "Vertex Mic" not in fake.inputs
         recorder.stop()
 
+    def test_music_is_a_fourth_track_and_each_records_at_its_volume(self, connected, tmp_path):
+        recorder = ObsRecorder()
+        setup = a_plan(tmp_path, music_audio="device:{0.0.0.00000000}.{music-guid}",
+                       chat_volume=80, mic_volume=0)
+        assert [a.name for a in setup.inputs] == ["Vertex Game", "Vertex Chat", "Vertex Music",
+                                                  "Vertex Mic"]
+        assert "Track 2: Vertex Chat ({0.0.0.00000000}.{chat-guid}, at 80%)" in \
+            obs.describe(setup)
+        recorder.start(setup, str(tmp_path / "clips"))
+        assert wait_for(lambda: recorder.state == State.RUNNING), recorder.error
+        fake = connected
+        assert {name: item["volume"] for name, item in fake.inputs.items() if "volume" in item} \
+            == {"Vertex Game": 1.0, "Vertex Chat": 0.8, "Vertex Music": 1.0, "Vertex Mic": 0.0}
+        assert [n for n, on in fake.inputs["Vertex Music"]["tracks"].items() if on] == ["3"]
+        assert fake.params[("Vertex", "SimpleOutput", "RecTracks")] == "15"
+        recorder.stop()
+
     def test_a_save_becomes_a_clip_with_named_tracks(self, connected, tmp_path, sample_clip):
         connected.replay_file = str(sample_clip)
         saved = []

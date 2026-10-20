@@ -1,4 +1,4 @@
-"""The parts a clip's audio is recorded in: game, chat, media and mic.
+"""The parts a clip's audio is recorded in: game, chat, media, music and mic.
 
 A clip recorded by Vertex titles each of its tracks after the part it holds
 ("Vertex Game"), so the editor can name its lanes exactly whatever the
@@ -25,9 +25,10 @@ class Role:
 GAME = Role("game", "Game")
 CHAT = Role("chat", "Chat")
 MEDIA = Role("media", "Media")
+MUSIC = Role("music", "Music")
 MIC = Role("mic", "Mic")
 
-ALL: tuple[Role, ...] = (GAME, CHAT, MEDIA, MIC)
+ALL: tuple[Role, ...] = (GAME, CHAT, MEDIA, MUSIC, MIC)
 BY_ID: dict[str, Role] = {role.id: role for role in ALL}
 
 

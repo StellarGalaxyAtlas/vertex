@@ -44,6 +44,12 @@ def has_notifier() -> bool:
     return not is_obs()
 
 
+def has_track_volume() -> bool:
+    """Whether each track's recording volume can be set: OBS sets it on the
+    track's source; GSR records devices as they are."""
+    return is_obs()
+
+
 def quality_levels() -> tuple[str, ...]:
     """The video quality levels Settings offers: OBS has two of its own."""
     return obs.QUALITY_LEVELS if is_obs() else presets.LEVELS

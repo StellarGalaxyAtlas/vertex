@@ -86,8 +86,20 @@ class RecorderConfig:
     # input instead (gsr.available_tracks).
     game_audio: str = "default_output"
     chat_audio: str = ""
+    music_audio: str = ""
     mic_audio: str = "default_input"
+    # How loud each track is recorded, in percent (TRACK_VOLUME_RANGE), where
+    # the recorder can set it (backend.has_track_volume).
+    game_volume: int = 100
+    chat_volume: int = 100
+    music_volume: int = 100
+    mic_volume: int = 100
     extra_args: str = ""
+
+
+PLAYBACK_VOLUME_RANGE = (0, 300)
+TRACK_VOLUMES = ("game_volume", "chat_volume", "music_volume", "mic_volume")
+TRACK_VOLUME_RANGE = (0, 100)
 
 
 # --- The whole file ---------------------------------------------------------
@@ -105,6 +117,9 @@ class Config:
     close_to_tray: bool = True
     colour_scheme: str = "navy"                                # a key of ui/theme.SCHEMES
     card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
+    # How loud the editor plays clips, in percent (PLAYBACK_VOLUME_RANGE): only
+    # what is heard while watching, never a clip, its mix or an export.
+    playback_volume: int = 100
     # The size last exported at (a label of media/export.SIZE_CHOICES); "" = none yet.
     export_size: str = ""
     # Desktop pop-ups switched away from their default, by kind (see notifications).
@@ -208,8 +223,13 @@ class Config:
                           hotkeys.bindings(config.hotkeys).items()}
         if config.hotkey_last_seconds not in SAVE_LENGTHS:
             config.hotkey_last_seconds = Config.hotkey_last_seconds
+        config.playback_volume = min(max(config.playback_volume, PLAYBACK_VOLUME_RANGE[0]),
+                                     PLAYBACK_VOLUME_RANGE[1])
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
+        for key in TRACK_VOLUMES:
+            setattr(config.recorder, key, min(max(getattr(config.recorder, key),
+                                                  TRACK_VOLUME_RANGE[0]), TRACK_VOLUME_RANGE[1]))
         # Tidied, as Windows' own separators, but '~' kept as written.
         for owner, key in [*((config, key) for key in (*REQUIRED_FIELDS, "log_path")),
                            (config.recorder, "output_dir")]:

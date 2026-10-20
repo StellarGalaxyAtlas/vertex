@@ -201,6 +201,9 @@ class FakeObs:
             return None, {}
         if kind == "SetInputMute":
             return None, {}
+        if kind == "SetInputVolume":
+            self.inputs[data["inputName"]]["volume"] = data["inputVolumeMul"]
+            return None, {}
         if kind == "GetSpecialInputs":
             return None, dict(self.special)
         if kind == "GetReplayBufferStatus":

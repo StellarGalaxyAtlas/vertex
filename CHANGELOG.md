@@ -42,6 +42,10 @@ Vertex on Windows 10 and 11, without Sonar.
 - Hotkeys on Windows, set in Settings › Shortcuts by pressing them: save a
   clip, save the last part of the buffer, start or stop the replay buffer,
   show Vertex. Keys another program holds are named on their row.
+- A Music track, off until a device is picked, and a recording volume per
+  track (on Windows, set on the track's OBS source).
+- A playback volume in the editor, 0–300%, kept between clips; the clip, its
+  mix and exports stay as they are.
 - A Windows job in CI.
 
 ## 2.0.0 — unreleased

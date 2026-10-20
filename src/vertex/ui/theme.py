@@ -276,7 +276,10 @@ def select(name: str) -> str:
         TRIM_SHADE=_mix(ground, "#ffffff", 0.3) if light else _mix(ground, "#000000", 0.45),
         LANE_BG=card, WAVE_MUTED=_mix(card, text, 0.13),
         CHANNEL_COLOURS={"game": values["GAME"], "desktop": values["DESKTOP"],
-                         "chat": values["CHAT"], "media": values["MEDIA"], "mic": values["MIC"]},
+                         "chat": values["CHAT"], "media": values["MEDIA"], "mic": values["MIC"],
+                         # A clip has one or the other: Media is Sonar's, Music
+                         # a track of its own on Windows.
+                         "music": values["MEDIA"]},
         AUDIO_LANES=(values["GAME"], values["CHAT"], values["MIC"], values["DESKTOP"],
                      values["MEDIA"], values["TEXT_DIM"]),
     )

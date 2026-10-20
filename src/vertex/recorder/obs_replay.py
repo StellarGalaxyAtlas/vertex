@@ -278,6 +278,8 @@ class ObsRecorder:
                 "inputAudioTracks": {str(n): n == audio.track
                                      for n in range(1, obs.MAX_TRACKS + 1)}})
             client.request("SetInputMute", {"inputName": audio.name, "inputMuted": False})
+            client.request("SetInputVolume", {"inputName": audio.name,
+                                              "inputVolumeMul": audio.volume / 100})
         wanted_names = {obs.DISPLAY_INPUT, *(audio.name for audio in setup.inputs)}
         for name in sorted(OWN_INPUTS & set(existing) - wanted_names):
             client.request("RemoveInput", {"inputName": name})

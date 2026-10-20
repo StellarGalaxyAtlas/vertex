@@ -90,7 +90,8 @@ tag and rename.
 </tr>
 </table>
 
-A volume slider per audio track and trimming without quality loss. Share
+A volume slider per audio track, a playback volume (up to 300%, only for
+watching), and trimming without quality loss. Share
 sizes the clip for Discord and copies it, ready to paste or drag into a chat;
 Export saves it in your Exports folder.
 
@@ -103,9 +104,10 @@ Export saves it in your Exports folder.
 </tr>
 </table>
 
-The replay buffer keeps the last minute or two, with game, chat and mic as
-separate tracks, each recording the device you pick (bring your own virtual
-devices to split game and chat). On Windows it records with OBS Studio:
+The replay buffer keeps the last minute or two, with game, chat, music and
+mic as separate tracks, each recording the device you pick (bring your own
+virtual devices to split game and chat). On Windows it records with OBS Studio,
+at the volume set for each track:
 Vertex starts OBS in the tray and sets up an OBS profile and scene of its
 own, both called Vertex, leaving your others alone. On Linux it records with
 GPU Screen Recorder, and notifications can show over games.

@@ -47,11 +47,11 @@ from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
+from vertex.ui.settings.tracks import TrackTable
 from vertex.ui.widgets import (
     Banner,
     Columns,
     Disclosure,
-    FieldGrid,
     PathField,
     Section,
     SideNav,
@@ -280,15 +280,16 @@ class SettingsView(QWidget):
         self.resolution, self.fps = self.choices.resolution, self.choices.fps
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
-        self.game_audio = QComboBox()
-        self.chat_audio = QComboBox()
-        self.mic_audio = QComboBox()
-        tracks = FieldGrid(field_width=190)
-        for title, widget in (("Game audio", self.game_audio), ("Chat audio", self.chat_audio),
-                              ("Microphone", self.mic_audio)):
-            tracks.add(title, widget)
-        clips.add(tracks)
-        clips.add(label("Each is saved as a separate audio track", "Dim", wrap=True))
+        self.tracks = TrackTable(backend.has_track_volume())
+        devices = self.tracks.devices
+        self.game_audio, self.chat_audio = devices[roles.GAME.id], devices[roles.CHAT.id]
+        self.music_audio, self.mic_audio = devices[roles.MUSIC.id], devices[roles.MIC.id]
+        clips.add(self.tracks)
+        clips.add(label("Each is saved as a separate audio track; one set to None isn't "
+                        "recorded." + (" The volume is what the track is recorded at, so "
+                                       "clips play back right at 100%."
+                                       if backend.has_track_volume() else ""),
+                        "Dim", wrap=True))
         clips.add(self._build_estimate())
 
         # OBS takes fewer of these than GSR: its rows for the rest are hidden.
@@ -375,8 +376,7 @@ class SettingsView(QWidget):
             widget.currentIndexChanged.connect(self._clip_settings_changed)
         for widget in (self.bitrate, self.audio_bitrate):
             widget.valueChanged.connect(self._clip_settings_changed)
-        for widget in (self.game_audio, self.chat_audio, self.mic_audio):
-            widget.currentIndexChanged.connect(self._clip_settings_changed)
+        self.tracks.changed.connect(self._clip_settings_changed)
         for widget in (self.command, self.extra_args):
             widget.textChanged.connect(self._update_preview)
         self.keyint.valueChanged.connect(self._update_preview)
@@ -493,6 +493,7 @@ class SettingsView(QWidget):
         self.audio_bitrate.setValue(rec.audio_bitrate)
         self.extra_args.setText(rec.extra_args)
         self._show_clip_choices(rec)
+        self.tracks.load(rec)
         self._update_preview()
         self._show_estimate()
 
@@ -527,9 +528,10 @@ class SettingsView(QWidget):
         rec.audio_codec = self.audio_codec.currentData()
         rec.audio_bitrate = self.audio_bitrate.value()
         for widget, name in ((self.game_audio, "game_audio"), (self.chat_audio, "chat_audio"),
-                             (self.mic_audio, "mic_audio")):
+                             (self.music_audio, "music_audio"), (self.mic_audio, "mic_audio")):
             if widget.currentData() is not None:
                 setattr(rec, name, widget.currentData())
+        self.tracks.apply(rec)
         rec.extra_args = self.extra_args.text().strip()
         return config
 
@@ -728,6 +730,7 @@ class SettingsView(QWidget):
         for widget, setting, role, default_text, real in (
                 (self.game_audio, "game_audio", roles.GAME.id, "Default output", outputs),
                 (self.chat_audio, "chat_audio", roles.CHAT.id, "Default output", outputs),
+                (self.music_audio, "music_audio", roles.MUSIC.id, "Default output", outputs),
                 (self.mic_audio, "mic_audio", roles.MIC.id, "Default microphone", inputs)):
             fallback = gsr.fallback_source(role)
             instead = "default output" if fallback == "default_output" else "default microphone"
