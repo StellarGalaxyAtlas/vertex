@@ -50,6 +50,9 @@ def added_marker() -> Path:
 
 # --- Windows ------------------------------------------------------------------
 
+GUI_SCRIPT = "VertexApp"       # pyproject's gui-script
+
+
 def _programs() -> Path:
     return Path(system.appdata()) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
 
@@ -135,11 +138,16 @@ def desktop_ink() -> str:
 def launch_command() -> list[str]:
     """How to start this Vertex: its own `vertex` script if that is on PATH
     and is ours, else this interpreter running the package. On Windows, the
-    installed Vertex.exe, or the console-less pythonw.exe: a shortcut to
-    python.exe would open a console window beside Vertex's."""
+    installed Vertex.exe, the VertexApp.exe launcher pip writes beside this
+    interpreter, or the console-less pythonw.exe: a shortcut to python.exe
+    would open a console window beside Vertex's. Windows lists the startup
+    entry by that program's name."""
     if system.WINDOWS:
         if getattr(sys, "frozen", False):
             return [sys.executable]
+        launcher = Path(sys.executable).with_name(f"{GUI_SCRIPT}.exe")
+        if launcher.exists():
+            return [str(launcher)]
         quiet = Path(sys.executable).with_name("pythonw.exe")
         return [str(quiet if quiet.exists() else Path(sys.executable)), "-m", "vertex"]
     script = shutil.which(APP_ID)

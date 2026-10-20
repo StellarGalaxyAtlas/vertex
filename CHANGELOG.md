@@ -28,7 +28,8 @@ Vertex on Windows 10 and 11, without Sonar.
   `vertex doctor` says where each one is.
 - The control channel over a token-guarded local port on Windows.
 - Start menu shortcut and start at login (a "Vertex" shortcut in the Startup
-  folder) on Windows, removed by `vertex uninstall-desktop`.
+  folder, starting `VertexApp.exe`, the name Windows lists it by) on Windows,
+  removed by `vertex uninstall-desktop`.
 - ffmpeg runs without console windows; Show in folder opens Explorer.
 - The logo's ink follows the taskbar's theme, which Windows sets apart from
   the apps' one.

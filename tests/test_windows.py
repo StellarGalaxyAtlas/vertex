@@ -93,6 +93,8 @@ def test_shortcuts_start_vertex_without_a_console(windows, monkeypatch, tmp_path
     assert desktop.launch_command() == [str(python), "-m", "vertex"]
     (tmp_path / "pythonw.exe").write_text("")
     assert desktop.launch_command() == [str(tmp_path / "pythonw.exe"), "-m", "vertex"]
+    (tmp_path / "VertexApp.exe").write_text("")
+    assert desktop.launch_command() == [str(tmp_path / "VertexApp.exe")]
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert desktop.launch_command() == [str(python)]
 

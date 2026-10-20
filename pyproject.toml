@@ -35,8 +35,10 @@ dev = ["pytest>=7", "ruff>=0.4"]
 vertex = "vertex.cli:main"
 
 # Windows: the same command without a console window, for starting the app.
+# Windows lists a program at login by its file name: VertexApp.exe ("Vertex"
+# would clash with vertex.exe, as Windows ignores case).
 [project.gui-scripts]
-vertex-app = "vertex.cli:main"
+VertexApp = "vertex.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/StellarGalaxyAtlas/vertex"
