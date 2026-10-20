@@ -1,5 +1,30 @@
 # Changelog
 
+## Windows port — unreleased
+
+Vertex on Windows 10 and 11, without Sonar.
+
+### Removed
+- **Sonar** and everything that referred to it: the Sonar page, the Home
+  tile and quick mixer, the tray's device menus, its setup step, its
+  notifications and log, and the `sonar`, `volume`, `mute`, `device` and
+  `devices` commands (control API version 2).
+- Tagging new clips with the game on the Game channel.
+- The Stream Deck link on the Shortcuts page, for now.
+
+### Changed
+- A clip's tracks default to the default output (Game) and the default
+  microphone (Mic); a Chat track is picked in Settings › Recording.
+
+### Added
+- Windows folders: settings in `%APPDATA%\Vertex`, the library, logs and
+  thumbnails in `%LOCALAPPDATA%\Vertex`, clips in the Videos folder.
+- The control channel over a token-guarded local port on Windows.
+- Start menu shortcut and start at login on Windows, removed by
+  `vertex uninstall-desktop`.
+- ffmpeg runs without console windows; Show in folder opens Explorer.
+- A Windows job in CI.
+
 ## 2.0.0 — unreleased
 
 A rewrite of the application around a GUI-free core, with recording and Sonar

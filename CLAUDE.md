@@ -1,8 +1,9 @@
 # Notes for Claude
 
-Vertex re-implements SteelSeries Moments (clips library, editor, export) and
-SteelSeries Sonar (virtual Game/Chat/Media outputs and a Vertex Mic) for
-Linux. Read `docs/DEVELOPMENT.md` before changing code.
+Vertex re-implements SteelSeries Moments (clips library, editor, export).
+This repository is the Windows port of StellarGalaxyAtlas/vertex (the Linux
+app, which also has Sonar): it has no Sonar at all, and keeps running on
+Linux so the tests run there. Read `docs/DEVELOPMENT.md` before changing code.
 
 ## The work list
 
@@ -43,7 +44,7 @@ and push it. Code, tests and docs don't mention TODO items.
 ## Rules of the code
 
 - Everything outside `vertex.ui` stays free of Qt.
-- Blocking work (pactl, ffmpeg, disk) goes through `ui/workers.run`, never on
+- Blocking work (ffmpeg, the recorder, disk) goes through `ui/workers.run`, never on
   the UI thread.
 - Never modify a user's recordings; write under a staging name and move into
   place.
@@ -55,17 +56,15 @@ and push it. Code, tests and docs don't mention TODO items.
 
 ## Working in the cloud container
 
-- No audio server runs there. Tests use the fake pactl in `tests/fake_pactl.py`;
-  the PipeWire tests skip themselves.
+- No Windows there: `tests/test_windows.py` switches the Windows branches on
+  (`system.WINDOWS`, `ipc.USE_TCP`), and CI's Windows job runs it for real.
 - Run the tests through `python -m pytest`: the bare `pytest` on the PATH can
   be a separate tool that can't import Vertex. If `import vertex` fails in a
   new container, run `pip install -e ".[dev]"` again.
-- For UI changes, look at the result before pushing:
-  `xvfb-run -a python tools/sonar_screenshot.py /tmp/shot` screenshots the
-  Sonar page against the fake server at the default and minimum window sizes.
-  Read the PNGs, and send the maintainer the final one.
-  `xvfb-run -a python tools/settings_screenshot.py /tmp/shot` does the same for
-  Settings › Recording, with a fake recorder and three fake monitors (one
+- For UI changes, look at the result before pushing, read the PNGs, and send
+  the maintainer the final one.
+  `xvfb-run -a python tools/settings_screenshot.py /tmp/shot` screenshots
+  Settings › Recording at the default and minimum window sizes, with a fake recorder and three fake monitors (one
   standing up). `xvfb-run -a python tools/first_run_screenshot.py /tmp/shot`
   shoots every step of first-run setup, with and without a recorder.
   The tools shoot Navy, the default. A colour change is checked in a dark
@@ -105,7 +104,7 @@ say it's good, it goes onto `main` and the session's branch is deleted.
 It works in fish:
 
 ```bash
-pipx install --force "git+https://github.com/StellarGalaxyAtlas/vertex.git"
+pipx install --force "git+https://github.com/StellarGalaxyAtlas/vertex-windows.git"
 ```
 
 A running Vertex keeps the old code until it is quit from the tray and opened

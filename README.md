@@ -40,7 +40,7 @@ This intro section is written by me, the human behind it. The following showcase
 
 ---
 
-**Game clips and Sonar-style audio for Linux: a re-implementation of SteelSeries Moments and Sonar.**
+**Game clips for Windows and Linux: a re-implementation of SteelSeries Moments.**
 
 Save the last minute of a game with one key, trim it, turn your mic down and
 send it to your friends.
@@ -59,11 +59,10 @@ send it to your friends.
 
 - [Library](#library)
 - [Editor and export](#editor-and-export)
-- [Sonar](#sonar)
 - [Recording and notifications](#recording-and-notifications)
 - [Settings](#settings)
 - [Install](#install)
-- [Shortcuts, command line and Stream Deck](#shortcuts-command-line-and-stream-deck)
+- [Shortcuts and command line](#shortcuts-and-command-line)
 - [Your data and logs](#your-data-and-logs)
 - [Thanks](#thanks)
 - [License](#license)
@@ -95,15 +94,6 @@ A volume slider per audio track and trimming without quality loss. Share
 sizes the clip for Discord and copies it, ready to paste or drag into a chat;
 Export saves it in your Exports folder.
 
-## Sonar
-
-<p align="center">
-  <img src="docs/screenshots/sonar.png" alt="The Sonar page" width="900">
-</p>
-
-Separate Game, Chat and Media volumes and a shared Vertex Mic. Apps stay on
-their channel, and a priority list picks your headset and mic.
-
 ## Recording and notifications
 
 <table>
@@ -113,8 +103,10 @@ their channel, and a priority list picks your headset and mic.
 </tr>
 </table>
 
-GPU Screen Recorder keeps the last minute or two. Game, chat and mic are
-saved as separate tracks. Notifications can show over games.
+On Linux, GPU Screen Recorder keeps the last minute or two, with game, chat
+and mic as separate tracks, and notifications can show over games. Recording
+on Windows is not there yet: on Windows, Vertex is the library, editor and
+export for clips you already have.
 
 ## Settings
 
@@ -131,83 +123,98 @@ from Moments, and resets.
 
 > [!CAUTION]
 > **These install steps were written by AI and have not been verified.**
-> Package names and commands may be wrong for your distribution. Vertex has
-> only been used for real on one KDE Plasma (Wayland) setup with PipeWire.
-> Read each command before you run it, and please open an issue if something
-> is wrong.
+> Vertex has only been used for real on one KDE Plasma (Wayland) setup with
+> PipeWire, and not yet on Windows. Read each command before you run it, and
+> please open an issue if something is wrong.
 
-**1. System packages:** Python 3.10+ and `pipx`, `ffmpeg`, `libmpv`,
-PipeWire with `pactl`, and optionally
-[GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/)
+### Windows 10 and 11
+
+**1. Programs:** Python 3.10+, FFmpeg and libmpv. In PowerShell:
+
+```powershell
+winget install Python.Python.3.12 Gyan.FFmpeg
+```
+
+libmpv has no winget package: download a `mpv-dev-x86_64` archive from
+[mpv's Windows builds](https://sourceforge.net/projects/mpv-player-windows/files/libmpv/)
+and put `libmpv-2.dll` in a folder on your `PATH`.
+
+**2. Vertex:**
+
+```powershell
+pip install pipx
+pipx ensurepath   # then open a new PowerShell window
+pipx install git+https://github.com/StellarGalaxyAtlas/vertex-windows.git
+vertex            # adds itself to the Start menu and runs setup
+vertex doctor     # checks that everything is in place
+```
+
+Update with the same install line plus `--force`, then quit Vertex from the
+tray and open it again. `vertex uninstall-desktop` removes the Start menu
+shortcut and autostart, then `pipx uninstall vertex-clips` removes Vertex;
+your clips, library and settings stay.
+
+### Linux
+
+**1. System packages:** Python 3.10+ and `pipx`, `ffmpeg`, `libmpv`, and
+optionally [GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/)
 (for recording) and `gpu-screen-recorder-notification` (for notifications
 over games).
 
 ```bash
 # Arch
-sudo pacman -S python-pipx ffmpeg mpv libpulse
+sudo pacman -S python-pipx ffmpeg mpv
 yay -S gpu-screen-recorder gpu-screen-recorder-notification   # AUR
 
 # Debian / Ubuntu
-sudo apt install pipx ffmpeg libmpv2 pulseaudio-utils libxcb-cursor0
+sudo apt install pipx ffmpeg libmpv2 libxcb-cursor0
 
 # Fedora (ffmpeg from RPM Fusion)
-sudo dnf install pipx ffmpeg mpv-libs pulseaudio-utils
+sudo dnf install pipx ffmpeg mpv-libs
 ```
 
 **2. Vertex:**
 
 ```bash
-pipx install git+https://github.com/StellarGalaxyAtlas/vertex.git
+pipx install git+https://github.com/StellarGalaxyAtlas/vertex-windows.git
 vertex            # adds itself to your start menu and runs setup
 vertex doctor     # checks that everything is in place
 ```
 
-Update with the same install line plus `--force`, then quit Vertex from the
-tray and open it again. `pipx uninstall vertex-clips` removes it; your clips,
-library and settings stay.
-
-For the Flatpak GPU Screen Recorder, set *Settings › Recording › Advanced ›
-Command* to
+Update and remove it as on Windows. For the Flatpak GPU Screen Recorder, set
+*Settings › Recording › Advanced › Command* to
 `flatpak run --command=gpu-screen-recorder com.dec05eba.gpu_screen_recorder`.
 
 ---
 
-## Shortcuts, command line and Stream Deck
+## Shortcuts and command line
 
-Wayland desktops bind global keys themselves. Add a custom shortcut that runs
-`vertex save-clip` (KDE: System Settings › Keyboard › Shortcuts › Add New ›
-Command or Script). *Settings › Shortcuts* lists every command, ready to copy:
+Vertex is driven from outside by the `vertex` command. Bind `vertex
+save-clip` to a key: on KDE in System Settings › Keyboard › Shortcuts › Add
+New › Command or Script; on Windows with your keyboard or mouse software, or
+a shortcut's *Shortcut key*. *Settings › Shortcuts* lists every command,
+ready to copy:
 
 ```
 vertex save-clip [--last N]       save the replay buffer (or its last N seconds)
 vertex replay start|stop|toggle
-vertex volume game|chat|media|mic up|down|0-100
-vertex mute game|chat|media|mic
-vertex device next|previous [mic]
-vertex sonar up|down
 vertex show | state | watch | doctor
 ```
 
-The tray menu can show Vertex, save clips, start the replay buffer and switch
-the output device or mic.
-
-**Stream Deck:** the
-[Vertex plugin for StreamController](https://github.com/StellarGalaxyAtlas/vertex-streamcontroller)
-has keys and dials for volumes, mutes, devices, the replay buffer and saving
-clips. *Settings › Shortcuts* links to it.
+The tray menu can show Vertex, save clips and start the replay buffer.
 
 ---
 
 ## Your data and logs
 
-| What | Where |
-|---|---|
-| Settings | `~/.config/vertex/config.json` |
-| Library | `~/.local/share/vertex/library.db` |
-| Logs | `~/.local/state/vertex/logs/` |
-| Thumbnails | `~/.cache/vertex/` (safe to delete) |
+| What | Windows | Linux |
+|---|---|---|
+| Settings | `%APPDATA%\Vertex\config.json` | `~/.config/vertex/config.json` |
+| Library | `%LOCALAPPDATA%\Vertex\Library\library.db` | `~/.local/share/vertex/library.db` |
+| Logs | `%LOCALAPPDATA%\Vertex\State\logs\` | `~/.local/state/vertex/logs/` |
+| Thumbnails | `%LOCALAPPDATA%\Vertex\Cache\` (safe to delete) | `~/.cache/vertex/` (safe to delete) |
 
-The logs (`vertex`, `recorder`, `sonar`, `clips`) are small text files for
+The logs (`vertex`, `recorder`, `clips`) are small text files for
 when something goes wrong; *Keep logs* in Settings switches them off.
 Developers: see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
@@ -221,9 +228,9 @@ Some more personal words from the human behind the scene. This "project" would h
 
 - **[GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/)** by dec05eba ·
   *GPL-3.0-only*
-  The recording backend: the replay buffer, GPU encoding, and one track per
-  audio device. Vertex runs it as a separate program and talks to it through
-  its command line and signals.
+  The recording backend on Linux: the replay buffer, GPU encoding, and one
+  track per audio device. Vertex runs it as a separate program and talks to it
+  through its command line and signals.
 - **[mpv](https://mpv.io/)** — [github.com/mpv-player/mpv](https://github.com/mpv-player/mpv) ·
   *GPLv2+ / LGPLv2.1+*
   The video playback, and the reason the multi-track mixer is possible at all:
@@ -235,9 +242,6 @@ Some more personal words from the human behind the scene. This "project" would h
   `ffprobe` is what tells the app what is inside a clip in the first place.
 - **[x264](https://www.videolan.org/developers/x264.html)** — *GPLv2+*
   The two-pass encoder behind every size-capped export.
-- **[PipeWire](https://pipewire.org/)** and **[PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/)** —
-  the null sinks, loopbacks and remapped sources Sonar is built from, and
-  `pactl`, which Vertex drives them with.
 - **[Qt](https://www.qt.io/)** — *LGPLv3*
   The toolkit underneath everything on screen.
 - **[SQLite](https://sqlite.org/)** — *public domain*
@@ -258,10 +262,9 @@ Some more personal words from the human behind the scene. This "project" would h
 
 ### Prior art
 
-- **SteelSeries Moments** and **SteelSeries Sonar** — the apps Vertex
-  re-implements for Linux. The file-naming convention Vertex parses is
-  Moments', the export sheet is modelled on its share sheet, and the channel
-  layout is Sonar's.
+- **SteelSeries Moments** — the app Vertex re-implements. The file-naming
+  convention Vertex parses is Moments', and the export sheet is modelled on
+  its share sheet.
 - **[freedesktop.org](https://www.freedesktop.org/)** — the XDG Base Directory,
   Desktop Entry and Trash specifications, which are why the app knows where to
   put its files, how to land in your start menu, and where deleted clips go.
