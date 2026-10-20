@@ -1607,6 +1607,26 @@ def test_the_name_teacher_learns_from_marked_parts(qapp):
     teacher.deleteLater()
 
 
+def test_ignoring_the_app_name_before_the_game_leaves_it_out(qapp):
+    from vertex.ui.name_teacher import NameTeacher
+
+    names = ["MedalTVAssassinsCreedII20260102140204766.mp4",
+             "MedalTVHalo20260103090000001.mp4"]
+    teacher = NameTeacher()
+    teacher.set_names(names)
+    teacher.choose("Something else")
+    teacher._set_sample(names[0])
+    for text, kind in (("MedalTV", "skip"), ("AssassinsCreedII", "game"), ("20260102", "date"),
+                       ("1402", "time"), ("04766", "skip")):
+        teacher.sample.setSelection(teacher.sample.text().index(text), len(text))
+        teacher.mark_buttons[kind].click()
+    teacher.split_words.setChecked(True)
+    pattern = teacher.pattern()
+    assert [pattern.read(name).game for name in names] == ["Assassins Creed II", "Halo"]
+    assert teacher.preview_title.text() == "What Vertex reads: 2 of 2 clips"
+    teacher.deleteLater()
+
+
 def test_a_marked_part_survives_the_field_losing_focus(qapp):
     from PySide6.QtCore import QEvent, Qt
     from PySide6.QtGui import QFocusEvent

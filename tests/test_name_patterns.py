@@ -76,6 +76,26 @@ def test_marking_up_a_name_makes_a_pattern_for_the_others():
         from_marks(name, [mark("Valorant", "game"), mark("Valo", "skip")])
 
 
+def test_an_ignored_part_beside_the_game_keeps_its_length():
+    name = "MedalTVAssassinsCreedII20260102140204766.mp4"
+    stem = name[:-4]
+
+    def mark(text, kind, fmt=""):
+        start = stem.index(text)
+        return Mark(start, start + len(text), kind, fmt)
+
+    pattern = from_marks(name, [mark("MedalTV", "skip"), mark("AssassinsCreedII", "game"),
+                                mark("20260102", "date", "YYYYMMDD"),
+                                mark("1402", "time", "HHmm"), mark("04766", "skip")])
+    assert pattern.template == "{skip:7}{game}{date:YYYYMMDD}{time:HHmm}{skip}"
+    assert pattern.read(name).game == "AssassinsCreedII"
+    assert pattern.read("MedalTVHalo20260102140204766.mp4").game == "Halo"
+    assert template_of(parse("{skip:7}{game}")) == "{skip:7}{game}"
+    for bad in ("{skip:x}", "{skip:0}", "{game:7}"):
+        with pytest.raises(PatternError):
+            parse(bad)
+
+
 def test_taught_patterns_tag_and_date_imports(tmp_path):
     for name in ("MedalTVFirstLight20260817235610725.mp4", "THE-FINALS__2024-06-16__19-45-23.mp4",
                  "Something.mp4"):
