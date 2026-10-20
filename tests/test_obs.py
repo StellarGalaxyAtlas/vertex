@@ -183,11 +183,11 @@ class TestReplayBuffer:
         assert "Vertex Mic" not in fake.inputs
         recorder.stop()
 
-    def test_music_is_a_fourth_track_and_each_records_at_its_volume(self, connected, tmp_path):
+    def test_media_is_a_fourth_track_and_each_records_at_its_volume(self, connected, tmp_path):
         recorder = ObsRecorder()
-        setup = a_plan(tmp_path, music_audio="device:{0.0.0.00000000}.{music-guid}",
+        setup = a_plan(tmp_path, media_audio="device:{0.0.0.00000000}.{media-guid}",
                        chat_volume=80, mic_volume=0)
-        assert [a.name for a in setup.inputs] == ["Vertex Game", "Vertex Chat", "Vertex Music",
+        assert [a.name for a in setup.inputs] == ["Vertex Game", "Vertex Chat", "Vertex Media",
                                                   "Vertex Mic"]
         assert "Track 2: Vertex Chat ({0.0.0.00000000}.{chat-guid}, at 80%)" in \
             obs.describe(setup)
@@ -195,8 +195,8 @@ class TestReplayBuffer:
         assert wait_for(lambda: recorder.state == State.RUNNING), recorder.error
         fake = connected
         assert {name: item["volume"] for name, item in fake.inputs.items() if "volume" in item} \
-            == {"Vertex Game": 1.0, "Vertex Chat": 0.8, "Vertex Music": 1.0, "Vertex Mic": 0.0}
-        assert [n for n, on in fake.inputs["Vertex Music"]["tracks"].items() if on] == ["3"]
+            == {"Vertex Game": 1.0, "Vertex Chat": 0.8, "Vertex Media": 1.0, "Vertex Mic": 0.0}
+        assert [n for n, on in fake.inputs["Vertex Media"]["tracks"].items() if on] == ["3"]
         assert fake.params[("Vertex", "SimpleOutput", "RecTracks")] == "15"
         recorder.stop()
 

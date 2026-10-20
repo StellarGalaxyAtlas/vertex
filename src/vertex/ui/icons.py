@@ -500,7 +500,7 @@ def _icon(name: str, colour: str, size: int, disabled: str) -> QIcon:
 
 
 def channel_icon_name(channel_id: str) -> str:
-    return {"game": "game", "chat": "chat", "media": "media", "music": "media",
+    return {"game": "game", "chat": "chat", "media": "media",
             "mic": "mic", "desktop": "headphones"}.get(channel_id, "volume")
 
 

@@ -86,19 +86,19 @@ class RecorderConfig:
     # input instead (gsr.available_tracks).
     game_audio: str = "default_output"
     chat_audio: str = ""
-    music_audio: str = ""
+    media_audio: str = ""
     mic_audio: str = "default_input"
     # How loud each track is recorded, in percent (TRACK_VOLUME_RANGE), where
     # the recorder can set it (backend.has_track_volume).
     game_volume: int = 100
     chat_volume: int = 100
-    music_volume: int = 100
+    media_volume: int = 100
     mic_volume: int = 100
     extra_args: str = ""
 
 
 PLAYBACK_VOLUME_RANGE = (0, 300)
-TRACK_VOLUMES = ("game_volume", "chat_volume", "music_volume", "mic_volume")
+TRACK_VOLUMES = ("game_volume", "chat_volume", "media_volume", "mic_volume")
 TRACK_VOLUME_RANGE = (0, 100)
 
 

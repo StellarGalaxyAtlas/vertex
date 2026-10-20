@@ -373,7 +373,7 @@ def validate(rec: RecorderConfig) -> list[str]:
         problems.append(f"{NAME} can't record {rec.video_codec}; pick H.264, HEVC or AV1.")
     elif rec.encoder == "cpu" and rec.video_codec not in ("auto", "h264"):
         problems.append("CPU encoding only supports H.264.")
-    for setting in ("game_audio", "chat_audio", "music_audio", "mic_audio"):
+    for setting in ("game_audio", "chat_audio", "media_audio", "mic_audio"):
         if getattr(rec, setting).startswith("app:"):
             problems.append(f"Recording one app's sound isn't available with {NAME} yet.")
             break

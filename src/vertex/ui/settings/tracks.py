@@ -14,7 +14,7 @@ from vertex.ui.settings.clip_choices import fill
 from vertex.ui.widgets import label
 
 # (role, the row's name): one track each, in the clip's order.
-TRACKS = ((roles.GAME, "Game"), (roles.CHAT, "Chat"), (roles.MUSIC, "Music"),
+TRACKS = ((roles.GAME, "Game"), (roles.CHAT, "Chat"), (roles.MEDIA, "Media"),
           (roles.MIC, "Microphone"))
 
 

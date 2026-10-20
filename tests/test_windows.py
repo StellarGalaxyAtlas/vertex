@@ -191,8 +191,8 @@ def test_track_volumes_stay_in_range():
     from vertex.config import Config
 
     rec = Config.from_dict({"recorder": {"chat_volume": 150, "mic_volume": -5,
-                                         "music_volume": 40}}).recorder
-    assert (rec.game_volume, rec.chat_volume, rec.mic_volume, rec.music_volume) == \
+                                         "media_volume": 40}}).recorder
+    assert (rec.game_volume, rec.chat_volume, rec.mic_volume, rec.media_volume) == \
         (100, 100, 0, 40)
 
 

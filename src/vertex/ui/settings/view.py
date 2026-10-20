@@ -283,7 +283,7 @@ class SettingsView(QWidget):
         self.tracks = TrackTable(backend.has_track_volume())
         devices = self.tracks.devices
         self.game_audio, self.chat_audio = devices[roles.GAME.id], devices[roles.CHAT.id]
-        self.music_audio, self.mic_audio = devices[roles.MUSIC.id], devices[roles.MIC.id]
+        self.media_audio, self.mic_audio = devices[roles.MEDIA.id], devices[roles.MIC.id]
         clips.add(self.tracks)
         clips.add(label(tracks_note(), "Dim", wrap=True))
         clips.add(self._build_estimate())

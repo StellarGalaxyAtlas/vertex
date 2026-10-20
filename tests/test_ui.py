@@ -630,7 +630,7 @@ def test_tracks_are_chosen_on_the_recording_page(qapp, window, monkeypatch):
     settings.mic_audio.setCurrentIndex(settings.mic_audio.findData("device:alsa_input.usb-headset"))
     assert "Vertex Chat" not in settings.preview.toPlainText()
     assert "name:Vertex Mic|device:alsa_input.usb-headset" in settings.preview.toPlainText()
-    assert texts(settings.music_audio) == ["None", "Default output", "Arctis Nova Pro"]
+    assert texts(settings.media_audio) == ["None", "Default output", "Arctis Nova Pro"]
     assert not settings.tracks.volumes                  # GSR records devices as they are
     assert settings.save()
     saved = Config.load().recorder
@@ -648,13 +648,13 @@ def test_each_track_has_a_recording_volume_where_the_recorder_sets_one(qapp, mon
     table.devices["game"].setCurrentIndex(1)
     table.load(RecorderConfig(game_volume=80))
     assert table.readouts["game"].text() == "80%" and table.volumes["game"].isEnabled()
-    assert not table.volumes["music"].isEnabled()         # records nothing
+    assert not table.volumes["media"].isEnabled()         # records nothing
     changed = []
     table.changed.connect(lambda: changed.append(True))
     table.volumes["game"].setValue(55)
     rec = RecorderConfig()
     table.apply(rec)
-    assert (rec.game_volume, rec.music_volume, changed) == (55, 100, [True])
+    assert (rec.game_volume, rec.media_volume, changed) == (55, 100, [True])
 
 
 def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, monkeypatch):
@@ -1065,11 +1065,11 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, monkeypatch):
     assert view.choices.resolution.itemText(0) == "720p · 1280 × 720"
     assert view.rec_autostart.isEnabled() and view.rec_autostart.isChecked()
     # Each track picks its device from what the recorder can record.
-    music, mic = view.tracks.devices["music"], view.tracks.devices["mic"]
-    assert music.itemText(music.count() - 1) == "Spotify"
-    music.setCurrentIndex(music.findData("device:spotify.monitor"))
+    media, mic = view.tracks.devices["media"], view.tracks.devices["mic"]
+    assert media.itemText(media.count() - 1) == "Spotify"
+    media.setCurrentIndex(media.findData("device:spotify.monitor"))
     mic.setCurrentIndex(mic.findData("device:headset"))
-    assert (view.config.recorder.music_audio, view.config.recorder.mic_audio) == \
+    assert (view.config.recorder.media_audio, view.config.recorder.mic_audio) == \
         ("device:spotify.monitor", "device:headset")
     win._quitting = True
     win.context.shutdown()

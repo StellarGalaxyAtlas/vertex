@@ -104,7 +104,7 @@ Export saves it in your Exports folder.
 </tr>
 </table>
 
-The replay buffer keeps the last minute or two, with game, chat, music and
+The replay buffer keeps the last minute or two, with game, chat, media and
 mic as separate tracks, each recording the device you pick (bring your own
 virtual devices to split game and chat). On Windows it records with OBS Studio,
 at the volume set for each track:

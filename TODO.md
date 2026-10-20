@@ -68,9 +68,9 @@ reads it already).
 ### Recording and the editor
 
 **77–79.**
-**Music track, recording volume per track, playback volume in the editor**
-Built (2026-10-20) as in mockups 2 and 3: an optional Music track (its own
-lane, off until a device is picked), a 0–100% recording volume per track
+**Media track, recording volume per track, playback volume in the editor**
+Built (2026-10-20) as in mockups 2 and 3: an optional Media track (its own
+lane, off until a device is picked; first called Music), a 0–100% recording volume per track
 set on the OBS source, and a 0–300% playback volume in the editor. To try
 on the friend's PC: that OBS records each track at its volume.
 
