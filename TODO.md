@@ -66,11 +66,15 @@ everything under it.
 **Teach Vertex a clip app's file names**
 Mockup: windows-port/mockups/1-file-names.png. When imported clips have
 names Vertex doesn't know (Medal: MedalTV007FirstLight20260817235610725),
-a step in first-run setup and in Settings › Import and setup lets the user
-mark which part is the game, the date and the time, starting from known
-apps (Medal, Moments, ShadowPlay, OBS, Game Bar), with a preview of what
-Vertex reads from their own clips. Joined words in game names can be
-split (FirstLight → First Light).
+a step in first-run setup and in Settings › Import and setup teaches it.
+Presets for known apps: Medal, SteelSeries Moments, NVIDIA ShadowPlay /
+NVIDIA App, Xbox Game Bar, OBS, AMD Adrenalin, Steam, Outplayed, GPU
+Screen Recorder; a preset not checked against a real file from that app
+needs a sample name first. Or the user picks a clip or pastes a name,
+selects a part and says what it is (Game, Date, Time, Date and time,
+Fixed text, Ignore). A preview shows what Vertex reads from their own
+clips. Joined words in game names can be split (FirstLight → First
+Light).
 
 ### Recording
 
