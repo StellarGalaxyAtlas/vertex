@@ -2200,29 +2200,41 @@ def test_a_saved_clip_takes_the_game_channel_and_is_named_after_it(qapp, window,
     assert saved[-1].endswith("Heroes-of-the-Storm__2026-10-20__21-00-00_2.mp4")
 
 
-def test_settings_read_the_names_again_and_apply_what_is_ticked(qapp, window, library_dir,
-                                                                sample_clip):
-    from vertex.core.name_patterns import PRESETS
+def test_settings_review_tags_from_file_names(qapp, window, library_dir, sample_clip):
+    from PySide6.QtCore import QTimer
 
-    medal = "MedalTVHelldivers220260817235610725.mp4"
-    shutil.copy2(sample_clip, library_dir / medal)
+    from vertex.core.name_patterns import PRESETS
+    from vertex.ui.settings.reread import RereadDialog
+
+    medal = ["MedalTVHelldivers220260817235610725.mp4",
+             "MedalTVValorant20260809184502117.mp4"]
+    for name in medal:
+        shutil.copy2(sample_clip, library_dir / name)
     context, settings = window.context, window.settings_view
-    context.library.set_tags(medal, "Helldivers", [])
+    context.library.set_tags(medal[0], "Helldivers", [])
+    context.library.set_tags(medal[1], "Ranked night", [])
     context.config.name_patterns = [PRESETS[0].pattern.to_dict()]
     window.navigate("settings")
     settings.show_page("import")
-    reread = settings.reread
-    assert wait_until(qapp, lambda: any(line.group.game == "Helldivers 2"
-                                        for line in reread._lines))
-    line = next(line for line in reread._lines if line.group.game == "Helldivers 2")
-    assert reread.heading.text().startswith("Reading the names again changes")
-    others = [each for each in reread._lines if each is not line]
-    for each in others:
-        each.tick.setChecked(False)
-    assert reread.apply_button.text() == "Apply 1 change"
-    reread.apply_button.click()
-    assert context.library.tags()[medal][0] == "Helldivers 2"
-    assert wait_until(qapp, lambda: line not in reread._lines and
-                      all(each.group.game != "Helldivers 2" for each in reread._lines))
-    # What was unticked stays unticked.
-    assert all(not each.tick.isChecked() for each in reread._lines)
+    line = settings.reread
+    assert wait_until(qapp, lambda: any(g.game == "Valorant" for g in line.groups))
+    assert line.isVisibleTo(settings)
+    assert line.text.text().startswith("2 clips' names say another game than their tag")
+
+    def answer():
+        dialog = next(w for w in qapp.topLevelWidgets()
+                      if isinstance(w, RereadDialog) and w.isVisible())
+        cards = {card.group.game: card for card in dialog.cards}
+        assert cards["Helldivers 2"].use.text() == "Tag it Helldivers 2"
+        assert cards["Valorant"].keep.text() == "Keep Ranked night"
+        cards["Helldivers 2"].use.click()
+        cards["Valorant"].keep.click()
+        assert all(not card.group.game for card in dialog.cards)
+        dialog.done_button.click()
+    QTimer.singleShot(0, answer)
+    line.button.click()
+    tags = context.library.tags()
+    assert tags[medal[0]][0] == "Helldivers 2" and tags[medal[1]][0] == "Ranked night"
+    assert context.config.kept_tags == [["Ranked night", "Valorant"]]
+    # Kept is remembered: Valorant isn't asked about again.
+    assert wait_until(qapp, lambda: not any(g.game for g in line.groups))

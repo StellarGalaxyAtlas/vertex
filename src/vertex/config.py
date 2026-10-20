@@ -176,6 +176,10 @@ class Config:
     # Sonar's Game channel) → the tag it writes instead (naming.fixed_name).
     game_names: dict[str, str] = field(default_factory=dict)
 
+    # What a clip's name says that the user chose to keep their tag over:
+    # [tag now, name says] pairs, "" for no game; ["", ""] keeps the dates.
+    kept_tags: list[list[str]] = field(default_factory=list)
+
     def patterns(self) -> list[NamePattern]:
         return [p for p in map(NamePattern.from_dict, self.name_patterns) if p is not None]
 
@@ -263,6 +267,9 @@ class Config:
             if isinstance(new, str):
                 names = add_game_name(names, old, new)
         config.game_names = names
+        config.kept_tags = [list(pair) for pair in config.kept_tags
+                            if isinstance(pair, list) and len(pair) == 2 and
+                            all(isinstance(part, str) for part in pair)]
         config.playback_volume = min(max(config.playback_volume, PLAYBACK_VOLUME_RANGE[0]),
                                      PLAYBACK_VOLUME_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))

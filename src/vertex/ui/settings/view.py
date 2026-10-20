@@ -46,7 +46,7 @@ from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.settings.game_names import GameNames
 from vertex.ui.settings.notifications import NotificationsPage
-from vertex.ui.settings.reread import RereadList
+from vertex.ui.settings.reread import RereadDialog, RereadLine
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
@@ -414,10 +414,10 @@ class SettingsView(QWidget):
         self.sources = NameSources()
         self.sources.changed.connect(self._save_names)
         self.sources.added.connect(lambda: self.banner.show_message(
-            "Saved. What it changes for your clips is listed below.", "ok"))
+            "Saved.", "ok"))
         names.add(self.sources)
-        self.reread = RereadList()
-        self.reread.apply.connect(self._apply_reread)
+        self.reread = RereadLine()
+        self.reread.review.connect(self._review_reread)
         names.add(self.reread)
         self._clip_names: list[str] = []
         self._reread_token = 0
@@ -775,12 +775,23 @@ class SettingsView(QWidget):
         dates = library.recorded_dates()
         names, patterns = list(self._clip_names), self.context.config.patterns()
         game_names = dict(self.context.config.game_names)
+        kept = [tuple(pair) for pair in self.context.config.kept_tags]
+
         def done(groups) -> None:
             if token == self._reread_token:
                 self.reread.set_groups(groups)
 
-        workers.run(lambda: importing.plan_reread(names, tags, dates, patterns, game_names),
+        workers.run(lambda: importing.plan_reread(names, tags, dates, patterns, game_names,
+                                                  kept),
                     done, lambda exc: logs.APP.error("Couldn't read the names again: %s", exc))
+
+    def _review_reread(self) -> None:
+        dialog = RereadDialog(self, self.reread.groups)
+        dialog.use.connect(self._apply_reread)
+        dialog.keep.connect(self._keep_tags)
+        dialog.exec()
+        dialog.deleteLater()
+        self._reread()
 
     def _apply_reread(self, games: dict, dates: dict) -> None:
         if self.context.library is None:
@@ -788,8 +799,13 @@ class SettingsView(QWidget):
         self.context.library.apply_reread(games, dates)
         self.imported.emit()
         self.banner.show_message(
-            f"Read {fmt.plural(len(set(games) | set(dates)), 'clip')} again.", "ok")
-        self._reread()
+            f"Retagged {fmt.plural(len(set(games) | set(dates)), 'clip')}.", "ok")
+
+    def _keep_tags(self, group) -> None:
+        pair = [group.game_was, group.game]
+        if pair not in self.context.config.kept_tags:
+            self.context.config.kept_tags.append(pair)
+            self.context.save_config()
 
 
 def _pairs(sections: list) -> list:

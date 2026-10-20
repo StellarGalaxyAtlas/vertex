@@ -298,11 +298,14 @@ class RereadGroup:
 
 
 def plan_reread(names, tags: dict[str, str], dates: dict[str, float], patterns=None,
-                game_names=None) -> list[RereadGroup]:
+                game_names=None, kept=()) -> list[RereadGroup]:
     """What reading the clips called `names` again would change, grouped by
     game, the most clips first; dates only, last. `tags` and `dates` are what
     the library has; a game already in use keeps its spelling, and a game
-    that only changes spelling isn't a change, nor is Desktop over a game."""
+    that only changes spelling isn't a change, nor is Desktop over a game.
+    `kept` holds the (tag now, name says) pairs the user kept their tag over;
+    ("", "") keeps the dates."""
+    kept = {(game_key(was), game_key(game)) for was, game in kept}
     known = {game_key(game): game for game in tags.values() if game}
     groups: dict[tuple[str, str], RereadGroup] = {}
     for name in sorted(names):
@@ -312,10 +315,11 @@ def plan_reread(names, tags: dict[str, str], dates: dict[str, float], patterns=N
         # A name read as Desktop only says it holds no game: it never
         # replaces one the clip has (from the Game channel, say).
         if not game or game_key(game) == game_key(game_was) or \
-                (game_was and game_key(game) == game_key(DESKTOP_TAG)):
+                (game_was and game_key(game) == game_key(DESKTOP_TAG)) or \
+                (game_key(game_was), game_key(game)) in kept:
             game = ""
         when, when_was = recorded_at(name, patterns), dates.get(name, 0.0)
-        if not when or abs(when - when_was) < 1:
+        if not when or abs(when - when_was) < 1 or ("", "") in kept:
             when = 0.0
         if not game and not when:
             continue

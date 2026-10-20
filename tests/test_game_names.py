@@ -82,6 +82,9 @@ def test_reading_names_again_groups_what_changes_by_game():
     groups = importing.plan_reread(desktop, {desktop[0]: "Heroes of the Storm"},
                                    {name: importing.recorded_at(name) for name in desktop})
     assert [(g.game_was, g.game, len(g.changes)) for g in groups] == [("", "Desktop", 1)]
+    # A tag the user kept over its name isn't asked about again; nor are dates kept.
+    kept = importing.plan_reread(desktop, {}, {}, kept=[("", "desktop"), ("", "")])
+    assert kept == []
 
     library = Library.in_memory()
     library.apply_reread({names[0]: "HELLDIVERS 2"}, {names[4]: when})
