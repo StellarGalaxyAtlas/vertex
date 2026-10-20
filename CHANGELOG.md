@@ -41,7 +41,9 @@ Vertex on Windows 10 and 11, without Sonar.
 - Teaching Vertex a clip app's file names, in setup and in Settings › Import
   and setup: presets for Medal, SteelSeries Moments, NVIDIA ShadowPlay, Xbox
   Game Bar, OBS, AMD Adrenalin and GPU Screen Recorder, or a name marked up
-  by hand, with a preview of what Vertex reads from your clips.
+  by hand, with a preview of what Vertex reads from your clips. Several
+  apps can be listed, tried in turn, each with how many clips it reads; the
+  next one is taught from the clips none reads yet.
 - Importing clips reads the folders inside the chosen one too (Moments and
   Medal keep a folder per game), with a list to leave folders out.
 - Hotkeys on Windows, set in Settings › Shortcuts by pressing them: save a

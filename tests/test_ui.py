@@ -1621,8 +1621,9 @@ def test_first_run_learns_medal_names_and_reads_them(qapp, tmp_path):
     view._go(1)
     assert wait_until(qapp, lambda: view.current() == "tags" and view.tag_plan is not None)
     assert not view.names.isHidden() and len(view.tag_plan.strays) == 2
-    view.teacher.choose("Medal")
-    assert view.teacher.preview_title.text() == "What Vertex reads: 2 of 2 clips"
+    assert not view.sources.adding.isHidden()          # nothing listed yet: teaching opens
+    view.sources.teacher.choose("Medal")
+    assert view.sources.teacher.preview_title.text() == "What Vertex reads: 2 of 2 clips"
     assert wait_until(qapp, lambda: view.tag_plan is not None and
                       set(view.tag_plan.games) == {"First Light", "007 First Light"})
     view._go(1)
@@ -1633,6 +1634,46 @@ def test_first_run_learns_medal_names_and_reads_them(qapp, tmp_path):
     assert tags["MedalTVFirstLight20260817235610725.mp4"][0] == "First Light"
     naming.use_patterns([])
     _close(win)
+
+
+def test_name_sources_list_apps_and_teach_from_what_none_reads(qapp):
+    from vertex.core.name_patterns import PRESETS
+    from vertex.ui.name_teacher import NameSources
+
+    def preset(app):
+        return next(p.pattern for p in PRESETS if p.app.startswith(app))
+
+    names = ["MedalTVValorant20260809184502117.mp4", "MedalTVApex20260810101500001.mp4",
+             "Minecraft 2024-05-18 20-32-45.mp4", "clip_final_edit.mp4",
+             "Replay_2026-03-28_05-28-25.mp4"]
+    sources = NameSources()
+    changed = []
+    sources.changed.connect(lambda: changed.append(True))
+    sources.set_patterns([preset("Medal")])
+    sources.set_names(names)
+    assert sources.adding.isHidden()                  # something listed: not opened by itself
+    assert sources._rows[0].count.text() == "reads 2 clips"
+    assert sources.status.text() == "2 of 5 clips aren't read yet"
+    # Adding the next app teaches from what's left.
+    sources.add_button.click()
+    assert sources.teacher.names == ["Minecraft 2024-05-18 20-32-45.mp4", "clip_final_edit.mp4"]
+    assert not sources.add_to_list.isEnabled()
+    sources.teacher.choose("Xbox Game Bar")
+    assert sources.draft().app == "Xbox Game Bar"
+    sources.add_to_list.click()
+    assert [p.app for p in sources.patterns()] == ["Medal", "Xbox Game Bar"]
+    assert sources.adding.isHidden() and changed == [True]
+    assert sources.status.text() == "1 of 5 clips aren't read yet"
+    assert sources.unread() == ["clip_final_edit.mp4"]
+    # Dragged to the top, it is tried first; removed, its clips are unread again.
+    second = sources._rows[1]
+    sources._drag(second, sources._rows[0].mapToGlobal(sources._rows[0].rect().topLeft()).y())
+    sources._dropped()
+    assert [p.app for p in sources.patterns()] == ["Xbox Game Bar", "Medal"]
+    sources._remove(sources._rows[0])
+    assert [p.app for p in sources.patterns()] == ["Medal"] and len(changed) == 3
+    assert sources.status.text() == "2 of 5 clips aren't read yet"
+    sources.deleteLater()
 
 
 def test_the_name_teacher_learns_from_marked_parts(qapp):

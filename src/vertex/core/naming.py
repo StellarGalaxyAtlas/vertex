@@ -91,6 +91,23 @@ def _read(name: str, patterns) -> Reading | None:
     return None
 
 
+# reader_of: a name only the conventions above read (Moments' names, the
+# date stamp GPU Screen Recorder and Moments write).
+BUILT_IN = -1
+
+
+def reader_of(name: str, patterns) -> int | None:
+    """Which of `patterns` reads `name` first (its index), BUILT_IN when only
+    a convention Vertex always knows does, or None when nothing does."""
+    for index, pattern in enumerate(patterns):
+        if pattern.read(name) is not None:
+            return index
+    stem = os.path.splitext(name)[0]
+    if MOMENTS_FILENAME.match(stem) or CLIP_TIMESTAMP.search(stem):
+        return BUILT_IN
+    return None
+
+
 def _tag(game: str) -> str:
     return CAPTURE_NAMES.get(game.casefold()) or clean_tag(game.translate(TRADEMARKS))
 

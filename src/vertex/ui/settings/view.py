@@ -41,7 +41,7 @@ from vertex.media import roles
 from vertex.recorder import backend, gsr, obs
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
-from vertex.ui.name_teacher import NameTeacher
+from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
@@ -418,21 +418,13 @@ class SettingsView(QWidget):
         tag_section.add(button("Review tags…", on_click=self._tag_clips))
         setup = Section("Run setup again", "Starts with your current settings")
         setup.add(button("Run setup again…", on_click=self.setup_requested.emit))
-        names = Section("Clip file names", "Teach Vertex how your clip app names clips, "
-                                           "so it can read the game and the date from them")
-        self.taught = label("", "Muted", wrap=True)
-        names.add(self.taught)
-        self.teacher = NameTeacher()
-        names.add(self.teacher)
-        row = QHBoxLayout()
-        self.forget_names = button("Forget them", "ghost", on_click=self._forget_names)
-        row.addWidget(self.forget_names)
-        row.addStretch(1)
-        self.save_names = button("Save", "primary", on_click=self._save_names)
-        row.addWidget(self.save_names)
-        names.body.addLayout(row)
-        self.teacher.changed.connect(
-            lambda: self.save_names.setEnabled(self.teacher.pattern() is not None))
+        names = Section("Clip file names", "The apps your clips come from, so Vertex can "
+                                           "read the game and the date from their names")
+        self.sources = NameSources()
+        self.sources.changed.connect(self._save_names)
+        self.sources.added.connect(lambda: self.banner.show_message(
+            "Saved. Review tags to tag the clips you have.", "ok"))
+        names.add(self.sources)
         self.pages["import"] = scroll_page((copy_section, tag_section, setup), names)
         self.stack.addWidget(self.pages["import"])
 
@@ -448,8 +440,7 @@ class SettingsView(QWidget):
 
     def _load(self) -> None:
         config = self.context.config
-        taught = config.patterns()
-        self.teacher.set_pattern(taught[0] if taught else None)
+        self.sources.set_patterns(config.patterns())
         self._show_names()
         self.clip_path.set_value(config.clip_path)
         self.export_path.set_value(config.export_path)
@@ -756,38 +747,18 @@ class SettingsView(QWidget):
                                      "next.", "ok")
 
     def _show_names(self) -> None:
-        """What is taught, and the clips folder's names for the preview."""
-        taught = [pattern.app for pattern in self.context.config.patterns()]
-        self.taught.setText(
-            f"Vertex reads names from {', '.join(taught)}, and always those of SteelSeries "
-            f"Moments and GPU Screen Recorder." if taught else
-            "Vertex reads the names SteelSeries Moments and GPU Screen Recorder give.")
-        self.forget_names.setVisible(bool(taught))
-        self.save_names.setEnabled(self.teacher.pattern() is not None)
+        """The clips folder's names, to count what each app reads."""
         folder = self.context.config.resolved_clip_dir()
 
         def names():
             return [name for name in os.listdir(folder) if is_clip(name)]
 
-        workers.run(names, lambda found: self.teacher.set_names(found, folder),
+        workers.run(names, lambda found: self.sources.set_names(found, folder),
                     lambda _exc: None)
 
     def _save_names(self) -> None:
-        taught = self.teacher.pattern()
-        if taught is None:
-            return
-        config = self.context.config
-        config.name_patterns = [taught.to_dict()] + [
-            p.to_dict() for p in config.patterns() if p.app != taught.app]
+        self.context.config.name_patterns = [p.to_dict() for p in self.sources.patterns()]
         self.context.save_config()
-        self._show_names()
-        self.banner.show_message("Saved. Review tags to tag the clips you have.", "ok")
-
-    def _forget_names(self) -> None:
-        self.context.config.name_patterns = []
-        self.context.save_config()
-        self.teacher.set_pattern(None)
-        self._show_names()
 
     def _tag_clips(self) -> None:
         if self.context.library is None:

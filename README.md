@@ -121,8 +121,9 @@ GPU Screen Recorder, and notifications can show over games.
 Nine color schemes, recording options, hotkeys, importing
 from Moments or Medal (including the folder per game, leaving out any folder
 you untick), and resets. Vertex reads the game and the date from clip names:
-pick the app that recorded them (Medal, ShadowPlay, Xbox Game Bar, OBS and
-more), or mark up one of your own names to teach it.
+add each app that recorded them (Medal, ShadowPlay, Xbox Game Bar, OBS and
+more), or mark up one of your own names to teach it. A name the first app
+can't read goes to the next.
 
 ---
 
