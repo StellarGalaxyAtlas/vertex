@@ -284,7 +284,8 @@ class SettingsView(QWidget):
         clips.add_row("Record the cursor", self.cursor)
         self.tag_from_game = Toggle()
         clips.add_row("Auto-tag clips with the game", self.tag_from_game,
-                      "Uses the app on Sonar's Game channel")
+                      "Uses the app on Sonar's Game channel, and names the clip "
+                      "after it")
         self.tracks = TrackTable()
         devices = self.tracks.devices
         self.game_audio, self.chat_audio = devices[channels.GAME.id], devices[channels.CHAT.id]

@@ -2170,16 +2170,34 @@ def test_renaming_a_game_retags_its_clips_and_new_ones(qapp, window):
     assert context.config.game_names == {} and not settings.game_names.empty.isHidden()
 
 
-def test_a_saved_clip_takes_the_game_channel_over_its_name(window, library_dir):
+def test_a_saved_clip_takes_the_game_channel_and_is_named_after_it(qapp, window,
+                                                                    library_dir):
     import time
 
     context = window.context
     name = "Desktop-Capture__2026-10-20__21-00-00.mp4"
+    shutil.copy2(library_dir / "Replay_2026-01-02_03-04-05.mp4", library_dir / name)
     context.library.autotag_games([name])         # as the file appeared
     context.recorder._game_hint = (time.monotonic(), "Heroes of the Storm")
-    context.recorder._on_saved(os.path.join(library_dir, name))
-    assert context.library.get_edit(name).game == "Heroes of the Storm"
+    saved = []
+    context.recorder.saved.connect(saved.append)
+    context.recorder._on_saved(str(library_dir / name))
+    wait_until(qapp, lambda: saved)
+    renamed = "Heroes-of-the-Storm__2026-10-20__21-00-00.mp4"
+    assert saved == [str(library_dir / renamed)]
+    assert not (library_dir / name).exists()
+    assert context.library.get_edit(renamed).game == "Heroes of the Storm"
+    assert name not in context.library.tags()
     assert window.banner.text() == "Clip saved: It's in your library"
+
+    # Without a game it keeps its name; a name taken gets a number.
+    context.recorder._on_saved(str(library_dir / "Replay_2026-01-02_03-04-05.mp4"))
+    assert saved[-1].endswith("Replay_2026-01-02_03-04-05.mp4")
+    shutil.copy2(library_dir / renamed, library_dir / "Replay_2026-10-20_21-00-00.mp4")
+    context.recorder._game_hint = (time.monotonic(), "Heroes of the Storm")
+    context.recorder._on_saved(str(library_dir / "Replay_2026-10-20_21-00-00.mp4"))
+    wait_until(qapp, lambda: len(saved) == 3)
+    assert saved[-1].endswith("Heroes-of-the-Storm__2026-10-20__21-00-00_2.mp4")
 
 
 def test_settings_read_the_names_again_and_apply_what_is_ticked(qapp, window, library_dir,

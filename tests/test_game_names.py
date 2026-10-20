@@ -87,3 +87,15 @@ def test_reading_names_again_groups_what_changes_by_game():
     library.apply_reread({names[0]: "HELLDIVERS 2"}, {names[4]: when})
     assert library.tags()[names[0]][0] == "HELLDIVERS 2"
     assert library.recorded_dates()[names[4]] == when
+
+
+def test_a_clip_named_after_its_game_reads_back():
+    from vertex.core.naming import game_from_filename, moments_name, recorded_at
+
+    name = moments_name("Replay_2026-10-20_21-00-00.mp4", "Helldivers 2")
+    assert name == "Helldivers-2__2026-10-20__21-00-00.mp4"
+    assert game_from_filename(name) == "Helldivers 2"
+    assert recorded_at(name) == recorded_at("Replay_2026-10-20_21-00-00.mp4")
+    assert moments_name("x.mp4", "Game") == ""
+    assert moments_name("Replay_2026-10-20_21-00-00.mkv", 'A: "B"/C?') == \
+        "A-B-C__2026-10-20__21-00-00.mkv"

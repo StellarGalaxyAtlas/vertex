@@ -116,7 +116,8 @@ their channel, and a priority list picks your headset and mic.
 </table>
 
 GPU Screen Recorder keeps the last minute or two. Game, chat, media and mic
-are saved as separate tracks. Notifications can show over games.
+are saved as separate tracks. A clip saved while a game plays on Sonar's Game
+channel is tagged with it and named after it. Notifications can show over games.
 
 ## Settings
 

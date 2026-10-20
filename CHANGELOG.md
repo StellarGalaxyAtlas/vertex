@@ -14,7 +14,9 @@ added.
   hotkeys, and a tray menu.
 - Every Sonar channel recorded as its own consistently named track, so every new
   clip has the same audio layout.
-- New clips can be tagged with the game playing on the Game channel.
+- New clips can be tagged with the game playing on the Game channel, and are
+  then named after it the way Moments names clips
+  (`Heroes-of-the-Storm__2026-10-20__21-00-00.mp4`).
 - `vertex` command with `save-clip`, `replay`, `sonar`, `doctor`,
   `install-desktop` and `uninstall-desktop`; single-instance control socket.
 - Tray icon, start at login, and keep running when the window is closed.

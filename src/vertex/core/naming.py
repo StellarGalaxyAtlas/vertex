@@ -40,6 +40,24 @@ TRADEMARKS = str.maketrans("", "", "®™©")
 CLIP_TIMESTAMP = re.compile(r"(\d{4})-(\d{2})-(\d{2})_{1,2}(\d{2})-(\d{2})-(\d{2})")
 
 
+# What a file name can't hold on one system or another.
+_UNSAFE_IN_NAMES = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
+
+
+def moments_name(filename: str, game: str) -> str:
+    """`filename` named after `game` the way Moments names clips, keeping the
+    date stamp: "Replay_2026-10-20_21-00-00.mp4" and "Heroes of the Storm"
+    give "Heroes-of-the-Storm__2026-10-20__21-00-00.mp4", which
+    game_from_filename reads back. "" when the name has no stamp to keep."""
+    stem, extension = os.path.splitext(filename)
+    stamp = CLIP_TIMESTAMP.search(stem)
+    word = "-".join(_UNSAFE_IN_NAMES.sub(" ", game).split()).strip(".-")
+    if stamp is None or not word:
+        return ""
+    year, month, day, hour, minute, second = stamp.groups()
+    return f"{word}__{year}-{month}-{day}__{hour}-{minute}-{second}{extension}"
+
+
 def clean_tag(text: object) -> str:
     """Collapse runs of whitespace and trim the ends. Casing is the user's."""
     return " ".join(str(text).split())

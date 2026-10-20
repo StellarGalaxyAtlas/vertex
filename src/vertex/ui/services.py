@@ -753,12 +753,30 @@ class RecorderController(QObject):
         when, game = self._game_hint
         library = self.context.library
         logs.RECORDER.info("Saved %s", path)
-        if game and time.monotonic() - when < 60 and library is not None and \
-                library.tag_recorded(os.path.basename(path), game):
-            logs.CLIPS.info("Tagged %s with %s (playing on the Game channel)",
-                            os.path.basename(path), game)
         self._game_hint = (0.0, "")
-        self.saved.emit(path)
+        name = os.path.basename(path)
+        tagged = game and time.monotonic() - when < 60 and library is not None and \
+            library.tag_recorded(name, game)
+        if not tagged:
+            self.saved.emit(path)
+            return
+        logs.CLIPS.info("Tagged %s with %s (playing on the Game channel)", name, tagged)
+        workers.run(lambda: _name_after_game(path, tagged),
+                    lambda new_path: self._renamed(path, new_path),
+                    lambda exc: self._renamed(path, path, exc))
+
+    def _renamed(self, path: str, new_path: str, error: Exception | None = None) -> None:
+        library = self.context.library
+        if error is not None:
+            logs.CLIPS.error("Couldn't name %s after its game: %s", path, error)
+        elif new_path != path and library is not None:
+            old, new = os.path.basename(path), os.path.basename(new_path)
+            # The library may have listed the new name already, from its own
+            # name: the tag and edits of the old one carry over either way.
+            library.copy_edits(old, new)
+            library.forget(old)
+            logs.CLIPS.info("Named %s %s", old, new)
+        self.saved.emit(new_path)
 
     def shutdown(self) -> None:
         self._restart_pending = False
@@ -766,6 +784,22 @@ class RecorderController(QObject):
             logs.RECORDER.info("Stopping the replay buffer (quitting)")
             self.recorder.stop(timeout=3)
 
+
+
+def _name_after_game(path: str, game: str) -> str:
+    """Rename a clip just saved after its game, Moments style, never over
+    another file. Returns its path now."""
+    folder, name = os.path.split(path)
+    new_name = naming.moments_name(name, game)
+    if not new_name:
+        return path
+    stem, extension = os.path.splitext(new_name)
+    target, number = os.path.join(folder, new_name), 1
+    while os.path.exists(target):
+        number += 1
+        target = os.path.join(folder, f"{stem}_{number}{extension}")
+    os.rename(path, target)
+    return target
 
 # Every notice goes in the log of the part it is about, as serious as it looks.
 _NOTICE_LOGS = {"clips": logs.RECORDER, "sonar": logs.SONAR, "vertex": logs.APP}
