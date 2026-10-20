@@ -1,6 +1,6 @@
-"""Bring an existing library in: copy recordings over, then review their tags.
+"""Bring an existing library in: copy recordings over.
 
-Both dialogs show the whole plan before anything is written, and cancelling
+The dialog shows the whole plan before anything is written, and cancelling
 leaves no trace.
 """
 
@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFileDialog,
-    QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -257,57 +256,3 @@ class CopyClipsDialog(QDialog):
             self.accept()
         else:
             self.reject()
-
-
-class TagImportDialog(QDialog):
-    """Tag the clips in a folder with the games their file names record."""
-
-    def __init__(self, parent, library, folder: str):
-        super().__init__(parent)
-        self.library = library
-        self.written = 0
-        self.setWindowTitle("Tag clips from their names")
-        self.setMinimumSize(560, 420)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(12)
-        layout.addWidget(label("Tag clips from their names", "Subheading"))
-        try:
-            self.plan = importing.plan_import(folder, library.known_games(),
-                                              library.tags().keys(), names=library.game_names)
-        except OSError as exc:
-            self.plan = importing.ImportPlan(folder=folder)
-            layout.addWidget(label(f"Couldn't read {folder}: {exc}", "Muted", wrap=True))
-        plan = self.plan
-        layout.addWidget(label(
-            f"{fmt.plural(plan.taggable, 'clip')} carry a game in their name. Every game is "
-            f"shown as it will be saved — change any of them, or clear one to skip it. "
-            f"{fmt.plural(len(plan.already), 'clip')} already tagged and "
-            f"{fmt.plural(len(plan.strays), 'clip')} without a game are left alone.",
-            "Muted", wrap=True))
-        self.fields: dict[str, QLineEdit] = {}
-        form_host = QWidget()
-        form = QFormLayout(form_host)
-        form.setHorizontalSpacing(14)
-        for game, names in sorted(plan.games.items(), key=lambda kv: -len(kv[1])):
-            field = QLineEdit(plan.stored_as.get(game, game))
-            self.fields[game] = field
-            form.addRow(label(f"{game}  ({len(names)})", "Muted"), field)
-        scroll = QScrollArea()
-        scroll.setWidget(form_host)
-        scroll.setWidgetResizable(True)
-        layout.addWidget(scroll, 1)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        buttons.addWidget(button("Cancel", on_click=self.reject))
-        apply = button(f"Tag {fmt.plural(plan.taggable, 'clip')}", "primary",
-                       on_click=self._apply)
-        apply.setEnabled(bool(plan.taggable or plan.dates))
-        buttons.addWidget(apply)
-        layout.addLayout(buttons)
-
-    def _apply(self) -> None:
-        overrides = {game: field.text() for game, field in self.fields.items()}
-        self.written = self.library.apply_import(self.plan.assignments(overrides),
-                                                 self.plan.dates)
-        self.accept()

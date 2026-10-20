@@ -2168,3 +2168,31 @@ def test_renaming_a_game_retags_its_clips_and_new_ones(qapp, window):
     assert len(settings.game_names._rows) == 1 and settings.game_names.empty.isHidden()
     settings._forget_game_name("Heroes of the Storm(Retail)")
     assert context.config.game_names == {} and not settings.game_names.empty.isHidden()
+
+
+def test_settings_read_the_names_again_and_apply_what_is_ticked(qapp, window, library_dir,
+                                                                sample_clip):
+    from vertex.core.name_patterns import PRESETS
+
+    medal = "MedalTVHelldivers220260817235610725.mp4"
+    shutil.copy2(sample_clip, library_dir / medal)
+    context, settings = window.context, window.settings_view
+    context.library.set_tags(medal, "Helldivers", [])
+    context.config.name_patterns = [PRESETS[0].pattern.to_dict()]
+    window.navigate("settings")
+    settings.show_page("import")
+    reread = settings.reread
+    assert wait_until(qapp, lambda: any(line.group.game == "Helldivers 2"
+                                        for line in reread._lines))
+    line = next(line for line in reread._lines if line.group.game == "Helldivers 2")
+    assert reread.heading.text().startswith("Reading the names again changes")
+    others = [each for each in reread._lines if each is not line]
+    for each in others:
+        each.tick.setChecked(False)
+    assert reread.apply_button.text() == "Apply 1 change"
+    reread.apply_button.click()
+    assert context.library.tags()[medal][0] == "Helldivers 2"
+    assert wait_until(qapp, lambda: line not in reread._lines and
+                      all(each.group.game != "Helldivers 2" for each in reread._lines))
+    # What was unticked stays unticked.
+    assert all(not each.tick.isChecked() for each in reread._lines)

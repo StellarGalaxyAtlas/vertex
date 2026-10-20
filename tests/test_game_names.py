@@ -2,6 +2,7 @@
 
 from vertex.config import Config
 from vertex.core import importing, naming
+from vertex.core.name_patterns import PRESETS
 from vertex.library.database import Library
 
 
@@ -56,3 +57,26 @@ def test_importing_shows_games_as_the_names_have_them(tmp_path):
     plan = importing.plan_import(
         str(tmp_path), names={"Heroes of the Storm (Retail)": "Heroes of the Storm"})
     assert set(plan.stored_as.values()) == {"Heroes of the Storm"}
+
+
+def test_reading_names_again_groups_what_changes_by_game():
+    import datetime
+
+    when = datetime.datetime(2026, 8, 17, 23, 56, 10).timestamp()
+    medal = PRESETS[0].pattern
+    names = ["MedalTVHelldivers220260817235610725.mp4", "MedalTVHelldivers220260817235610726.mp4",
+             "MedalTVValorant20260817235610725.mp4", "THE-FINALS__2026-08-17__23-56-10.mp4",
+             "Replay_2026-08-17_23-56-10.mp4", "untouched.mp4"]
+    tags = {names[0]: "Helldivers", names[1]: "Helldivers", names[2]: "Valorant",
+            names[3]: "The Finals", "untouched.mp4": "Typed"}
+    dates = {names[0]: 1.0, names[1]: when, names[2]: when, names[3]: when, names[4]: 5.0}
+    groups = importing.plan_reread(names, tags, dates, [medal],
+                                   {"Helldivers 2": "HELLDIVERS 2"})
+    assert [(g.game_was, g.game, len(g.changes), g.dates) for g in groups] == [
+        ("Helldivers", "HELLDIVERS 2", 2, 1), ("", "", 1, 1)]
+    assert groups[1].changes[0].filename == "Replay_2026-08-17_23-56-10.mp4"
+
+    library = Library.in_memory()
+    library.apply_reread({names[0]: "HELLDIVERS 2"}, {names[4]: when})
+    assert library.tags()[names[0]][0] == "HELLDIVERS 2"
+    assert library.recorded_dates()[names[4]] == when

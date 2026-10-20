@@ -377,6 +377,24 @@ class Library:
             "SELECT filename, recorded FROM clips WHERE recorded IS NOT NULL")
         return {row["filename"]: row["recorded"] for row in rows}
 
+    def apply_reread(self, games: dict[str, str], dates: dict[str, float]) -> None:
+        """Write games and dates read again from clips' names, as the user
+        confirmed them: these replace what was there."""
+        now = time.time()
+        log.info("Reading %s again", fmt.plural(len(set(games) | set(dates)), "clip"))
+        with self.conn:
+            self.conn.executemany(
+                "INSERT INTO clips (filename, game, updated) VALUES (?, ?, ?)"
+                " ON CONFLICT(filename) DO UPDATE SET game = excluded.game,"
+                " updated = excluded.updated",
+                [(name, clean_tag(game), now) for name, game in games.items()
+                 if clean_tag(game)])
+            self.conn.executemany(
+                "INSERT INTO clips (filename, recorded, updated) VALUES (?, ?, ?)"
+                " ON CONFLICT(filename) DO UPDATE SET recorded = excluded.recorded,"
+                " updated = excluded.updated",
+                [(name, when, now) for name, when in dates.items() if when])
+
     def apply_import(self, assignments: dict[str, str],
                      dates: dict[str, float] | None = None) -> int:
         """Write an import's games as given (the user just confirmed each one).
