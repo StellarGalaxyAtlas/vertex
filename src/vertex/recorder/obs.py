@@ -21,8 +21,10 @@ import subprocess
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from vertex import paths, system
+from vertex import paths
 from vertex.config import AUDIO_CODECS, CONTAINERS, ENCODERS, QUALITIES, RecorderConfig
+from vertex.platform import windows
+from vertex.platform.windows import MonitorRect
 from vertex.recorder.gsr import CaptureOption, GsrInfo, Track
 
 NAME = "OBS Studio"
@@ -57,35 +59,12 @@ CODECS = ("auto", "h264", "hevc", "av1")
 
 # Windows' audio endpoint ids: outputs start {0.0.0., inputs {0.0.1.
 _OUTPUT_PREFIX, _INPUT_PREFIX = "{0.0.0.00000000}.", "{0.0.1.00000000}."
-_MMDEVICES = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio"
-# Property keys of an endpoint: what it is ("Speakers") and what it is part
-# of ("Realtek Audio"). Windows shows them as "Speakers (Realtek Audio)".
-_DEVICE_DESCRIPTION = "{a45c254e-df1c-4efd-8020-67d146a850e0},2"
-_INTERFACE_NAME = "{b3f8fa53-0004-438e-9003-51a46e139bfc},6"
 
 
 # --- Finding OBS ------------------------------------------------------------
 
 def config_dir() -> str:
-    return os.path.join(system.appdata(), "obs-studio")
-
-
-def _registry_install_dirs() -> list[str]:
-    if not system.WINDOWS:
-        return []
-    import winreg
-
-    found = []
-    for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
-        try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\OBS Studio", 0,
-                                winreg.KEY_READ | view) as key:
-                value, _kind = winreg.QueryValueEx(key, "")
-        except OSError:
-            continue
-        if value and value not in found:
-            found.append(value)
-    return found
+    return os.path.join(windows.appdata(), "obs-studio")
 
 
 def find(command: str = "") -> str:
@@ -93,7 +72,7 @@ def find(command: str = "") -> str:
     command = paths.normalize(command.strip('"'))
     if command:
         return command if os.path.isfile(command) else ""
-    dirs = _registry_install_dirs()
+    dirs = windows.registry_defaults(r"SOFTWARE\OBS Studio")
     program_files = os.environ.get("PROGRAMFILES", r"C:\Program Files")
     dirs.append(os.path.join(program_files, "obs-studio"))
     for folder in dirs:
@@ -101,29 +80,6 @@ def find(command: str = "") -> str:
         if os.path.isfile(exe):
             return exe
     return ""
-
-
-def file_version(path: str) -> tuple[int, ...]:
-    """A Windows program's version from its version resource; () if unknown."""
-    if not system.WINDOWS:
-        return ()
-    import ctypes
-    from ctypes import wintypes
-
-    version = ctypes.windll.version
-    size = version.GetFileVersionInfoSizeW(path, None)
-    if not size:
-        return ()
-    data = ctypes.create_string_buffer(size)
-    if not version.GetFileVersionInfoW(path, 0, size, data):
-        return ()
-    pointer, length = ctypes.c_void_p(), wintypes.UINT()
-    if not version.VerQueryValueW(data, "\\", ctypes.byref(pointer), ctypes.byref(length)):
-        return ()
-    # VS_FIXEDFILEINFO: signature, struct version, then the file version.
-    fields = ctypes.cast(pointer, ctypes.POINTER(wintypes.DWORD * 4)).contents
-    high, low = fields[2], fields[3]
-    return (high >> 16, high & 0xFFFF, low >> 16)
 
 
 def detect(command: str = "") -> GsrInfo:
@@ -135,7 +91,7 @@ def detect(command: str = "") -> GsrInfo:
                       f"in Settings.") if not command else f"{command} doesn't exist."
         return info
     info.available = True
-    info.version = file_version(exe)
+    info.version = windows.file_version(exe)
     info.version_text = ".".join(map(str, info.version))
     if info.too_old:
         info.error = (f"{NAME} {info.version_text} is too old; Vertex needs "
@@ -145,15 +101,7 @@ def detect(command: str = "") -> GsrInfo:
 
 def running() -> bool:
     """Whether OBS is running for this user."""
-    if not system.WINDOWS:
-        return False
-    try:
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq obs64.exe", "/FO", "CSV",
-                              "/NH"], capture_output=True, text=True, timeout=10,
-                             **system.NO_WINDOW).stdout
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return "obs64.exe" in out.lower()
+    return windows.program_running("obs64.exe")
 
 
 def launch(exe: str) -> None:
@@ -231,86 +179,17 @@ def is_output(name: str) -> bool:
     return name == "default_output" or name.startswith(_OUTPUT_PREFIX)
 
 
-def _endpoints(flow: str, prefix: str) -> list[tuple[str, str]]:
-    import winreg
-
-    devices = []
-    try:
-        root = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, rf"{_MMDEVICES}\{flow}", 0,
-                              winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
-    except OSError:
-        return []
-    with root:
-        index = 0
-        while True:
-            try:
-                guid = winreg.EnumKey(root, index)
-            except OSError:
-                break
-            index += 1
-            try:
-                with winreg.OpenKey(root, guid) as key:
-                    state, _kind = winreg.QueryValueEx(key, "DeviceState")
-                with winreg.OpenKey(root, rf"{guid}\Properties") as props:
-                    what, _kind = winreg.QueryValueEx(props, _DEVICE_DESCRIPTION)
-                    try:
-                        part, _kind = winreg.QueryValueEx(props, _INTERFACE_NAME)
-                    except OSError:
-                        part = ""
-            except OSError:
-                continue
-            if state != 1:          # DEVICE_STATE_ACTIVE: plugged in and enabled
-                continue
-            devices.append((f"{prefix}{guid}", f"{what} ({part})" if part else what))
-    return sorted(devices, key=lambda device: device[1].lower())
-
-
 def list_audio_devices(_command: str = "") -> list[tuple[str, str]]:
     """(name, description) of every device a track can record: the defaults,
     then the outputs and inputs Windows has, by their endpoint ids."""
     devices = [("default_output", "Default output"), ("default_input", "Default input")]
-    if system.WINDOWS:
-        devices += _endpoints("Render", _OUTPUT_PREFIX) + _endpoints("Capture", _INPUT_PREFIX)
+    for flow, prefix in (("Render", _OUTPUT_PREFIX), ("Capture", _INPUT_PREFIX)):
+        devices += [(prefix + guid, name) for guid, name in windows.audio_endpoints(flow)]
     return devices
 
 
-@dataclass(frozen=True)
-class MonitorRect:
-    name: str             # Windows' name for it, as Qt has it: \\.\DISPLAY1
-    x: int
-    y: int
-    width: int
-    height: int
-
-
 def monitor_rects() -> list[MonitorRect]:
-    """The monitors, in physical pixels once Qt has made Vertex DPI-aware."""
-    if not system.WINDOWS:
-        return []
-    import ctypes
-    from ctypes import wintypes
-
-    class MONITORINFOEXW(ctypes.Structure):
-        _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
-                    ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD),
-                    ("szDevice", wintypes.WCHAR * 32)]
-
-    found: list[MonitorRect] = []
-    user32 = ctypes.windll.user32
-    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC,
-                                       ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
-
-    def callback(monitor, _dc, _rect, _data):
-        info = MONITORINFOEXW()
-        info.cbSize = ctypes.sizeof(MONITORINFOEXW)
-        if user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
-            rect = info.rcMonitor
-            found.append(MonitorRect(info.szDevice, rect.left, rect.top,
-                                     rect.right - rect.left, rect.bottom - rect.top))
-        return True
-
-    user32.EnumDisplayMonitors(None, None, callback_type(callback), 0)
-    return found
+    return windows.monitor_rects()
 
 
 def list_capture_options(_command: str = "") -> list[CaptureOption]:
@@ -320,29 +199,7 @@ def list_capture_options(_command: str = "") -> list[CaptureOption]:
 @lru_cache(maxsize=1)
 def gpu_vendor() -> str:
     """Who made the graphics card: nvidia, amd, intel, or "" if unknown."""
-    if not system.WINDOWS:
-        return ""
-    import ctypes
-    from ctypes import wintypes
-
-    class DISPLAY_DEVICEW(ctypes.Structure):
-        _fields_ = [("cb", wintypes.DWORD), ("DeviceName", wintypes.WCHAR * 32),
-                    ("DeviceString", wintypes.WCHAR * 128), ("StateFlags", wintypes.DWORD),
-                    ("DeviceID", wintypes.WCHAR * 128), ("DeviceKey", wintypes.WCHAR * 128)]
-
-    PRIMARY = 0x4
-    names, index = [], 0
-    while True:
-        device = DISPLAY_DEVICEW()
-        device.cb = ctypes.sizeof(DISPLAY_DEVICEW)
-        if not ctypes.windll.user32.EnumDisplayDevicesW(None, index, ctypes.byref(device), 0):
-            break
-        index += 1
-        if device.StateFlags & PRIMARY:
-            names.insert(0, device.DeviceString)
-        else:
-            names.append(device.DeviceString)
-    return vendor_of(names)
+    return vendor_of(windows.display_adapters())
 
 
 def vendor_of(adapters: list[str]) -> str:

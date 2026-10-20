@@ -8,7 +8,7 @@ import sys
 import threading
 
 from vertex.media.ffmpeg import BASE
-from vertex.system import NO_WINDOW
+from vertex.platform import NO_WINDOW
 
 # A lane is a couple of thousand pixels wide at most, so 4 kHz mono still
 # leaves ~100 samples behind every pixel column, and decodes fast.

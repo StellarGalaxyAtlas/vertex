@@ -17,8 +17,8 @@ from vertex import paths
 from vertex.logs import CLIPS as log
 from vertex.media.ffmpeg import BASE
 from vertex.media.probe import duration as probe_duration
+from vertex.platform import NO_WINDOW
 from vertex.proc import last_line
-from vertex.system import NO_WINDOW
 
 SEEK_SECONDS = 1.0      # skip the black intro frame most recordings open on
 THUMB_WIDTH = 960       # sharp on the library's largest cards

@@ -4,23 +4,21 @@ A hotkey is kept in the settings as text, modifiers first in a fixed order:
 
     Ctrl+Alt+F9        Win+Shift+Num 5        F13
 
-Windows hands the keys to Vertex through RegisterHotKey, on a thread of its
-own (`Listener`); elsewhere there are none, and `AVAILABLE` says so.
+The system holds them for Vertex (`listener`): Windows does, through
+RegisterHotKey (see platform.windows); elsewhere there are none, and
+`AVAILABLE` says so.
 """
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from vertex import logs, system
+from vertex import platform
 
-AVAILABLE = system.WINDOWS
+AVAILABLE = platform.HOTKEYS
 
 MODIFIERS = ("Win", "Ctrl", "Alt", "Shift")     # in the order Windows writes them
-_MOD_BITS = {"Alt": 0x1, "Ctrl": 0x2, "Shift": 0x4, "Win": 0x8}
-_MOD_NOREPEAT = 0x4000      # held down, a hotkey fires once
 
 # The keys a hotkey can end on, by name, with their Windows virtual-key code.
 KEYS: dict[str, int] = {
@@ -37,7 +35,6 @@ KEYS: dict[str, int] = {
     "Play/Pause": 0xB3, "Next Track": 0xB0, "Previous Track": 0xB1, "Stop": 0xB2,
     "Mute": 0xAD, "Volume Down": 0xAE, "Volume Up": 0xAF,
 }
-_BY_CODE = {code: name for name, code in KEYS.items()}
 
 # Keys that type nothing and move nothing, so they can be a hotkey alone
 # (F13-F24 are what macro keys send).
@@ -88,12 +85,6 @@ def parse(text: str) -> Hotkey | None:
     return hotkey if not hotkey.problem() else None
 
 
-def key_name(virtual_key: int) -> str:
-    """The name of a key from its Windows virtual-key code; "" for one a
-    hotkey can't use."""
-    return _BY_CODE.get(virtual_key, "")
-
-
 # --- The actions -------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -122,88 +113,11 @@ def bindings(stored: dict) -> dict[str, Hotkey]:
     return found
 
 
-# --- Windows --------------------------------------------------------------------
-
-_WM_HOTKEY = 0x0312
-_WM_QUIT = 0x0012
-_WM_APP_SET = 0x8000 + 1
-
-
-class Listener:
-    """Holds the hotkeys with Windows and calls `on_press(action)` when one
-    is pressed, and `on_result(failed)` with the actions whose keys another
-    program already holds after each `set`. Both are called from the
-    listener's own thread. Does nothing where hotkeys aren't AVAILABLE."""
-
-    def __init__(self, on_press: Callable[[str], None],
-                 on_result: Callable[[set[str]], None]):
-        self._on_press = on_press
-        self._on_result = on_result
-        self._wanted: dict[str, Hotkey] = {}
-        self._lock = threading.Lock()
-        self._ready = threading.Event()
-        self._thread_id = 0
-        self._thread: threading.Thread | None = None
-
-    def set(self, wanted: dict[str, Hotkey]) -> None:
-        """Hold exactly these hotkeys from now on; {} lets every one go."""
-        if not system.WINDOWS:
-            return
-        with self._lock:
-            self._wanted = dict(wanted)
-        if self._thread is None:
-            self._thread = threading.Thread(target=self._run, name="hotkeys", daemon=True)
-            self._thread.start()
-            self._ready.wait(5)
-        self._post(_WM_APP_SET)
-
-    def close(self) -> None:
-        if self._thread is not None:
-            self._post(_WM_QUIT)
-            self._thread.join(2)
-            self._thread = None
-
-    def _post(self, message: int) -> None:
-        import ctypes
-
-        ctypes.windll.user32.PostThreadMessageW(self._thread_id, message, 0, 0)
-
-    def _run(self) -> None:
-        import ctypes
-        from ctypes import wintypes
-
-        user32 = ctypes.windll.user32
-        user32.RegisterHotKey.argtypes = (wintypes.HWND, ctypes.c_int, wintypes.UINT,
-                                          wintypes.UINT)
-        user32.UnregisterHotKey.argtypes = (wintypes.HWND, ctypes.c_int)
-        user32.PostThreadMessageW.argtypes = (wintypes.DWORD, wintypes.UINT, wintypes.WPARAM,
-                                              wintypes.LPARAM)
-        message = wintypes.MSG()
-        # A thread has a message queue once it asks for a message.
-        user32.PeekMessageW(ctypes.byref(message), None, 0, 0, 0)
-        self._thread_id = ctypes.windll.kernel32.GetCurrentThreadId()
-        self._ready.set()
-        held: dict[int, str] = {}
-        while user32.GetMessageW(ctypes.byref(message), None, 0, 0) > 0:
-            if message.message == _WM_HOTKEY and message.wParam in held:
-                try:
-                    self._on_press(held[message.wParam])
-                except Exception:       # a hotkey must never end the thread
-                    logs.APP.exception("Hotkey %s failed", held[message.wParam])
-            elif message.message == _WM_APP_SET:
-                for number in held:
-                    user32.UnregisterHotKey(None, number)
-                held = {}
-                with self._lock:
-                    wanted = dict(self._wanted)
-                failed = set()
-                for number, (action, hotkey) in enumerate(wanted.items(), 1):
-                    bits = sum(_MOD_BITS[m] for m in hotkey.modifiers) | _MOD_NOREPEAT
-                    if user32.RegisterHotKey(None, number, bits, KEYS[hotkey.key]):
-                        held[number] = action
-                    else:
-                        failed.add(action)
-                        logs.APP.warning("Another program holds %s", hotkey.text)
-                self._on_result(failed)
-        for number in held:
-            user32.UnregisterHotKey(None, number)
+def listener(on_press: Callable[[str], None], on_result: Callable[[set[str]], None]):
+    """Something that holds the hotkeys with the system: `set(bindings)`
+    holds exactly those from then on, `close()` lets them go.
+    `on_press(action)` is called when one is pressed, and `on_result(failed)`
+    with the actions whose keys another program already holds after each
+    `set`, both from a thread of the listener's. Holds nothing where hotkeys
+    aren't AVAILABLE."""
+    return platform.HotkeyListener(on_press, on_result)

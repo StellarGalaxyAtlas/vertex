@@ -8,7 +8,7 @@ import subprocess
 from vertex import paths
 from vertex.media.ffmpeg import BASE, FFPROBE, MediaError, run_quiet
 from vertex.media.probe import probe
-from vertex.system import NO_WINDOW
+from vertex.platform import NO_WINDOW
 
 # How far back to look for the keyframe before a cut point. Recorders key every
 # couple of seconds; beyond this the search costs more than the seek saves.

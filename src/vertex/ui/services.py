@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from vertex import fmt, hotkeys, logs, notifications, system
+from vertex import fmt, hotkeys, logs, notifications, platform
 from vertex.config import Config
 from vertex.core import naming
 from vertex.library import Library
@@ -281,8 +281,8 @@ class RecorderController(QObject):
                     lambda exc: self.context.notify("clip_not_saved", "Clip not saved",
                                                     str(exc)))
         self._game_hint = (0.0, "")
-        if system.WINDOWS and self.context.config.recorder.tag_from_fullscreen:
-            workers.run(system.fullscreen_app, self._got_fullscreen, lambda _exc: None)
+        if platform.FULLSCREEN_GAME and self.context.config.recorder.tag_from_fullscreen:
+            workers.run(platform.fullscreen_app, self._got_fullscreen, lambda _exc: None)
         span = f"the last {fmt.duration(seconds)}" if seconds else "the replay buffer"
         return f"Saving {span}…"
 
@@ -377,7 +377,7 @@ class Hotkeys(QObject):
         self._started = False
         # Both are called from the listener's thread: through signals, they
         # land on the UI thread.
-        self._listener = hotkeys.Listener(self.pressed.emit, self._result.emit)
+        self._listener = hotkeys.listener(self.pressed.emit, self._result.emit)
         self._result.connect(self._got_result)
         context.config_changed.connect(self.apply)
 

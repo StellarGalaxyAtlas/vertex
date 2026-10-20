@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import desktop, fmt, logs, paths, system
+from vertex import desktop, fmt, logs, paths, platform
 from vertex.config import (
     AUDIO_CODECS,
     BITRATE_MODES,
@@ -285,7 +285,7 @@ class SettingsView(QWidget):
         self.tag_from_game = Toggle()
         tag_row = clips.add_row("Tag clips with the game", self.tag_from_game,
                                 "The app filling the screen when a clip is saved, else Desktop")
-        tag_row.setVisible(system.WINDOWS)
+        tag_row.setVisible(platform.FULLSCREEN_GAME)
         self.tracks = TrackTable(backend.has_track_volume())
         devices = self.tracks.devices
         self.game_audio, self.chat_audio = devices[roles.GAME.id], devices[roles.CHAT.id]

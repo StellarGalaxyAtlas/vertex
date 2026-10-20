@@ -351,8 +351,9 @@ def test_library_cards_fill_their_row_at_any_size(qapp, window):
 
 def test_starting_adds_the_start_menu_entry(qapp, window):
     from vertex import desktop
+    from vertex.platform import linux
 
-    assert wait_until(qapp, lambda: desktop.desktop_file().exists())
+    assert wait_until(qapp, lambda: linux.desktop_file().exists())
     assert desktop.added_marker().exists()
 
 
@@ -1597,12 +1598,12 @@ def test_the_import_dialog_lists_the_folders_it_found(qapp, tmp_path):
 
 
 def test_the_icon_ink_follows_the_windows_taskbar_not_the_apps(qapp, monkeypatch):
-    from vertex import system
+    from vertex import platform
     from vertex.ui import icons
 
-    monkeypatch.setattr(system, "light_desktop", lambda: False)    # dark taskbar
+    monkeypatch.setattr(platform.here(), "light_desktop", lambda: False)    # dark taskbar
     assert icons.desktop_ink() == icons.desktop_ink_outside_app() == "light"
-    monkeypatch.setattr(system, "light_desktop", lambda: True)
+    monkeypatch.setattr(platform.here(), "light_desktop", lambda: True)
     assert icons.desktop_ink() == "dark"
 
 
@@ -1839,18 +1840,20 @@ def test_a_hotkey_runs_its_action(qapp, window):
 def test_a_saved_clip_is_tagged_with_the_fullscreen_game(qapp, window, monkeypatch):
     from types import SimpleNamespace
 
-    from vertex import system
+    from vertex import platform
+    from vertex.platform import windows as windows_platform
 
     context, library = window.context, window.context.library
     recorder = context.recorder
     monkeypatch.setattr(recorder, "recorder", SimpleNamespace(running=True,
                                                               save=lambda _seconds: None,
                                                               stop=lambda timeout: None))
-    monkeypatch.setattr(system, "WINDOWS", True)
+    monkeypatch.setattr(platform, "WINDOWS", True)
     context.rename_game("HeroesOfTheStorm_x64", "Heroes of the Storm")
     windows = [("", r"C:\Games\HeroesOfTheStorm_x64.exe"), ("", ""), None]
     asked = []
-    monkeypatch.setattr(system, "fullscreen_app", lambda: asked.append(1) or windows.pop(0))
+    monkeypatch.setattr(windows_platform, "fullscreen_app",
+                        lambda: asked.append(1) or windows.pop(0))
     hints = []
     real_got = recorder._got_fullscreen
     monkeypatch.setattr(recorder, "_got_fullscreen",

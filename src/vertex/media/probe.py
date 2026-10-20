@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from vertex.media import mp4meta
 from vertex.media.ffmpeg import FFPROBE, MediaError
-from vertex.system import NO_WINDOW
+from vertex.platform import NO_WINDOW
 
 
 @dataclass

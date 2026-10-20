@@ -17,7 +17,7 @@ import argparse
 import json
 import sys
 
-from vertex import APP_NAME, __version__, ipc, system
+from vertex import APP_NAME, __version__, ipc, platform
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -100,7 +100,7 @@ def _start_apart(background: bool) -> int:
     from vertex import desktop
 
     try:
-        system.start_detached([*desktop.launch_command(),
+        platform.start_detached([*desktop.launch_command(),
                                *(["--background"] if background else [])])
     except OSError as exc:
         print(f"Couldn't start {APP_NAME}: {exc}", file=sys.stderr)
@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "show":
             print(f"{APP_NAME} is not running.", file=sys.stderr)
             return 1
-        if system.in_console():
+        if platform.in_console():
             return _start_apart(args.background)
         from vertex.ui.app import run
 

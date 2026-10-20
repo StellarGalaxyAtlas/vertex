@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 80.
+and bugs get the next free number: 84.
 
 ---
 
@@ -95,6 +95,18 @@ exclusive and borderless fullscreen.
 Built (2026-10-20) as option B of windows-port/mockups/8-read-tags-again.png:
 the section is gone, and under the apps list Settings shows what reading the
 names again changes, one ticked line per game, applied with one button.
+
+### Code
+
+**83.**
+**What differs between Linux and Windows, in one place**
+Built (2026-10-20): `vertex/platform/` with `linux.py` and `windows.py`,
+each handing out the same names (folders, the menu entry and sign-in,
+hotkeys, the fullscreen game, the file manager, which recorder, what
+`vertex doctor` looks for); the rest of Vertex asks it and never checks
+the system itself, and a test fails if it does. No change in what Vertex
+does. To try: that Vertex on the friend's PC still starts, records and
+holds its hotkeys.
 
 ### Later
 

@@ -7,8 +7,8 @@ import subprocess
 import threading
 from collections.abc import Callable
 
+from vertex.platform import NO_WINDOW
 from vertex.proc import last_line
-from vertex.system import NO_WINDOW
 
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"

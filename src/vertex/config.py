@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vertex import APP_NAME, hotkeys, notifications, paths, system
+from vertex import APP_NAME, hotkeys, notifications, paths, platform
 from vertex.control import SAVE_LENGTHS
 from vertex.core.name_patterns import NamePattern
 from vertex.core.naming import add_game_name
@@ -60,7 +60,7 @@ class RecorderConfig:
     autostart: bool = False          # start the replay buffer when Vertex starts
     # GSR's command, which may be a full one (a Flatpak run line); on Windows
     # obs64.exe, "" = wherever OBS is installed.
-    command: str = "" if system.WINDOWS else "gpu-screen-recorder"
+    command: str = platform.RECORDER_COMMAND
     capture: str = "screen"          # screen | portal | focused | region | <monitor name>
     region: str = ""                 # WxH+X+Y, for capture == "region"
     resolution: str = ""             # "1080p" (short side), "" = the monitor's own, or WxH
@@ -315,7 +315,7 @@ def _fill(instance, data: Any, skip: tuple[str, ...] = ()):
 
 def default_config() -> Config:
     """A Config with every path filled in for the account running right now."""
-    videos = paths.xdg_user_dir("VIDEOS", "~/Videos")
+    videos = paths.user_dir("VIDEOS", "~/Videos")
     clips = os.path.join(videos, CLIP_SUBDIR)
     return Config(
         clip_path=clips,

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import hotkeys, logs, system
+from vertex import hotkeys, logs, platform
 from vertex.control import SAVE_LENGTHS
 from vertex.hotkeys import Hotkey
 from vertex.ui import theme
@@ -67,8 +67,9 @@ def key_name(event) -> str:
     """The name in hotkeys.KEYS of the key an event is for; "" for one a
     hotkey can't use. On Windows the key's own code says, whatever the
     keyboard layout and whatever Shift does to it."""
-    if system.WINDOWS and hotkeys.key_name(event.nativeVirtualKey()):
-        return hotkeys.key_name(event.nativeVirtualKey())
+    native = platform.key_name(event.nativeVirtualKey())
+    if native:
+        return native
     key = Qt.Key(event.key())
     keypad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
     if Qt.Key.Key_A <= key <= Qt.Key.Key_Z:

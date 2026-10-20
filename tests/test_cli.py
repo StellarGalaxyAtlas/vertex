@@ -4,6 +4,7 @@ import threading
 import pytest
 
 from vertex import cli, desktop, ipc, paths
+from vertex.platform import linux
 
 
 @pytest.fixture
@@ -132,24 +133,24 @@ def test_cli_without_app(tmp_path, monkeypatch, capsys):
 
 def test_desktop_install_and_uninstall(isolated_home):
     written = desktop.install("light", autostart=True, argv=["/opt/my apps/vertex"])
-    entry = desktop.desktop_file().read_text()
+    entry = linux.desktop_file().read_text()
     assert 'Exec="/opt/my apps/vertex"' in entry
     assert "StartupWMClass=vertex" in entry
     assert 'Exec="/opt/my apps/vertex" save-clip' in entry
-    assert "--background" in desktop.autostart_file().read_text()
+    assert "--background" in linux.autostart_file().read_text()
     assert any(p.suffix == ".svg" for p in written)
     assert desktop.autostart_enabled()
     removed = desktop.uninstall()
-    assert set(removed) >= {desktop.desktop_file(), desktop.autostart_file()}
-    assert not desktop.desktop_file().exists()
-    assert not os.listdir(desktop.applications_dir())
+    assert set(removed) >= {linux.desktop_file(), linux.autostart_file()}
+    assert not linux.desktop_file().exists()
+    assert not os.listdir(linux.applications_dir())
 
 
 def test_entry_is_added_once_and_stays_removed(isolated_home):
     assert desktop.update_icons("dark") == []        # no entry, nothing to redraw
     written = desktop.ensure("light")
-    assert desktop.desktop_file() in written and desktop.added_marker().exists()
-    entry = desktop.desktop_file().read_text()
+    assert linux.desktop_file() in written and desktop.added_marker().exists()
+    entry = linux.desktop_file().read_text()
     # Just "Vertex" in every menu: no generic name for menus to show instead.
     assert "\nName=Vertex\n" in entry and "GenericName" not in entry
     assert desktop.ensure("light") == []
@@ -160,7 +161,7 @@ def test_entry_is_added_once_and_stays_removed(isolated_home):
     assert desktop.ensure("dark") == []
     desktop.uninstall()
     assert desktop.ensure("light") == []
-    assert not desktop.desktop_file().exists()
+    assert not linux.desktop_file().exists()
 
 
 def test_install_desktop_draws_the_icon_for_the_desktop(isolated_home, monkeypatch):
@@ -168,7 +169,7 @@ def test_install_desktop_draws_the_icon_for_the_desktop(isolated_home, monkeypat
     answers = iter(["dark\n", ""])
     monkeypatch.setattr(desktop.subprocess, "run", lambda *_a, **_k: type(
         "Done", (), {"stdout": next(answers)})())
-    monkeypatch.setattr(desktop, "refresh_caches", lambda: None)
+    monkeypatch.setattr(linux, "refresh_menus", lambda: None)
     assert cli.main(["install-desktop"]) == 0
     assert desktop.icon_ink() == "dark"
     assert desktop.desktop_ink() == paths.DEFAULT_LOGO_VARIANT

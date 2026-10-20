@@ -1,19 +1,22 @@
-"""What Vertex does differently on Windows, checked from any platform: the
-Windows branches are chosen by `system.WINDOWS` and the transport by
-`ipc.USE_TCP`, so these tests switch them on."""
+"""What Vertex does differently on Windows, checked from any platform:
+`platform.WINDOWS` chooses vertex.platform.windows and `ipc.USE_TCP` the
+transport, so these tests switch them on."""
 
 import json
 import os
+import pathlib
+import re
 import sys
 
 import pytest
 
-from vertex import desktop, ipc, paths, system
+from vertex import desktop, ipc, paths, platform
+from vertex.platform import windows as windows_platform
 
 
 @pytest.fixture
 def windows(monkeypatch, tmp_path):
-    monkeypatch.setattr(system, "WINDOWS", True)
+    monkeypatch.setattr(platform, "WINDOWS", True)
     monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
     return tmp_path
@@ -32,18 +35,18 @@ def test_folders_live_in_appdata(windows):
 
 
 def test_videos_folder_falls_back_when_windows_cannot_say(windows, monkeypatch):
-    monkeypatch.setattr(system, "known_folder", lambda role: "")
-    assert paths.xdg_user_dir("VIDEOS", "~/Videos") == paths.normalize("~/Videos")
-    monkeypatch.setattr(system, "known_folder", lambda role: "D:\\Videos")
-    assert paths.xdg_user_dir("VIDEOS", "~/Videos").endswith("Videos")
+    monkeypatch.setattr(windows_platform, "known_folder", lambda role: "")
+    assert paths.user_dir("VIDEOS", "~/Videos") == paths.normalize("~/Videos")
+    monkeypatch.setattr(windows_platform, "known_folder", lambda role: "D:\\Videos")
+    assert paths.user_dir("VIDEOS", "~/Videos").endswith("Videos")
 
 
 def test_appdata_without_the_variables(monkeypatch):
     monkeypatch.delenv("APPDATA", raising=False)
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
     home = os.path.expanduser("~")
-    assert system.appdata() == os.path.join(home, "AppData", "Roaming")
-    assert system.appdata(local=True) == os.path.join(home, "AppData", "Local")
+    assert windows_platform.appdata() == os.path.join(home, "AppData", "Roaming")
+    assert windows_platform.appdata(local=True) == os.path.join(home, "AppData", "Local")
 
 
 def test_control_over_a_local_port_needs_the_token(windows, monkeypatch):
@@ -102,7 +105,7 @@ def test_shortcuts_start_vertex_without_a_console(windows, monkeypatch, tmp_path
 def test_the_start_menu_shortcut_is_written_by_powershell(windows, monkeypatch):
     ran = []
     monkeypatch.setattr(desktop.subprocess, "run", lambda argv, **_kw: ran.append(argv))
-    monkeypatch.setattr(desktop, "_windows_icon", lambda _v: [])
+    monkeypatch.setattr(windows_platform, "draw_icon", lambda _v: [])
     written = desktop.install("light", argv=["C:\\Python\\pythonw.exe", "-m", "vertex"])
     shortcut = windows / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs" / \
         "Vertex.lnk"
@@ -117,7 +120,7 @@ def test_the_start_menu_shortcut_is_written_by_powershell(windows, monkeypatch):
 def test_appdata_folders_are_made_by_windows_and_handed_out_where_they_are(
         windows, monkeypatch):
     ran = []
-    monkeypatch.setattr(paths.subprocess, "run", lambda line, **kw: ran.append(line))
+    monkeypatch.setattr(windows_platform.subprocess, "run", lambda line, **kw: ran.append(line))
     cache = windows / "Local" / "Vertex" / "Cache"
     assert paths.make_dir(cache) == str(cache) and cache.is_dir()
     assert ran == [f'cmd /d /c mkdir "{cache}"']
@@ -155,7 +158,7 @@ def test_vertex_starts_at_sign_in_from_a_shortcut_named_vertex(windows, monkeypa
 
 
 def test_the_taskbar_theme_is_asked_of_windows_only_there(windows):
-    light = system.light_desktop()
+    light = windows_platform.light_desktop()
     assert light is None if sys.platform != "win32" else light in (True, False, None)
 
 
@@ -168,7 +171,7 @@ def test_hotkeys_are_written_in_windows_order_and_typing_keys_need_ctrl_alt_or_w
     for refused in ("A", "Shift+A", "Shift+Space", "Ctrl+Ctrl+A", "Ctrl+Esc", "Ctrl+", ""):
         assert hotkeys.parse(refused) is None, refused
     assert "Add Ctrl, Alt or Win" in hotkeys.Hotkey.of(["Shift"], "5").problem()
-    assert hotkeys.key_name(0x78) == "F9" and hotkeys.key_name(0xBA) == ""
+    assert windows_platform.key_name(0x78) == "F9" and windows_platform.key_name(0xBA) == ""
     assert hotkeys.bindings({"save_clip": "Ctrl+Alt+F9", "show": "Ctrl+Alt+F9",
                              "nope": "F1", "replay": "A"}) == \
         {"save_clip": hotkeys.parse("Ctrl+Alt+F9")}
@@ -203,7 +206,7 @@ def test_windows_holds_the_hotkeys_and_lets_them_go():
 
     results = []
     done = threading.Event()
-    listener = hotkeys.Listener(lambda _action: None,
+    listener = hotkeys.listener(lambda _action: None,
                                 lambda failed: (results.append(failed), done.set()))
     listener.set({"save_clip": hotkeys.parse("Ctrl+Alt+Shift+F24")})
     if sys.platform != "win32":
@@ -220,10 +223,8 @@ def test_windows_holds_the_hotkeys_and_lets_them_go():
 
 
 def test_a_window_goes_on_the_taskbar_as_vertex():
-    from vertex import desktop
-
     if sys.platform != "win32":
-        assert not desktop.put_on_taskbar(0)
+        assert not platform.put_on_taskbar(0)
         return
     import ctypes
     from ctypes import wintypes
@@ -238,29 +239,69 @@ def test_a_window_goes_on_the_taskbar_as_vertex():
                                   None, None, None, None)
     assert hwnd
     try:
-        assert desktop.put_on_taskbar(hwnd)
+        assert platform.put_on_taskbar(hwnd)
     finally:
         user32.DestroyWindow(hwnd)
 
 
 def test_vertex_typed_in_a_terminal_starts_apart_from_it(monkeypatch, capsys):
-    from vertex import cli, ipc, system
+    from vertex import cli
 
     started = []
     monkeypatch.setattr(ipc, "is_running", lambda: False)
-    monkeypatch.setattr(system, "in_console", lambda: True)
-    monkeypatch.setattr(system, "start_detached", started.append)
+    monkeypatch.setattr(platform.here(), "in_console", lambda: True)
+    monkeypatch.setattr(platform.here(), "start_detached", started.append)
     assert cli.main(["--background"]) == 0
     assert started[0][-1] == "--background"
     assert "can be closed" in capsys.readouterr().out
     if sys.platform != "win32":
         monkeypatch.undo()
-        assert not system.in_console()          # elsewhere Vertex runs in place
+        assert not platform.in_console()          # elsewhere Vertex runs in place
 
 
 def test_windows_is_asked_what_fills_the_screen():
-    window = system.fullscreen_app()
+    window = windows_platform.fullscreen_app()
     if sys.platform != "win32":
         assert window is None
         return
     assert window is None or all(isinstance(part, str) for part in window)
+
+
+def test_linux_and_windows_hand_out_the_same_names():
+    from vertex.platform import linux
+
+    for module in (linux, windows_platform):
+        missing = [name for name in platform.NAMES if not hasattr(module, name)]
+        assert not missing, f"{module.__name__} lacks {missing}"
+    # What only one system has isn't handed out: shared code can't lean on it.
+    with pytest.raises(AttributeError):
+        platform.desktop_file      # noqa: B018
+
+
+def test_windows_is_chosen_by_platform_windows(windows):
+    assert platform.here() is windows_platform
+    assert platform.RECORDER == "obs" and platform.CONTROL_FILE == "control.json"
+
+
+# What tells one system from another, or calls into Windows itself.
+SYSTEM_CHECK = re.compile(r"sys\.platform|\bos\.name\b|platform\.WINDOWS|platform\.here\("
+                          r"|\bwindll\b|\bWinDLL\b|\bwinreg\b")
+# Reaching into one system's module past vertex.platform. The OBS recorder
+# runs only on Windows and asks Windows itself what it records.
+SYSTEM_MODULE = re.compile(r"vertex\.platform import (linux|windows|kwin)"
+                           r"|vertex\.platform\.(linux|windows|kwin)")
+RECORDERS_OF_ONE_SYSTEM = {"recorder/obs.py"}
+
+
+def test_only_vertex_platform_knows_which_system_it_is():
+    root = pathlib.Path(paths.__file__).parent
+    found = []
+    for path in sorted(root.rglob("*.py")):
+        name = path.relative_to(root).as_posix()
+        if name.startswith("platform/"):
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if SYSTEM_CHECK.search(line) or (SYSTEM_MODULE.search(line)
+                                             and name not in RECORDERS_OF_ONE_SYSTEM):
+                found.append(f"{name}:{number}: {line.strip()}")
+    assert not found, "ask vertex.platform instead:\n" + "\n".join(found)

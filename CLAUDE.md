@@ -44,6 +44,9 @@ and push it. Code, tests and docs don't mention TODO items.
 ## Rules of the code
 
 - Everything outside `vertex.ui` stays free of Qt.
+- What differs between Linux and Windows lives in `vertex/platform/`
+  (`linux.py`, `windows.py`, the same names in each, listed in `NAMES`);
+  nothing else checks which system it runs on, and a test fails if it does.
 - Blocking work (ffmpeg, the recorder, disk) goes through `ui/workers.run`, never on
   the UI thread.
 - Never modify a user's recordings; write under a staging name and move into
@@ -57,7 +60,7 @@ and push it. Code, tests and docs don't mention TODO items.
 ## Working in the cloud container
 
 - No Windows there: `tests/test_windows.py` switches the Windows branches on
-  (`system.WINDOWS`, `ipc.USE_TCP`), and CI's Windows job runs it for real.
+  (`platform.WINDOWS`, `ipc.USE_TCP`), and CI's Windows job runs it for real.
 - No OBS there either: `tests/fake_obs.py` stands in for obs-websocket.
   What Vertex sets up in OBS is only proven on the maintainer's PC, so ask
   them to try recording changes there.

@@ -8,9 +8,10 @@ import time
 import pytest
 
 from fake_obs import FakeObs
-from vertex import system
+from vertex import platform
 from vertex.config import Config, RecorderConfig
 from vertex.media import probe
+from vertex.platform import windows
 from vertex.recorder import backend, gsr, obs
 from vertex.recorder.obs_replay import ObsRecorder, finish
 from vertex.recorder.obsws import AUTH_FAILED, Client, ObsError
@@ -132,7 +133,7 @@ class TestSetup:
         assert again.enabled and (again.port, again.password) == (4460, "kept")
 
     def test_obs_is_the_recorder_on_windows(self, monkeypatch, tmp_path):
-        monkeypatch.setattr(system, "WINDOWS", True)
+        monkeypatch.setattr(platform, "WINDOWS", True)
         monkeypatch.setattr(obs, "gpu_vendor", lambda: "nvidia")
         assert backend.name() == "OBS Studio" and not backend.has_notifier()
         assert isinstance(backend.recorder(), ObsRecorder)
@@ -252,11 +253,11 @@ def test_a_save_that_cant_be_finished_is_kept(tmp_path):
     assert os.listdir(tmp_path / "clips") == [os.path.basename(clip)]
 
 
-@pytest.mark.skipif(not system.WINDOWS, reason="asks Windows itself")
+@pytest.mark.skipif(not windows.ON_WINDOWS, reason="asks Windows itself")
 def test_what_windows_says():
     import sys
 
-    assert obs.file_version(sys.executable)[:1] == (sys.version_info.major,)
+    assert windows.file_version(sys.executable)[:1] == (sys.version_info.major,)
     assert all(m.width > 0 and m.height > 0 for m in obs.monitor_rects())
     assert isinstance(obs.gpu_vendor(), str)
     for name, description in obs.list_audio_devices()[2:]:

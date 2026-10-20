@@ -38,14 +38,14 @@ import threading
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
-from vertex import __version__, control, paths, system
+from vertex import __version__, control, paths, platform
 
 TIMEOUT = 10.0
 Handler = Callable[[str, dict], dict]
 
 
 # Whether to listen on a local TCP port rather than a Unix socket.
-USE_TCP = not hasattr(socket, "AF_UNIX") or system.WINDOWS
+USE_TCP = not platform.UNIX_SOCKETS
 
 
 class NotRunning(RuntimeError):
@@ -88,7 +88,7 @@ def send(command: str, socket_path: str | os.PathLike | None = None,
     """Send one command to the running Vertex and return its reply."""
     path = str(socket_path or paths.control_socket())
     if command == "show":
-        system.allow_foreground()
+        platform.allow_foreground()
     client, token = _connect(path, timeout)
     try:
         with client:

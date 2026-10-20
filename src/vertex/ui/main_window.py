@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop, kwin, logs, notifications, reset, system
+from vertex import APP_NAME, desktop, logs, notifications, platform, reset
 from vertex.config import Config
 from vertex.media import export
 from vertex.media.thumbnails import ThumbnailCache
@@ -46,8 +46,7 @@ class MainWindow(QMainWindow):
         self.start_menu_job = None
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(icons.desktop_ink()))
-        if system.WINDOWS:
-            desktop.put_on_taskbar(int(self.winId()))
+        platform.put_on_taskbar(int(self.winId()))
         # The icon on the desktop's panels follows its light or dark look.
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._ink_changed)
         self.resize(1280, 820)
@@ -445,10 +444,10 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
         if QGuiApplication.platformName() == "wayland":
-            # Wayland won't let us take the focus; KWin can give it (see kwin).
+            # Wayland won't let us take the focus; the desktop may give it.
             # The pause lets a window coming out of the tray map first.
             pid = os.getpid()
-            QTimer.singleShot(150, lambda: workers.run(lambda: kwin.activate(pid)))
+            QTimer.singleShot(150, lambda: workers.run(lambda: platform.activate_windows(pid)))
 
     def closeEvent(self, event):
         tray_ok = self.tray is not None and QSystemTrayIcon.isSystemTrayAvailable()

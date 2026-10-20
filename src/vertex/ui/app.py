@@ -8,7 +8,7 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
-from vertex import APP_ID, APP_NAME, __version__, desktop, ipc, logs, system
+from vertex import APP_ID, APP_NAME, __version__, ipc, logs, platform
 from vertex.config import Config, needs_setup
 from vertex.ui import icons, theme
 from vertex.ui.control import Commands
@@ -24,7 +24,7 @@ def _create_app() -> QApplication:
     # The Wayland app id and X11 WM class both come from this, and must match
     # the desktop entry for the window to land on its own taskbar icon.
     QApplication.setDesktopFileName(APP_ID)
-    system.set_app_id(desktop.WINDOWS_APP_ID)
+    platform.set_app_id()
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setPalette(theme.palette())

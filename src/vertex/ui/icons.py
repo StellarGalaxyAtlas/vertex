@@ -14,7 +14,7 @@ from functools import lru_cache
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
-from vertex import paths, system
+from vertex import paths, platform
 from vertex.ui import theme
 
 _DRAW = {}
@@ -512,7 +512,7 @@ def app_icon(variant: str = paths.DEFAULT_LOGO_VARIANT) -> QIcon:
 def desktop_ink() -> str:
     """The logo ink for the desktop's panels and menus: dark on a light
     desktop, light otherwise (dark, or the desktop doesn't say)."""
-    light = system.light_desktop()
+    light = platform.light_desktop()
     if light is None:
         light = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Light
     return "dark" if light else "light"
@@ -521,7 +521,7 @@ def desktop_ink() -> str:
 def desktop_ink_outside_app() -> str:
     """desktop_ink() for a command run without the window: Qt is started just
     to ask, so the answer is the one Vertex itself will get."""
-    if QGuiApplication.instance() is None and system.light_desktop() is None:
+    if QGuiApplication.instance() is None and platform.light_desktop() is None:
         if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
             return paths.DEFAULT_LOGO_VARIANT
         app = QGuiApplication(["vertex"])

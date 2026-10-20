@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import shlex
 
-from vertex import paths, system
+from vertex import paths, platform
 from vertex.config import Config
 from vertex.recorder import gsr, obs, presets
 from vertex.recorder.gsr import CaptureOption, GsrInfo, Track
@@ -19,7 +19,7 @@ SAVE_PRESETS = gsr.SAVE_PRESETS
 
 
 def is_obs() -> bool:
-    return system.WINDOWS
+    return platform.RECORDER == "obs"
 
 
 def name() -> str:
@@ -36,7 +36,7 @@ def min_version() -> tuple[int, ...]:
 
 def default_command() -> str:
     """The command used when none is set: OBS is found where it is installed."""
-    return "" if is_obs() else "gpu-screen-recorder"
+    return platform.RECORDER_COMMAND
 
 
 def has_notifier() -> bool:

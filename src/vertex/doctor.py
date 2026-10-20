@@ -11,8 +11,8 @@ import sys
 from dataclasses import dataclass
 
 from vertex import config as config_mod
-from vertex import paths, system
-from vertex.recorder import gsr, notifier, obs, presets
+from vertex import paths, platform
+from vertex.recorder import backend, gsr, notifier, obs, presets
 
 
 @dataclass
@@ -24,55 +24,13 @@ class Check:
     required: bool = True
 
 
-def _distro() -> str:
-    try:
-        with open("/etc/os-release", encoding="utf-8") as handle:
-            text = handle.read().lower()
-    except OSError:
-        return ""
-    for family, markers in (("arch", ("arch", "manjaro", "endeavouros", "cachyos")),
-                            ("fedora", ("fedora", "nobara", "bazzite")),
-                            ("debian", ("debian", "ubuntu", "mint", "pop"))):
-        if any(f"id={m}" in text or f"id_like={m}" in text or f"id_like=\"{m}" in text
-               for m in markers):
-            return family
-    return ""
-
-
-PACKAGES = {
-    "ffmpeg": {"arch": "ffmpeg", "fedora": "ffmpeg", "debian": "ffmpeg"},
-    "libmpv": {"arch": "mpv", "fedora": "mpv-libs", "debian": "libmpv2"},
-    "gsr": {"arch": "gpu-screen-recorder (AUR)", "fedora": "gpu-screen-recorder (COPR)",
-            "debian": "gpu-screen-recorder (Flatpak: com.dec05eba.gpu_screen_recorder)"},
-    "gsr-notify": {"arch": "gpu-screen-recorder-notification",
-                   "fedora": "gpu-screen-recorder-notification (COPR)",
-                   "debian": "gpu-screen-recorder-notification (from source)"},
-}
-
-
-# On Windows: where to get each, for the release that doesn't bundle them.
-WINDOWS_HINTS = {
-    "ffmpeg": "winget install Gyan.FFmpeg",
-    "libmpv": "put libmpv-2.dll (from mpv's Windows builds) next to Vertex or on PATH",
-    "obs": "winget install OBSProject.OBSStudio",
-}
-
-
 def _hint(what: str) -> str:
-    if system.WINDOWS:
-        return WINDOWS_HINTS.get(what, "")
-    family = _distro()
-    package = PACKAGES[what].get(family)
-    if package is None:
-        return "install " + " / ".join(sorted(set(PACKAGES[what].values())))
-    return f"install {package}"
+    return platform.install_hint(what)
 
 
 def _find_libmpv() -> str | None:
     """Where libmpv is, by the names python-mpv itself looks for."""
-    if not system.WINDOWS:
-        return ctypes.util.find_library("mpv")
-    for name in ("mpv-2.dll", "libmpv-2.dll", "mpv-1.dll"):
+    for name in platform.LIBMPV_NAMES:
         found = ctypes.util.find_library(name)
         if found:
             return found
@@ -156,10 +114,7 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
         checks.append(Check(label, found, "installed" if found else "missing",
                             f"pip install {label}", required=module != "send2trash"))
 
-    if system.WINDOWS:
-        checks += _obs_checks(config)
-    else:
-        checks += _gsr_checks(config)
+    checks += _obs_checks(config) if backend.is_obs() else _gsr_checks(config)
 
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),
@@ -173,14 +128,14 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
                          ("state", config.resolved_state_dir()),
                          ("cache", config.resolved_cache_dir())):
         checks.append(_folder_check(name, folder))
-    if system.WINDOWS:
+    if platform.FILE_OPENER is None:
         return checks
+    opener, fix = platform.FILE_OPENER
     try:
-        subprocess.run(["xdg-open", "--version"], capture_output=True, timeout=5)
-        checks.append(Check("xdg-open", True, "found", required=False))
+        subprocess.run([opener, "--version"], capture_output=True, timeout=5)
+        checks.append(Check(opener, True, "found", required=False))
     except (OSError, subprocess.SubprocessError):
-        checks.append(Check("xdg-open", False, "not found", "install xdg-utils",
-                            required=False))
+        checks.append(Check(opener, False, "not found", fix, required=False))
     return checks
 
 
