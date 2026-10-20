@@ -28,6 +28,7 @@ from vertex.library.database import DB_NAME, Library
 from vertex.recorder import backend, gsr, notifier
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import FolderList
+from vertex.ui.name_teacher import NameTeacher
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.widgets import (
     ChoiceCard,
@@ -50,7 +51,7 @@ STEPS = {
     "library": ("Clips you already have",
                 "Import clips from SteelSeries Moments or another folder."),
     "tags": ("Tag your clips",
-             "Check the games read from file names."),
+             "Check the games and dates read from file names."),
 }
 
 
@@ -603,6 +604,14 @@ class FirstRunView(QWidget):
         self.tags_note = label("", "Muted", wrap=True)
         self.tags_note.hide()
         self.tags_status = label("", "Muted", wrap=True)
+        self.names = Section("Teach Vertex your file names",
+                             "For clips whose names Vertex doesn't read yet.")
+        self.teacher = NameTeacher()
+        self.names.add(self.teacher)
+        self.names.hide()
+        self._teach_timer = QTimer(self, singleShot=True, interval=300)
+        self._teach_timer.timeout.connect(self._plan_tags)
+        self.teacher.changed.connect(self._teach_timer.start)
         self.games = Section("Games found in file names")
         self.games_host = QWidget()
         self.games_grid = QGridLayout(self.games_host)
@@ -617,7 +626,8 @@ class FirstRunView(QWidget):
         self.stray_game = QLineEdit()
         self.others.add(self.stray_game)
         self.game_fields: dict[str, QLineEdit] = {}
-        return self._column(self.tags_note, self.tags_status, self.games, self.others)
+        return self._column(self.tags_note, self.tags_status, self.names, self.games,
+                            self.others)
 
     def _plan_tags(self) -> None:
         self._tag_token += 1
@@ -639,9 +649,11 @@ class FirstRunView(QWidget):
             snapshot = None
             data_dir = self.config.resolved_data_dir()
 
+        patterns = self._patterns()
+
         def plan():
             known, tagged = snapshot if snapshot is not None else library_snapshot(data_dir)
-            return importing.plan_import(folder, known, tagged)
+            return importing.plan_import(folder, known, tagged, patterns)
 
         def done(result):
             if token == self._tag_token:
@@ -655,8 +667,20 @@ class FirstRunView(QWidget):
 
         workers.run(plan, done, failed)
 
+    def _patterns(self) -> list:
+        """The patterns the clips are read with: the one being taught first."""
+        taught = self.teacher.pattern()
+        kept = [p for p in self.config.patterns() if taught is None or p.app != taught.app]
+        return ([taught] if taught is not None else []) + kept
+
     def _show_tags(self, plan: importing.ImportPlan) -> None:
         self.tag_plan = plan
+        names = [n for names in plan.games.values() for n in names] + plan.strays + \
+            plan.already
+        if set(names) != set(self.teacher.names):
+            self.teacher.set_names(names, plan.folder)
+        # Shown while there are names to teach, and kept once teaching began.
+        self.names.setVisible(bool(plan.strays) or self.teacher.pattern() is not None)
         while self.games_grid.count():
             item = self.games_grid.takeAt(0)
             if item.widget() is not None:
@@ -784,5 +808,7 @@ class FirstRunView(QWidget):
                 setattr(config, key, getattr(defaults, key))
         self.choices.apply(config.recorder)
         config.recorder.autostart = self.rec_autostart.isChecked()
+        if self._bringing_clips():
+            config.name_patterns = [p.to_dict() for p in self._patterns()]
         games, dates = self._confirmed_tags() if self._bringing_clips() else ({}, {})
         self.finished.emit(SetupResult(config, self.rec_autostart.isChecked(), games, dates))

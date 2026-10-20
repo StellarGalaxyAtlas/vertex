@@ -15,6 +15,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 from vertex import fmt, logs, notifications
 from vertex.config import Config
+from vertex.core import naming
 from vertex.library import Library
 from vertex.media import probe
 from vertex.media.thumbnails import ThumbnailCache
@@ -352,6 +353,7 @@ class Context(QObject):
     def __init__(self, config: Config, parent=None):
         super().__init__(parent)
         self.config = config
+        naming.use_patterns(config.patterns())
         self.library: Library | None = None
         self.thumbs: ThumbnailService | None = None
         self.recorder = RecorderController(self)
@@ -383,6 +385,7 @@ class Context(QObject):
             return
         # Follows logging switched on or off, or a moved log folder.
         logs.apply(self.config.keep_logs, self.config.resolved_log_dir())
+        naming.use_patterns(self.config.patterns())
         self.config_changed.emit()
 
     def notify(self, kind: str, title: str, body: str = "") -> None:

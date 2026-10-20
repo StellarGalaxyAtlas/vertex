@@ -194,6 +194,7 @@ class MainWindow(QMainWindow):
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path"):
             setattr(context.config, key, getattr(config, key))
         context.config.recorder = config.recorder
+        context.config.name_patterns = config.name_patterns
         failed = context.config.ensure_dirs()
         context.save_config()
         if failed:

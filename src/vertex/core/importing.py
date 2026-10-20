@@ -232,11 +232,12 @@ class ImportPlan:
                 for game, names in self.games.items() for name in names}
 
 
-def plan_import(folder: str, known_games=(), tagged=()) -> ImportPlan:
+def plan_import(folder: str, known_games=(), tagged=(), patterns=None) -> ImportPlan:
     """Work out what tagging `folder` would do, touching nothing.
 
     `known_games` are tags already in use, so a derived game landing on one
-    keeps the spelling in use; `tagged` are clips that already carry a game.
+    keeps the spelling in use; `tagged` are clips that already carry a game;
+    `patterns` read the names (by default the ones taught).
     """
     known = {game_key(game): game for game in known_games}
     tagged = set(tagged)
@@ -244,13 +245,13 @@ def plan_import(folder: str, known_games=(), tagged=()) -> ImportPlan:
     for name in sorted(os.listdir(folder)):
         if not is_clip(name):
             continue
-        when = recorded_at(name)
+        when = recorded_at(name, patterns)
         if when:
             plan.dates[name] = when
         if name in tagged:
             plan.already.append(name)
             continue
-        game = game_from_filename(name)
+        game = game_from_filename(name, patterns)
         if not game:
             plan.strays.append(name)
             continue

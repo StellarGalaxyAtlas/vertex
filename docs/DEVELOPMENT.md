@@ -50,7 +50,7 @@ README's from a made-up demo library.
 
 | Package | What's in it |
 |---|---|
-| `core` | clips on disk: scanning, file-name parsing, importing, Trash |
+| `core` | clips on disk: scanning, file-name parsing (`name_patterns`: presets and taught patterns), importing, Trash |
 | `library` | the SQLite library (`library.db`, schema version 2) |
 | `media` | ffmpeg/ffprobe: probing, track roles and names, mixing, waveforms, trims, exports, thumbnails |
 | `recorder` | the replay buffer: `backend` picks GPU Screen Recorder (`gsr`, `replay`, `gsr-notify`) or OBS (`obs`, `obsws`, `obs_replay`); monitors and presets for both |

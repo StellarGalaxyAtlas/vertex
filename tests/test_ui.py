@@ -21,6 +21,7 @@ from PySide6.QtCore import QEvent, QObject, QPoint
 from PySide6.QtWidgets import QApplication, QLineEdit
 
 from vertex.config import Config
+from vertex.core import naming
 
 pytestmark = pytest.mark.gui
 
@@ -1542,3 +1543,59 @@ def test_the_icon_ink_follows_the_windows_taskbar_not_the_apps(qapp, monkeypatch
     assert icons.desktop_ink() == icons.desktop_ink_outside_app() == "light"
     monkeypatch.setattr(system, "light_desktop", lambda: True)
     assert icons.desktop_ink() == "dark"
+
+
+def test_first_run_learns_medal_names_and_reads_them(qapp, tmp_path):
+    source = tmp_path / "Medal"
+    source.mkdir()
+    for name in ("MedalTVFirstLight20260817235610725.mp4",
+                 "MedalTV007FirstLight20260818101500001.mp4"):
+        (source / name).write_bytes(b"x")
+    win, view = _setup(qapp, tmp_path)
+    for _ in range(2):
+        view._go(1)
+    view.existing.choose()
+    view.source.set_value(str(source))
+    assert wait_until(qapp, lambda: view.copy_plan is not None)
+    view._go(1)
+    assert wait_until(qapp, lambda: view.current() == "tags" and view.tag_plan is not None)
+    assert not view.names.isHidden() and len(view.tag_plan.strays) == 2
+    view.teacher.choose("Medal")
+    assert view.teacher.preview_title.text() == "What Vertex reads: 2 of 2 clips"
+    assert wait_until(qapp, lambda: view.tag_plan is not None and
+                      set(view.tag_plan.games) == {"First Light", "007 First Light"})
+    view._go(1)
+    assert win.first_run is None
+    assert [p.app for p in win.context.config.patterns()] == ["Medal"]
+    assert Config.load().name_patterns[0]["app"] == "Medal"
+    tags = win.context.library.tags()
+    assert tags["MedalTVFirstLight20260817235610725.mp4"][0] == "First Light"
+    naming.use_patterns([])
+    _close(win)
+
+
+def test_the_name_teacher_learns_from_marked_parts(qapp):
+    from vertex.ui.name_teacher import NameTeacher
+
+    teacher = NameTeacher()
+    teacher.set_names(["Clip_Valorant_16-06-2024.mp4", "Clip_Apex_01-02-2025.mp4"])
+    teacher.choose("Something else")
+    assert teacher.sample.text() == "Clip_Apex_01-02-2025.mp4"
+    teacher._set_sample("Clip_Valorant_16-06-2024.mp4")
+
+    def mark(text, kind):
+        teacher.sample.setSelection(teacher.sample.text().index(text), len(text))
+        teacher._mark(kind)
+
+    mark("Valorant", "game")
+    assert teacher.pattern() is not None
+    mark("16-06-2024", "date")
+    assert teacher.format.isHidden()                # only day-month-year fits 16-06
+    assert teacher.pattern().template == "Clip_{game}_{date:DD-MM-YYYY}"
+    assert teacher.preview_title.text() == "What Vertex reads: 2 of 2 clips"
+    mark("Clip", "date")
+    assert "can't read" in teacher.note.text()
+    teacher.sample.deselect()
+    teacher._mark("game")
+    assert "Select a part" in teacher.note.text()
+    teacher.deleteLater()

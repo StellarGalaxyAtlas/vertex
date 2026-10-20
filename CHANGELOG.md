@@ -32,6 +32,10 @@ Vertex on Windows 10 and 11, without Sonar.
 - ffmpeg runs without console windows; Show in folder opens Explorer.
 - The logo's ink follows the taskbar's theme, which Windows sets apart from
   the apps' one.
+- Teaching Vertex a clip app's file names, in setup and in Settings › Import
+  and setup: presets for Medal, SteelSeries Moments, NVIDIA ShadowPlay, Xbox
+  Game Bar, OBS, AMD Adrenalin and GPU Screen Recorder, or a name marked up
+  by hand, with a preview of what Vertex reads from your clips.
 - Importing clips reads the folders inside the chosen one too (Moments and
   Medal keep a folder per game), with a list to leave folders out.
 - A Windows job in CI.

@@ -52,18 +52,11 @@ with the logs if it still doesn't start.
 ### Importing clips
 
 **75.**
-**Teach Vertex a clip app's file names**
-Mockup: windows-port/mockups/1-file-names.png. When imported clips have
-names Vertex doesn't know (Medal: MedalTV007FirstLight20260817235610725),
-a step in first-run setup and in Settings › Import and setup teaches it.
-Presets for known apps: Medal, SteelSeries Moments, NVIDIA ShadowPlay /
-NVIDIA App, Xbox Game Bar, OBS, AMD Adrenalin, Steam, Outplayed, GPU
-Screen Recorder; a preset not checked against a real file from that app
-needs a sample name first. Or the user picks a clip or pastes a name,
-selects a part and says what it is (Game, Date, Time, Date and time,
-Fixed text, Ignore). A preview shows what Vertex reads from their own
-clips. Joined words in game names can be split (FirstLight → First
-Light).
+**Check the file-name presets against real clips**
+Built (2026-10-20): presets plus marking up a name, in setup and Settings.
+Medal, Moments and GPU Screen Recorder are proven; OBS (its default
+naming), ShadowPlay, Game Bar and AMD Adrenalin are from memory and say so. Steam and Outplayed have
+no preset yet. Needs real file names from those apps.
 
 ### Recording
 
