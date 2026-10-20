@@ -31,6 +31,8 @@ from vertex.ui import icons, theme, workers
 from vertex.ui.dialogs.importing import FolderList
 from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
+from vertex.ui.settings.tracks import NOTE as TRACKS_NOTE
+from vertex.ui.settings.tracks import TrackTable
 from vertex.ui.sonar_view import DeviceField
 from vertex.ui.widgets import (
     ChoiceCard,
@@ -328,6 +330,12 @@ class FirstRunView(QWidget):
         self.choices.changed.connect(self._choices_changed)
         self.choices.quality_picked.connect(self._quality_picked)
         self.choices.monitors_changed.connect(self._choices_changed)
+        # Settings' tracks: which device each one records.
+        self.tracks = TrackTable()
+        self.tracks.show_devices([], self.config.recorder)
+        self.tracks.changed.connect(self._tracks_changed)
+        section.add(self.tracks)
+        section.add(label(TRACKS_NOTE, "Dim", wrap=True))
         self.rec_autostart = Toggle(self.config.recorder.autostart if self.again else False)
         self._autostart_touched = self.again
         self.rec_autostart.clicked.connect(lambda: setattr(self, "_autostart_touched", True))
@@ -354,6 +362,10 @@ class FirstRunView(QWidget):
             self.config.recorder.bitrate_kbps = 0
         self._choices_changed()
 
+    def _tracks_changed(self) -> None:
+        self.tracks.apply(self.config.recorder)
+        self.clip_size.estimate(self.config, self.choices.recorded)
+
     def _find_recorder(self) -> None:
         command = self.config.recorder.command
         self.recheck_button.setEnabled(False)
@@ -363,12 +375,12 @@ class FirstRunView(QWidget):
             info = gsr.detect(command)
             usable = info.available and not info.too_old
             return (info, gsr.list_capture_options(command) if usable else [],
-                    notifier.find())
+                    notifier.find(), gsr.list_audio_devices(command) if usable else [])
 
         workers.run(probe, self._got_recorder)
 
     def _got_recorder(self, result) -> None:
-        info, options, notifier_path = result
+        info, options, notifier_path, devices = result
         self.notifier_path = notifier_path
         self._show_notifier(bool(notifier_path))
         self.gsr_info = info
@@ -377,6 +389,7 @@ class FirstRunView(QWidget):
         self.install.setVisible(not usable)
         self.rec_autostart.setEnabled(usable)
         self.choices.set_capture_options(options)
+        self.tracks.show_devices(devices, self.config.recorder)
         self._choices_changed()
         if usable:
             self.gsr_status.setText(f"Recording with GPU Screen Recorder {info.version_text}.")
@@ -868,6 +881,7 @@ class FirstRunView(QWidget):
             if not getattr(config, key):
                 setattr(config, key, getattr(defaults, key))
         self.choices.apply(config.recorder)
+        self.tracks.apply(config.recorder)
         config.recorder.autostart = self.rec_autostart.isChecked()
         config.sonar.output_device = self.output.currentData() or ""
         config.sonar.mic_device = self.mic.currentData() or ""
