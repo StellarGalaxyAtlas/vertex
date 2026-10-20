@@ -132,3 +132,11 @@ def test_patterns_in_the_settings_survive_a_round_trip_and_bad_ones_go(tmp_path)
     loaded = config.Config.from_dict({"name_patterns": [
         PRESETS[0].pattern.to_dict(), {"app": "x", "template": "{nope}"}, "junk"]})
     assert config.Config.load(path).patterns() == loaded.patterns() == [PRESETS[0].pattern]
+
+
+def test_the_first_pattern_that_reads_a_name_is_its_reader():
+    medal = next(p.pattern for p in PRESETS if p.app == "Medal")
+    assert naming.reader_of("MedalTVValorant20260809184502117.mp4", [medal]) == 0
+    assert naming.reader_of("THE-FINALS__2024-06-16__19-45-23.mp4", [medal]) == naming.BUILT_IN
+    assert naming.reader_of("Replay_2026-03-28_05-28-25.mp4", []) == naming.BUILT_IN
+    assert naming.reader_of("clip_final_edit.mp4", [medal]) is None

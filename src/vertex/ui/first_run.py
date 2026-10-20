@@ -29,7 +29,7 @@ from vertex.library.database import DB_NAME, Library
 from vertex.recorder import gsr, notifier
 from vertex.ui import icons, theme, workers
 from vertex.ui.dialogs.importing import FolderList
-from vertex.ui.name_teacher import NameTeacher
+from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.sonar_view import DeviceField
 from vertex.ui.widgets import (
@@ -663,12 +663,15 @@ class FirstRunView(QWidget):
         self.tags_status = label("", "Muted", wrap=True)
         self.names = Section("Teach Vertex your file names",
                              "For clips whose names Vertex doesn't read yet.")
-        self.teacher = NameTeacher()
-        self.names.add(self.teacher)
+        self._names_shown: list[str] = []
+        self.sources = NameSources()
+        self.sources.set_patterns(self.config.patterns())
+        self.names.add(self.sources)
         self.names.hide()
         self._teach_timer = QTimer(self, singleShot=True, interval=300)
         self._teach_timer.timeout.connect(self._plan_tags)
-        self.teacher.changed.connect(self._teach_timer.start)
+        self.sources.changed.connect(self._teach_timer.start)
+        self.sources.draft_changed.connect(self._teach_timer.start)
         self.games = Section("Games found in file names")
         self.games_host = QWidget()
         self.games_grid = QGridLayout(self.games_host)
@@ -725,19 +728,20 @@ class FirstRunView(QWidget):
         workers.run(plan, done, failed)
 
     def _patterns(self) -> list:
-        """The patterns the clips are read with: the one being taught first."""
-        taught = self.teacher.pattern()
-        kept = [p for p in self.config.patterns() if taught is None or p.app != taught.app]
-        return ([taught] if taught is not None else []) + kept
+        """The patterns the clips are read with: the list, then the app being
+        added, so what was taught counts even before it is added."""
+        draft = self.sources.draft()
+        return self.sources.patterns() + ([draft] if draft is not None else [])
 
     def _show_tags(self, plan: importing.ImportPlan) -> None:
         self.tag_plan = plan
         names = [n for names in plan.games.values() for n in names] + plan.strays + \
             plan.already
-        if set(names) != set(self.teacher.names):
-            self.teacher.set_names(names, plan.folder)
+        if set(names) != set(self._names_shown):
+            self._names_shown = names
+            self.sources.set_names(names, plan.folder)
         # Shown while there are names to teach, and kept once teaching began.
-        self.names.setVisible(bool(plan.strays) or self.teacher.pattern() is not None)
+        self.names.setVisible(bool(plan.strays) or bool(self._patterns()))
         while self.games_grid.count():
             item = self.games_grid.takeAt(0)
             if item.widget() is not None:
