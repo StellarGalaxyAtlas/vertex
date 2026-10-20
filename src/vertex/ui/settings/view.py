@@ -170,7 +170,8 @@ class SettingsView(QWidget):
         first, *kinds = self.notifications.sections
         self.pages["notifications"] = scroll_page(first, *_pairs(kinds))
         self.stack.addWidget(self.pages["notifications"])
-        top, *groups = ShortcutsPage().sections
+        self.shortcuts = ShortcutsPage(context)
+        top, *groups = self.shortcuts.sections
         self.pages["shortcuts"] = scroll_page(top, *_pairs(groups))
         self.stack.addWidget(self.pages["shortcuts"])
         self._build_import()

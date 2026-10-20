@@ -88,11 +88,10 @@ as they are. Remembered between clips.
 
 **67.**
 **Hotkeys in Settings**
-Vertex registers its own global hotkeys on Windows (save clip, save the last
-30 seconds, start and stop the replay buffer, show Vertex), set with a key
-picker in Settings › Shortcuts, in place of binding commands to keys.
-Any number of modifiers; the keys held show live while recording.
-Mockup: windows-port/mockups/5-hotkeys.png, waiting on the maintainer.
+Built (2026-10-20) as in windows-port/mockups/5-hotkeys.png: Settings ›
+Shortcuts records keys as they're pressed, held with Windows'
+RegisterHotKey. To try on the friend's PC: that each hotkey works in a
+game, and that keys another program holds are named.
 
 ## Decided
 

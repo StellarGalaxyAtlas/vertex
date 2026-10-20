@@ -157,3 +157,54 @@ def test_vertex_starts_at_sign_in_from_a_shortcut_named_vertex(windows, monkeypa
 def test_the_taskbar_theme_is_asked_of_windows_only_there(windows):
     light = system.light_desktop()
     assert light is None if sys.platform != "win32" else light in (True, False, None)
+
+
+def test_hotkeys_are_written_in_windows_order_and_typing_keys_need_ctrl_alt_or_win():
+    from vertex import hotkeys
+
+    assert hotkeys.parse("Alt+Win+G").text == "Win+Alt+G"
+    assert hotkeys.parse("Ctrl+Num +").parts == ("Ctrl", "Num +")
+    assert hotkeys.parse("F13").text == "F13"            # what a macro key sends
+    for refused in ("A", "Shift+A", "Shift+Space", "Ctrl+Ctrl+A", "Ctrl+Esc", "Ctrl+", ""):
+        assert hotkeys.parse(refused) is None, refused
+    assert "Add Ctrl, Alt or Win" in hotkeys.Hotkey.of(["Shift"], "5").problem()
+    assert hotkeys.key_name(0x78) == "F9" and hotkeys.key_name(0xBA) == ""
+    assert hotkeys.bindings({"save_clip": "Ctrl+Alt+F9", "show": "Ctrl+Alt+F9",
+                             "nope": "F1", "replay": "A"}) == \
+        {"save_clip": hotkeys.parse("Ctrl+Alt+F9")}
+
+
+def test_hotkeys_in_the_settings_drop_what_cant_be_read(tmp_path):
+    from vertex.config import Config
+
+    config = Config.from_dict({"hotkeys": {"save_clip": "Alt+Ctrl+F9", "show": "Q",
+                                           "replay": 5},
+                               "hotkey_last_seconds": 45})
+    assert config.hotkeys == {"save_clip": "Ctrl+Alt+F9"}
+    assert config.hotkey_last_seconds == 30
+    config.hotkey_last_seconds = 60
+    config.save(tmp_path / "config.json")
+    assert Config.load(tmp_path / "config.json").hotkey_last_seconds == 60
+
+
+def test_windows_holds_the_hotkeys_and_lets_them_go():
+    import threading
+
+    from vertex import hotkeys
+
+    results = []
+    done = threading.Event()
+    listener = hotkeys.Listener(lambda _action: None,
+                                lambda failed: (results.append(failed), done.set()))
+    listener.set({"save_clip": hotkeys.parse("Ctrl+Alt+Shift+F24")})
+    if sys.platform != "win32":
+        assert listener._thread is None and not results     # nothing to hold elsewhere
+        return
+    try:
+        assert done.wait(5)
+        assert results[-1] <= {"save_clip"}         # held, or another program has it
+        done.clear()
+        listener.set({})
+        assert done.wait(5) and results[-1] == set()
+    finally:
+        listener.close()

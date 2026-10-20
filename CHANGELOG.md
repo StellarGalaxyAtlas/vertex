@@ -39,6 +39,9 @@ Vertex on Windows 10 and 11, without Sonar.
   by hand, with a preview of what Vertex reads from your clips.
 - Importing clips reads the folders inside the chosen one too (Moments and
   Medal keep a folder per game), with a list to leave folders out.
+- Hotkeys on Windows, set in Settings › Shortcuts by pressing them: save a
+  clip, save the last part of the buffer, start or stop the replay buffer,
+  show Vertex. Keys another program holds are named on their row.
 - A Windows job in CI.
 
 ## 2.0.0 — unreleased

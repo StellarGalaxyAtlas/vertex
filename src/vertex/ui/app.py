@@ -51,6 +51,7 @@ def run(background: bool = False) -> int:
             pass
         return 0
     window.add_to_start_menu()
+    context.hotkeys.start()
     if logs.apply(config.keep_logs, config.resolved_log_dir()):
         logs.started()
         logs.APP.info("Logs in %s", logs.folder())

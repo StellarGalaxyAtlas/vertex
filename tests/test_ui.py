@@ -1645,3 +1645,96 @@ def test_a_marked_part_survives_the_field_losing_focus(qapp):
     teacher.mark_buttons["game"].click()
     assert teacher.pattern().template == "Clip_{game}_16-06-2024"
     teacher.deleteLater()
+
+
+def _hotkeys_page(monkeypatch):
+    from vertex import hotkeys
+    from vertex.config import Config
+    from vertex.ui.services import Context
+    from vertex.ui.settings.shortcuts import ShortcutsPage
+
+    monkeypatch.setattr(hotkeys, "AVAILABLE", True)
+    context = Context(Config())
+    return context, ShortcutsPage(context).hotkeys
+
+
+def test_a_hotkey_is_recorded_with_the_keys_held_shown_live(qapp, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from vertex.config import Config
+
+    context, page = _hotkeys_page(monkeypatch)
+    paused = []
+    recorder = page.rows["save_clip"].recorder
+    recorder.recording.connect(paused.append)
+    assert recorder.caps.parts == () and recorder.hotkey is None
+    recorder.listen()
+    assert paused == [True]
+    QTest.keyPress(recorder, Qt.Key.Key_Control, Qt.KeyboardModifier.ControlModifier)
+    QTest.keyPress(recorder, Qt.Key.Key_Alt,
+                   Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+    assert recorder.caps.parts == ("Ctrl", "Alt")
+    QTest.keyRelease(recorder, Qt.Key.Key_Alt)
+    assert recorder.caps.parts == ("Ctrl",)
+    QTest.keyPress(recorder, Qt.Key.Key_A, Qt.KeyboardModifier.ShiftModifier)
+    assert "Add Ctrl, Alt or Win" in page.rows["save_clip"].note.text()
+    assert recorder.listening
+    QTest.keyPress(recorder, Qt.Key.Key_F9,
+                   Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+    assert not recorder.listening and paused == [True, False]
+    assert Config.load().hotkeys == {"save_clip": "Ctrl+Alt+F9"}
+    assert recorder.caps.parts == ("Ctrl", "Alt", "F9")
+
+    recorder.listen()
+    QTest.keyPress(recorder, Qt.Key.Key_Escape)
+    assert not recorder.listening and context.config.hotkeys == {"save_clip": "Ctrl+Alt+F9"}
+    page.rows["save_clip"].clear.click()
+    assert context.config.hotkeys == {}
+
+
+def test_keys_another_action_has_move_and_can_come_back(qapp, monkeypatch):
+    from vertex import hotkeys
+
+    context, page = _hotkeys_page(monkeypatch)
+    keys = hotkeys.parse("Ctrl+Alt+F9")
+    page._chosen("save_clip", keys)
+    page._chosen("replay", keys)
+    assert context.config.hotkeys == {"replay": "Ctrl+Alt+F9"}
+    assert "Taken from “Save a clip”" in page.rows["replay"].note.text()
+    page.rows["replay"].note.linkActivated.emit("undo")
+    assert context.config.hotkeys == {"save_clip": "Ctrl+Alt+F9"}
+    assert page.rows["replay"].note.isHidden()
+
+
+def test_keys_another_program_holds_go_back_or_say_so(qapp, monkeypatch):
+    from vertex import hotkeys
+
+    context, page = _hotkeys_page(monkeypatch)
+    page._chosen("show", hotkeys.parse("Ctrl+Alt+V"))
+    context.hotkeys._got_result(set())
+    page._chosen("show", hotkeys.parse("Win+Alt+G"))
+    context.hotkeys._got_result({"show"})         # Windows refused the new keys
+    assert context.config.hotkeys == {"show": "Ctrl+Alt+V"}
+    assert "Another program already uses Win + Alt + G. Your old keys are kept." in \
+        page.rows["show"].note.text()
+    context.hotkeys._got_result(set())
+    assert "Your old keys are kept" in page.rows["show"].note.text()
+    context.hotkeys._got_result({"show"})         # held elsewhere since, say at start
+    assert page.rows["show"].recorder.warn
+    assert "does nothing for now" in page.rows["show"].note.text()
+    context.hotkeys._got_result(set())
+    assert not page.rows["show"].recorder.warn and page.rows["show"].note.isHidden()
+
+
+def test_a_hotkey_runs_its_action(qapp, window):
+    from vertex.ui.control import Commands
+
+    commands = Commands(window, window.context)
+    ran = []
+    commands._run = lambda command, args: ran.append((command, args)) or {"ok": True}
+    window.context.config.hotkey_last_seconds = 60
+    for action in ("save_clip", "save_last", "replay", "show"):
+        window.context.hotkeys.pressed.emit(action)
+    assert ran == [("save-clip", {}), ("save-clip", {"seconds": 60}),
+                   ("replay", {"action": "toggle"}), ("show", {})]

@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from vertex import fmt, logs, notifications
+from vertex import fmt, hotkeys, logs, notifications
 from vertex.config import Config
 from vertex.core import naming
 from vertex.library import Library
@@ -342,6 +342,52 @@ _NOTICE_LEVELS = {"info": logging.INFO, "ok": logging.INFO, "warn": logging.WARN
                   "error": logging.ERROR}
 
 
+class Hotkeys(QObject):
+    """The global hotkeys in the settings, held with Windows while Vertex
+    runs (see vertex.hotkeys). `pressed` names the action; `failed` holds the
+    actions whose keys another program has, as of the last `checked`."""
+
+    pressed = Signal(str)
+    checked = Signal()               # Windows said which hotkeys it holds
+    _result = Signal(object)
+
+    def __init__(self, context: Context):
+        super().__init__(context)
+        self.context = context
+        self.failed: set[str] = set()
+        self._paused = False
+        self._started = False
+        # Both are called from the listener's thread: through signals, they
+        # land on the UI thread.
+        self._listener = hotkeys.Listener(self.pressed.emit, self._result.emit)
+        self._result.connect(self._got_result)
+        context.config_changed.connect(self.apply)
+
+    def start(self) -> None:
+        self._started = True
+        self.apply()
+
+    def apply(self) -> None:
+        if self._started:
+            self._listener.set({} if self._paused else
+                               hotkeys.bindings(self.context.config.hotkeys))
+
+    def pause(self, paused: bool) -> None:
+        """Let every hotkey go while new keys are being recorded, so pressing
+        one records it rather than running it."""
+        if paused != self._paused:
+            self._paused = paused
+            self.apply()
+
+    def _got_result(self, failed: set[str]) -> None:
+        if not self._paused:
+            self.failed = set(failed)
+            self.checked.emit()
+
+    def shutdown(self) -> None:
+        self._listener.close()
+
+
 class Context(QObject):
     config_changed = Signal()
     library_reset = Signal()             # the library or clips folder changed
@@ -357,6 +403,7 @@ class Context(QObject):
         self.library: Library | None = None
         self.thumbs: ThumbnailService | None = None
         self.recorder = RecorderController(self)
+        self.hotkeys = Hotkeys(self)
         self._save_timer = QTimer(self, singleShot=True, interval=1000)
         self._save_timer.timeout.connect(self.save_config)
 
@@ -401,6 +448,7 @@ class Context(QObject):
         self._save_timer.start()
 
     def shutdown(self) -> None:
+        self.hotkeys.shutdown()
         if self._save_timer.isActive():
             self.save_config()
         self.recorder.shutdown()

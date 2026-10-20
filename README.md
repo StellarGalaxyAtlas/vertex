@@ -116,7 +116,7 @@ GPU Screen Recorder, and notifications can show over games.
   <img src="docs/screenshots/settings-general.png" alt="General settings" width="900">
 </p>
 
-Nine color schemes, recording options, shortcut commands to copy, importing
+Nine color schemes, recording options, hotkeys, importing
 from Moments or Medal (including the folder per game, leaving out any folder
 you untick), and resets. Vertex reads the game and the date from clip names:
 pick the app that recorded them (Medal, ShadowPlay, Xbox Game Bar, OBS and
@@ -198,11 +198,15 @@ Update and remove it as on Windows. For the Flatpak GPU Screen Recorder, set
 
 ## Shortcuts and command line
 
-Vertex is driven from outside by the `vertex` command. Bind `vertex
-save-clip` to a key: on KDE in System Settings › Keyboard › Shortcuts › Add
-New › Command or Script; on Windows with your keyboard or mouse software, or
-a shortcut's *Shortcut key*. *Settings › Shortcuts* lists every command,
-ready to copy:
+On Windows, *Settings › Shortcuts* sets hotkeys for saving a clip (or its
+last part), starting or stopping the replay buffer and showing Vertex:
+click a field and press the keys. They work in games too, while Vertex
+runs.
+
+Vertex is also driven from outside by the `vertex` command, for mouse or
+keyboard software and scripts (on KDE, bind `vertex save-clip` in System
+Settings › Keyboard › Shortcuts › Add New › Command or Script). *Settings ›
+Shortcuts* lists every command, ready to copy:
 
 ```
 vertex save-clip [--last N]       save the replay buffer (or its last N seconds)

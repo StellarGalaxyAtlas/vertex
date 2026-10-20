@@ -38,6 +38,7 @@ class Commands(QObject):
             signal.connect(self._state_may_have_changed)
         context.notified.connect(
             lambda notice: self.subscribers.publish(control.notice_event(notice)))
+        context.hotkeys.pressed.connect(self._hotkey)
 
     def dispatch(self, command: str, args: dict) -> dict:
         box: list = []
@@ -53,6 +54,17 @@ class Commands(QObject):
             logs.APP.exception("Command %s failed", command)
             box.append(control.error(control.FAILED, str(exc)))
         _log_command(command, args, box[-1])
+
+    def _hotkey(self, action: str) -> None:
+        """A hotkey runs its action as the command a shortcut would send."""
+        command, args = {
+            "save_clip": ("save-clip", {}),
+            "save_last": ("save-clip", {"seconds": self.context.config.hotkey_last_seconds}),
+            "replay": ("replay", {"action": "toggle"}),
+            "show": ("show", {}),
+        }[action]
+        logs.APP.info("Hotkey %s", self.context.config.hotkeys.get(action, action))
+        self._handle(command, args, [])
 
     # --- State --------------------------------------------------------------------
 

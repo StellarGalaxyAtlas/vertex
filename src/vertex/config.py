@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vertex import APP_NAME, notifications, paths, system
+from vertex import APP_NAME, hotkeys, notifications, paths, system
+from vertex.control import SAVE_LENGTHS
 from vertex.core.name_patterns import NamePattern
 
 # Subfolder of the user's videos dir that clips are recorded into by default.
@@ -117,6 +118,11 @@ class Config:
     # taught Vertex (NamePattern.to_dict()), tried first to last.
     name_patterns: list[dict] = field(default_factory=list)
 
+    # Global hotkeys (see vertex.hotkeys), as text by action, and how much
+    # the "Save the last" one saves.
+    hotkeys: dict[str, str] = field(default_factory=dict)
+    hotkey_last_seconds: int = 30
+
     def patterns(self) -> list[NamePattern]:
         return [p for p in map(NamePattern.from_dict, self.name_patterns) if p is not None]
 
@@ -198,6 +204,10 @@ class Config:
                                     map(NamePattern.from_dict, taught) if pattern is not None]
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
+        config.hotkeys = {action: hotkey.text for action, hotkey in
+                          hotkeys.bindings(config.hotkeys).items()}
+        if config.hotkey_last_seconds not in SAVE_LENGTHS:
+            config.hotkey_last_seconds = Config.hotkey_last_seconds
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
         # Tidied, as Windows' own separators, but '~' kept as written.
