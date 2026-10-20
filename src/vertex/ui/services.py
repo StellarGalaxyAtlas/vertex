@@ -20,6 +20,7 @@ from vertex.audio import channels, devices, levels
 from vertex.audio.pulse import AudioError, Pactl
 from vertex.audio.sonar import Sonar, SonarStatus
 from vertex.config import Config
+from vertex.core import naming
 from vertex.core.naming import game_from_app
 from vertex.library import Library
 from vertex.media import probe
@@ -836,6 +837,7 @@ class Context(QObject):
     def __init__(self, config: Config, parent=None):
         super().__init__(parent)
         self.config = config
+        naming.use_patterns(config.patterns())
         self.library: Library | None = None
         self.thumbs: ThumbnailService | None = None
         self.sonar = SonarController(self)
@@ -869,6 +871,7 @@ class Context(QObject):
             return
         # Follows logging switched on or off, or a moved log folder.
         logs.apply(self.config.keep_logs, self.config.resolved_log_dir())
+        naming.use_patterns(self.config.patterns())
         self.config_changed.emit()
 
     def notify(self, kind: str, title: str, body: str = "") -> None:
