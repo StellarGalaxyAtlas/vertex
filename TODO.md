@@ -35,9 +35,12 @@ AppData folders, and hands other programs the real place of each;
 is. To try on the friend's PC, and to ask which capitalization they saw.
 
 **72.** Bug
-**No icon on the Start menu shortcut**
-Likely the same cause as 69: the icon file sat in the private copy. To
-check after 69 is tried.
+**No icon on the Start menu shortcut or in the taskbar**
+The Start menu entry is added when `vertex` first runs (pipx can't add
+it). The icon was drawn for the apps' light theme, so a dark mark sat on
+Windows' dark taskbar; it now follows the taskbar's theme
+(2026-10-20). The shortcut's icon file may also have sat in the private
+AppData copy (69). To check on the friend's PC.
 
 **73.** Bug
 **The replay buffer doesn't start after first-run setup**

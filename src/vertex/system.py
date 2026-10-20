@@ -79,6 +79,26 @@ def set_app_id(app_id: str) -> None:
         pass
 
 
+PERSONALIZE_KEY = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+
+
+def light_desktop() -> bool | None:
+    """Whether the taskbar and Start menu are light. Windows sets them apart
+    from apps: by default the taskbar is dark while apps are light, and Qt
+    only reports the apps' setting. None where this isn't Windows, or
+    Windows doesn't say."""
+    if not WINDOWS:
+        return None
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, PERSONALIZE_KEY) as key:
+            value, _kind = winreg.QueryValueEx(key, "SystemUsesLightTheme")
+    except (OSError, ImportError):
+        return None
+    return bool(value)
+
+
 def appdata(local: bool = False) -> str:
     """%APPDATA% (settings that roam) or %LOCALAPPDATA% (data that doesn't)."""
     name = "LOCALAPPDATA" if local else "APPDATA"

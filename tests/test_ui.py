@@ -1532,3 +1532,13 @@ def test_the_import_dialog_lists_the_folders_it_found(qapp, tmp_path):
     assert dialog.summary.text() == "Nothing new to copy."
     assert not dialog.copy_button.isEnabled()
     dialog.deleteLater()
+
+
+def test_the_icon_ink_follows_the_windows_taskbar_not_the_apps(qapp, monkeypatch):
+    from vertex import system
+    from vertex.ui import icons
+
+    monkeypatch.setattr(system, "light_desktop", lambda: False)    # dark taskbar
+    assert icons.desktop_ink() == icons.desktop_ink_outside_app() == "light"
+    monkeypatch.setattr(system, "light_desktop", lambda: True)
+    assert icons.desktop_ink() == "dark"

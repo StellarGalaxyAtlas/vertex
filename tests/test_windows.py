@@ -150,3 +150,8 @@ def test_vertex_starts_at_sign_in_from_a_shortcut_named_vertex(windows, monkeypa
     assert desktop.autostart_enabled()
     desktop.set_autostart(False)
     assert not startup.exists() and not desktop.autostart_enabled()
+
+
+def test_the_taskbar_theme_is_asked_of_windows_only_there(windows):
+    light = system.light_desktop()
+    assert light is None if sys.platform != "win32" else light in (True, False, None)
