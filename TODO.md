@@ -21,7 +21,7 @@ Decided: Vertex starts OBS in the tray when the buffer starts; keeps its own
 OBS's settings file while OBS is closed; "save the last 30 seconds" cuts the
 save and keeps only the cut.
 Built; first tried on a friend's Windows PC (2026-10-20), whose findings
-are 68–78 below.
+are 68–78 below (76 dropped).
 
 ### Windows: fixes from the first install
 
@@ -72,13 +72,6 @@ apps (Medal, Moments, ShadowPlay, OBS, Game Bar), with a preview of what
 Vertex reads from their own clips. Joined words in game names can be
 split (FirstLight → First Light).
 
-**76.**
-**Which audio track is which in imported clips**
-Mockup: windows-port/mockups/2-imported-tracks.png. Per kind of clip (by
-file-name pattern), the user says what each track holds (Game, Chat,
-Microphone, Music, Desktop, Other), with a short listen to each. Clips
-whose tracks Vertex named itself need nothing.
-
 ### Recording
 
 **77.**
@@ -103,3 +96,5 @@ picker in Settings › Shortcuts, in place of binding commands to keys.
 
 - No Sonar, and nothing about it in the UI. Stream Deck left out for now.
 - This stays a separate repository from `vertex`.
+- Imported clips' audio tracks stay as Vertex reads them now; no setting
+  to say which track is which (dropped 76, 2026-10-20).
