@@ -79,6 +79,71 @@ def set_app_id(app_id: str) -> None:
         pass
 
 
+# The taskbar's properties of a window (PKEY_AppUserModel_*): its id, and how
+# the taskbar starts it again, with which icon and name, once it is pinned.
+_APP_MODEL_KEYS = "{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}"
+_RELAUNCH_COMMAND, _RELAUNCH_ICON, _RELAUNCH_NAME, _APP_MODEL_ID = 2, 3, 4, 5
+_IID_PROPERTY_STORE = "{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}"
+
+
+def set_window_app_id(hwnd: int, app_id: str, command: str, icon: str, name: str) -> bool:
+    """Put a window under Vertex's own name and icon on the taskbar. The
+    process-wide id isn't enough where Python runs as a packaged app (the
+    Microsoft Store's): Windows files its windows under Python's package,
+    with Python's logo, unless the window itself says otherwise. Returns
+    whether Windows took it."""
+    if not WINDOWS:
+        return False
+    import ctypes
+    import uuid
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
+                    ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8)]
+
+    class PROPERTYKEY(ctypes.Structure):
+        _fields_ = [("fmtid", GUID), ("pid", wintypes.DWORD)]
+
+    class PROPVARIANT(ctypes.Structure):      # just the VT_LPWSTR case
+        _fields_ = [("vt", wintypes.USHORT), ("reserved", wintypes.WORD * 3),
+                    ("value", ctypes.c_void_p), ("rest", ctypes.c_void_p)]
+
+    def guid(text: str) -> GUID:
+        return GUID.from_buffer_copy(uuid.UUID(text).bytes_le)
+
+    VT_LPWSTR = 31
+    store = ctypes.c_void_p()
+    try:
+        shell32 = ctypes.windll.shell32
+        shell32.SHGetPropertyStoreForWindow.argtypes = (
+            wintypes.HWND, ctypes.POINTER(GUID), ctypes.POINTER(ctypes.c_void_p))
+        shell32.SHGetPropertyStoreForWindow.restype = ctypes.c_long
+        if shell32.SHGetPropertyStoreForWindow(
+                hwnd, ctypes.byref(guid(_IID_PROPERTY_STORE)), ctypes.byref(store)) != 0:
+            return False
+    except (OSError, AttributeError):
+        return False
+    table = ctypes.cast(store, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    set_value = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.POINTER(PROPERTYKEY),
+                                   ctypes.POINTER(PROPVARIANT))(table[6])
+    commit = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p)(table[7])
+    release = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(table[2])
+    ok = True
+    try:
+        # The id last: the taskbar reads the others when it changes.
+        for pid, text in ((_RELAUNCH_COMMAND, command), (_RELAUNCH_ICON, icon),
+                          (_RELAUNCH_NAME, name), (_APP_MODEL_ID, app_id)):
+            buffer = ctypes.create_unicode_buffer(text)
+            value = PROPVARIANT(vt=VT_LPWSTR, value=ctypes.addressof(buffer))
+            key = PROPERTYKEY(fmtid=guid(_APP_MODEL_KEYS), pid=pid)
+            ok = set_value(store, ctypes.byref(key), ctypes.byref(value)) == 0 and ok
+        ok = commit(store) == 0 and ok
+    finally:
+        release(store)
+    return ok
+
+
 PERSONALIZE_KEY = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 
 

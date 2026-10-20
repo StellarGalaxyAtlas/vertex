@@ -13,6 +13,8 @@ Vertex on Windows 10 and 11, without Sonar.
 - The Stream Deck link on the Shortcuts page, for now.
 
 ### Changed
+- Enter in a confirmation takes what it asks for (Delete, Apply), not
+  Cancel.
 - A clip's tracks default to the default output (Game) and the default
   microphone (Mic); a Chat track is picked in Settings › Recording.
 
@@ -32,7 +34,8 @@ Vertex on Windows 10 and 11, without Sonar.
   removed by `vertex uninstall-desktop`.
 - ffmpeg runs without console windows; Show in folder opens Explorer.
 - The logo's ink follows the taskbar's theme, which Windows sets apart from
-  the apps' one.
+  the apps' one. The window is on the taskbar as Vertex, not as Python,
+  also on the Microsoft Store's Python.
 - Teaching Vertex a clip app's file names, in setup and in Settings › Import
   and setup: presets for Medal, SteelSeries Moments, NVIDIA ShadowPlay, Xbox
   Game Bar, OBS, AMD Adrenalin and GPU Screen Recorder, or a name marked up

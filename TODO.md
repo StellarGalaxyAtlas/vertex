@@ -40,7 +40,9 @@ The Start menu entry is added when `vertex` first runs (pipx can't add
 it). The icon was drawn for the apps' light theme, so a dark mark sat on
 Windows' dark taskbar; it now follows the taskbar's theme
 (2026-10-20). The shortcut's icon file may also have sat in the private
-AppData copy (69). To check on the friend's PC.
+AppData copy (69). The taskbar still showed Python's logo: a packaged
+Python files its windows under its own package, so the window now carries
+Vertex's taskbar id itself (2026-10-20). To check on the friend's PC.
 
 **73.** Bug
 **The replay buffer doesn't start after first-run setup**

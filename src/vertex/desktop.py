@@ -51,6 +51,7 @@ def added_marker() -> Path:
 # --- Windows ------------------------------------------------------------------
 
 GUI_SCRIPT = "VertexApp"       # pyproject's gui-script
+WINDOWS_APP_ID = f"{APP_NAME}.{APP_NAME}"     # what the taskbar files Vertex under
 
 
 def _programs() -> Path:
@@ -75,6 +76,14 @@ def windows_icon() -> Path:
 def _shortcut_icon() -> Path:
     """The icon where Explorer can read it (see paths.real)."""
     return Path(paths.real(str(windows_icon())))
+
+
+def put_on_taskbar(hwnd: int) -> bool:
+    """A window under Vertex's name and icon on the taskbar, also when
+    pinned (see system.set_window_app_id)."""
+    return system.set_window_app_id(hwnd, WINDOWS_APP_ID,
+                                    subprocess.list2cmdline(launch_command()),
+                                    str(_shortcut_icon()), APP_NAME)
 
 
 def _windows_icon(variant: str) -> list[Path]:

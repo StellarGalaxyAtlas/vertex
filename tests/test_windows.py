@@ -217,3 +217,27 @@ def test_windows_holds_the_hotkeys_and_lets_them_go():
         assert done.wait(5) and results[-1] == set()
     finally:
         listener.close()
+
+
+def test_a_window_goes_on_the_taskbar_as_vertex():
+    from vertex import desktop
+
+    if sys.platform != "win32":
+        assert not desktop.put_on_taskbar(0)
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    user32.CreateWindowExW.restype = wintypes.HWND
+    user32.CreateWindowExW.argtypes = (
+        wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_int,
+        ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.HWND, wintypes.HMENU,
+        wintypes.HINSTANCE, wintypes.LPVOID)
+    hwnd = user32.CreateWindowExW(0, "STATIC", "Vertex", 0, 0, 0, 10, 10,
+                                  None, None, None, None)
+    assert hwnd
+    try:
+        assert desktop.put_on_taskbar(hwnd)
+    finally:
+        user32.DestroyWindow(hwnd)

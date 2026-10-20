@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop, kwin, logs, notifications, reset
+from vertex import APP_NAME, desktop, kwin, logs, notifications, reset, system
 from vertex.config import Config
 from vertex.media import export
 from vertex.media.thumbnails import ThumbnailCache
@@ -46,6 +46,8 @@ class MainWindow(QMainWindow):
         self.start_menu_job = None
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(icons.desktop_ink()))
+        if system.WINDOWS:
+            desktop.put_on_taskbar(int(self.winId()))
         # The icon on the desktop's panels follows its light or dark look.
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._ink_changed)
         self.resize(1280, 820)

@@ -907,14 +907,27 @@ class ChoiceDialog(TextDialog):
         layout.addSpacing(6)
         row = QHBoxLayout()
         row.addStretch(1)
+        buttons = []
         if cancel:
-            row.addWidget(button(cancel, on_click=self.reject))
+            buttons.append(button(cancel, on_click=self.reject))
         for text, value, kind in choices:
             choice = button(text, kind)
             choice.clicked.connect(lambda _c=False, v=value: self._choose(v))
-            row.addWidget(choice)
-            if kind == "primary":
-                choice.setDefault(True)
+            buttons.append(choice)
+        # Enter takes what the dialog asks for: the primary choice, else the
+        # one it warns about. Only that button presses on Enter, whichever has
+        # the focus.
+        kinds = [kind for _text, _value, kind in choices]
+        wanted = "primary" if "primary" in kinds else "danger"
+        self.default_button = None
+        if wanted in kinds:
+            self.default_button = buttons[kinds.index(wanted) + bool(cancel)]
+        for each in buttons:
+            each.setAutoDefault(each is self.default_button)
+            row.addWidget(each)
+        if self.default_button is not None:
+            self.default_button.setDefault(True)
+            self.default_button.setFocus()
         layout.addLayout(row)
 
     def _choose(self, value: str) -> None:
