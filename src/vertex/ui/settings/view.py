@@ -44,6 +44,7 @@ from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
+from vertex.ui.settings.game_names import GameNames
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
@@ -416,8 +417,18 @@ class SettingsView(QWidget):
         self.sources.added.connect(lambda: self.banner.show_message(
             "Saved. Review tags to tag the clips you have.", "ok"))
         names.add(self.sources)
-        self.pages["import"] = scroll_page((copy_section, tag_section, setup), names)
+        renames = Section("Game names", "Games you renamed in the library: new clips are "
+                                        "tagged with the new name too")
+        self.game_names = GameNames()
+        self.game_names.removed.connect(self._forget_game_name)
+        renames.add(self.game_names)
+        self.pages["import"] = scroll_page((copy_section, tag_section, setup), names, renames)
         self.stack.addWidget(self.pages["import"])
+
+    def _forget_game_name(self, name: str) -> None:
+        names = {old: new for old, new in self.context.config.game_names.items() if old != name}
+        self.context.set_game_names(names)
+        self.game_names.set_names(names)
 
     # --- Load / collect / save -------------------------------------------------
 
@@ -433,6 +444,7 @@ class SettingsView(QWidget):
         config = self.context.config
         self.sources.set_patterns(config.patterns())
         self._show_names()
+        self.game_names.set_names(config.game_names)
         self.clip_path.set_value(config.clip_path)
         self.export_path.set_value(config.export_path)
         self.data_path.set_value(config.data_path)

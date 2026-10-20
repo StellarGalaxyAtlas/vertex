@@ -17,6 +17,7 @@ from typing import Any
 from vertex import APP_NAME, notifications, paths
 from vertex.audio import channels
 from vertex.core.name_patterns import NamePattern
+from vertex.core.naming import add_game_name
 
 # Subfolder of the user's videos dir that clips are recorded into by default.
 CLIP_SUBDIR = "Game Recordings"
@@ -170,6 +171,11 @@ class Config:
     # taught Vertex (NamePattern.to_dict()), tried first to last.
     name_patterns: list[dict] = field(default_factory=list)
 
+
+    # Game names the user fixed: a name Vertex reads (from a clip's name or
+    # Sonar's Game channel) → the tag it writes instead (naming.fixed_name).
+    game_names: dict[str, str] = field(default_factory=dict)
+
     def patterns(self) -> list[NamePattern]:
         return [p for p in map(NamePattern.from_dict, self.name_patterns) if p is not None]
 
@@ -252,6 +258,11 @@ class Config:
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
+        names: dict[str, str] = {}
+        for old, new in config.game_names.items():
+            if isinstance(new, str):
+                names = add_game_name(names, old, new)
+        config.game_names = names
         config.playback_volume = min(max(config.playback_volume, PLAYBACK_VOLUME_RANGE[0]),
                                      PLAYBACK_VOLUME_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))

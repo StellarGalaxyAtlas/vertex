@@ -859,8 +859,25 @@ class Context(QObject):
         except Exception as exc:     # run without a library rather than not at all
             self.notify("vertex_problem", "Couldn't open the library", str(exc))
             self.library = Library.in_memory()
+        self.library.game_names = self.config.game_names
         self.thumbs = ThumbnailService(self.config.resolved_cache_dir(), self)
         self.library_reset.emit()
+
+    def rename_game(self, old: str, new: str, remember: bool = True) -> int:
+        """Retag the clips of game `old` as `new`; when `remember`, tag new
+        clips that way too. Returns how many clips changed."""
+        changed = self.library.rename_game(old, new) if self.library is not None else 0
+        if remember:
+            self.set_game_names(naming.add_game_name(self.config.game_names, old, new))
+        if changed:
+            logs.CLIPS.info("Retagged %s from %s to %s", fmt.plural(changed, "clip"), old, new)
+        return changed
+
+    def set_game_names(self, names: dict[str, str]) -> None:
+        self.config.game_names = names
+        if self.library is not None:
+            self.library.game_names = names
+        self.save_config()
 
     def save_config(self) -> None:
         self._save_timer.stop()

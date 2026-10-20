@@ -274,7 +274,7 @@ class TagImportDialog(QDialog):
         layout.addWidget(label("Tag clips from their names", "Subheading"))
         try:
             self.plan = importing.plan_import(folder, library.known_games(),
-                                              library.tags().keys())
+                                              library.tags().keys(), names=library.game_names)
         except OSError as exc:
             self.plan = importing.ImportPlan(folder=folder)
             layout.addWidget(label(f"Couldn't read {folder}: {exc}", "Muted", wrap=True))
