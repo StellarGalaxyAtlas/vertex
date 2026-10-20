@@ -7,6 +7,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFontDatabase, QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QWidget
 
+from vertex import system
 from vertex.ui.widgets import Section, button, label, setting_row
 
 # (group, [(command, what it does, more)]). Every command must parse with the
@@ -51,8 +52,10 @@ class ShortcutsPage:
     def __init__(self):
         intro = Section(
             "Keyboard shortcuts",
-            "Add these commands as custom shortcuts in your desktop's keyboard settings. "
-            "They work in games too, while Vertex is running.")
+            ("Run these commands from your keyboard or mouse software, a shortcut's "
+             "Shortcut key, or a script. " if system.WINDOWS else
+             "Add these commands as custom shortcuts in your desktop's keyboard settings. ")
+            + "They work in games too, while Vertex is running.")
         # The first entry is the page's top row.
         self.sections = [intro]
         for group, commands in COMMANDS:

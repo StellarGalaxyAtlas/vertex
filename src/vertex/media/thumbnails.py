@@ -15,6 +15,7 @@ import subprocess
 
 from vertex.media.ffmpeg import BASE
 from vertex.media.probe import duration as probe_duration
+from vertex.system import NO_WINDOW
 
 SEEK_SECONDS = 1.0      # skip the black intro frame most recordings open on
 THUMB_WIDTH = 960       # sharp on the library's largest cards
@@ -67,7 +68,7 @@ class ThumbnailCache:
                     "-frames:v", "1", "-vf", f"scale={THUMB_WIDTH}:-2", tmp]
             try:
                 subprocess.run(argv, check=True, timeout=30,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **NO_WINDOW)
                 if os.path.getsize(tmp) > 0:
                     os.replace(tmp, target)      # never leave a partial JPEG
                     return target
@@ -98,7 +99,7 @@ class ThumbnailCache:
                 "-frames:v", str(PREVIEW_FRAMES), os.path.join(tmp, "frame_%02d.jpg")]
         try:
             subprocess.run(argv, check=True, timeout=90,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **NO_WINDOW)
         except (subprocess.SubprocessError, OSError):
             shutil.rmtree(tmp, ignore_errors=True)
             return []

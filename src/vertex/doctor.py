@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 
 from vertex import config as config_mod
-from vertex import paths
+from vertex import paths, system
 from vertex.recorder import gsr, notifier, presets
 
 
@@ -48,7 +48,16 @@ PACKAGES = {
 }
 
 
+# On Windows: where to get each, for the release that doesn't bundle them.
+WINDOWS_HINTS = {
+    "ffmpeg": "winget install Gyan.FFmpeg",
+    "libmpv": "put libmpv-2.dll (from mpv's Windows builds) next to Vertex or on PATH",
+}
+
+
 def _hint(what: str) -> str:
+    if system.WINDOWS:
+        return WINDOWS_HINTS.get(what, "")
     family = _distro()
     package = PACKAGES[what].get(family)
     if package is None:
@@ -56,23 +65,19 @@ def _hint(what: str) -> str:
     return f"install {package}"
 
 
-def run_checks(config: config_mod.Config | None = None) -> list[Check]:
-    config = config or config_mod.Config.load_or_default()
+def _find_libmpv() -> str | None:
+    """Where libmpv is, by the names python-mpv itself looks for."""
+    if not system.WINDOWS:
+        return ctypes.util.find_library("mpv")
+    for name in ("mpv-2.dll", "libmpv-2.dll", "mpv-1.dll"):
+        found = ctypes.util.find_library(name)
+        if found:
+            return found
+    return None
+
+
+def _gsr_checks(config: config_mod.Config) -> list[Check]:
     checks: list[Check] = []
-
-    for tool in ("ffmpeg", "ffprobe"):
-        found = shutil.which(tool)
-        checks.append(Check(tool, bool(found), found or "not found", _hint("ffmpeg")))
-
-    lib = ctypes.util.find_library("mpv")
-    checks.append(Check("libmpv", bool(lib), lib or "not found", _hint("libmpv")))
-
-    for module, label in (("PySide6", "PySide6"), ("mpv", "python-mpv"),
-                          ("send2trash", "Send2Trash")):
-        found = importlib.util.find_spec(module) is not None
-        checks.append(Check(label, found, "installed" if found else "missing",
-                            f"pip install {label}", required=module != "send2trash"))
-
     found = gsr.detect(config.recorder.command)
     if not found.available:
         detail, fix = "not installed", _hint("gsr") + " — or set its command in Settings"
@@ -95,10 +100,38 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
                         found_notifier or "not found",
                         _hint("gsr-notify") + " — to show notifications over games",
                         required=False))
+    return checks
+
+
+def run_checks(config: config_mod.Config | None = None) -> list[Check]:
+    config = config or config_mod.Config.load_or_default()
+    checks: list[Check] = []
+
+    for tool in ("ffmpeg", "ffprobe"):
+        found = shutil.which(tool)
+        checks.append(Check(tool, bool(found), found or "not found", _hint("ffmpeg")))
+
+    lib = _find_libmpv()
+    checks.append(Check("libmpv", bool(lib), lib or "not found", _hint("libmpv")))
+
+    for module, label in (("PySide6", "PySide6"), ("mpv", "python-mpv"),
+                          ("send2trash", "Send2Trash")):
+        found = importlib.util.find_spec(module) is not None
+        checks.append(Check(label, found, "installed" if found else "missing",
+                            f"pip install {label}", required=module != "send2trash"))
+
+    if system.WINDOWS:
+        checks.append(Check("recorder", False, "not available on Windows yet",
+                            "clips you already have can be imported, edited and shared",
+                            required=False))
+    else:
+        checks += _gsr_checks(config)
 
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),
                         "run Vertex once to go through setup", required=False))
+    if system.WINDOWS:
+        return checks
     try:
         subprocess.run(["xdg-open", "--version"], capture_output=True, timeout=5)
         checks.append(Check("xdg-open", True, "found", required=False))

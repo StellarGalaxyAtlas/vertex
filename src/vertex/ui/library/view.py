@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import fmt
+from vertex import fmt, system
 from vertex.config import CARD_WIDTH_DEFAULT, CARD_WIDTH_RANGE
 from vertex.core import storage
 from vertex.logs import CLIPS as log
@@ -533,6 +533,10 @@ class LibraryView(QWidget):
     def _show_in_folder(clip) -> None:
         # The file manager's own "select this file" call when it has one;
         # opening the folder is the universal fallback.
+        if system.WINDOWS:
+            # As one line: Explorer reads /select, and the quoted path itself.
+            subprocess.Popen(f'explorer /select,"{os.path.normpath(clip.path)}"')
+            return
         try:
             subprocess.Popen(
                 ["dbus-send", "--session", "--dest=org.freedesktop.FileManager1",

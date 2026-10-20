@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from vertex.media import mp4meta
 from vertex.media.ffmpeg import FFPROBE, MediaError
+from vertex.system import NO_WINDOW
 
 
 @dataclass
@@ -120,7 +121,7 @@ def probe(clip_path: str, timeout: float = 30) -> MediaInfo:
              "stream=index,codec_type,width,height,r_frame_rate,avg_frame_rate"
              ":stream_tags=name,title,handler_name:format=duration,size,bit_rate",
              "-of", "json", clip_path],
-            capture_output=True, text=True, timeout=timeout, check=True,
+            capture_output=True, text=True, timeout=timeout, check=True, **NO_WINDOW,
         ).stdout
         data = json.loads(out)
     except (subprocess.SubprocessError, OSError, ValueError) as exc:
@@ -147,7 +148,7 @@ def duration(clip_path: str, timeout: float = 15) -> float | None:
         out = subprocess.run(
             [FFPROBE, "-v", "error", "-show_entries", "format=duration",
              "-of", "default=nw=1:nk=1", clip_path],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, timeout=timeout, **NO_WINDOW,
         ).stdout
         value = float(out.strip())
     except (ValueError, subprocess.SubprocessError, OSError):

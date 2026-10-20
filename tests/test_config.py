@@ -1,7 +1,9 @@
 import json
 import os
 
-from vertex import config, paths
+import pytest
+
+from vertex import config, paths, system
 
 
 def test_unknown_keys_are_ignored_and_dropped(tmp_path):
@@ -68,6 +70,7 @@ def test_missing_dirs_and_ensure(tmp_path):
     assert os.path.isdir(tmp_path / "exports")
 
 
+@pytest.mark.skipif(system.WINDOWS, reason="the XDG layout is Linux's (see test_windows)")
 def test_xdg_env_is_honoured(isolated_home):
     assert str(paths.config_path()).startswith(str(isolated_home / ".config"))
     assert paths.normalize("~/x/../y/") == os.path.join(str(isolated_home), "y")

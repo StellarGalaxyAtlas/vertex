@@ -1,8 +1,14 @@
-"""Where Vertex keeps things: XDG base directories and bundled assets.
+"""Where Vertex keeps things: per-user folders and bundled assets.
 
-Every default is derived from the account the app is running under, honouring
-the XDG_* environment variables, so nothing machine-specific ever has to be
-written into the repository.
+Every default is derived from the account the app is running under, so
+nothing machine-specific ever has to be written into the repository. On
+Linux that means the XDG base directories (honouring the XDG_* variables);
+on Windows, the AppData folders:
+
+    settings    %APPDATA%\\Vertex\\config.json
+    library     %LOCALAPPDATA%\\Vertex\\Library
+    logs        %LOCALAPPDATA%\\Vertex\\State\\logs
+    thumbnails  %LOCALAPPDATA%\\Vertex\\Cache
 """
 
 from __future__ import annotations
@@ -12,7 +18,7 @@ import subprocess
 from importlib import resources
 from pathlib import Path
 
-from vertex import APP_ID
+from vertex import APP_ID, APP_NAME, system
 
 
 def _xdg(var: str, fallback: str) -> Path:
@@ -39,14 +45,24 @@ def cache_home() -> Path:
     return _xdg("XDG_CACHE_HOME", "~/.cache")
 
 
+def local_dir() -> Path:
+    """Windows: the folder under %LOCALAPPDATA% everything but the settings
+    goes in."""
+    return Path(system.appdata(local=True)) / APP_NAME
+
+
 def runtime_dir() -> Path:
-    """Per-user runtime dir for sockets; falls back to the cache dir."""
+    """Per-user runtime dir for the control socket; falls back to the cache dir."""
+    if system.WINDOWS:
+        return local_dir()
     value = os.environ.get("XDG_RUNTIME_DIR", "").strip()
     base = Path(value) if value and os.path.isabs(value) else cache_home()
     return base / APP_ID
 
 
 def config_dir() -> Path:
+    if system.WINDOWS:
+        return Path(system.appdata()) / APP_NAME
     return config_home() / APP_ID
 
 
@@ -55,15 +71,15 @@ def config_path() -> Path:
 
 
 def default_data_dir() -> Path:
-    return data_home() / APP_ID
+    return local_dir() / "Library" if system.WINDOWS else data_home() / APP_ID
 
 
 def default_state_dir() -> Path:
-    return state_home() / APP_ID
+    return local_dir() / "State" if system.WINDOWS else state_home() / APP_ID
 
 
 def default_cache_dir() -> Path:
-    return cache_home() / APP_ID
+    return local_dir() / "Cache" if system.WINDOWS else cache_home() / APP_ID
 
 
 def default_log_dir() -> Path:
@@ -71,8 +87,9 @@ def default_log_dir() -> Path:
 
 
 def control_socket() -> Path:
-    """The Unix socket a running Vertex listens on for `vertex <command>`."""
-    return runtime_dir() / "control.sock"
+    """Where a running Vertex listens for `vertex <command>`: a Unix socket,
+    or on Windows a file saying which local port it listens on (see `ipc`)."""
+    return runtime_dir() / ("control.json" if system.WINDOWS else "control.sock")
 
 
 def normalize(path: str | os.PathLike | None) -> str:
@@ -84,7 +101,10 @@ def normalize(path: str | os.PathLike | None) -> str:
 
 
 def tilde(path: str) -> str:
-    """`path` with the home directory written as '~', for display."""
+    """`path` with the home directory written as '~', for display. Windows
+    has no such shorthand: paths show in full there."""
+    if system.WINDOWS:
+        return path
     home = os.path.expanduser("~")
     if path == home:
         return "~"
@@ -98,9 +118,12 @@ def xdg_user_dir(role: str, fallback: str) -> str:
 
     Asked for by role because the folders carry translated names on a
     non-English desktop ("Vidéos", "Видео"). Tries the xdg-user-dir helper,
-    then the user-dirs.dirs file it reads, then the English fallback.
+    then the user-dirs.dirs file it reads, then the English fallback. On
+    Windows, the known folder Windows itself keeps for the role.
     """
     home = os.path.expanduser("~")
+    if system.WINDOWS:
+        return normalize(system.known_folder(role) or fallback)
     try:
         out = subprocess.run(
             ["xdg-user-dir", role], capture_output=True, text=True, timeout=5,

@@ -3,7 +3,7 @@ running app.
 
 Desktop environments bind global shortcuts to commands, not to applications,
 so a hotkey for "save the last minute" is simply `vertex save-clip` bound in
-the desktop's keyboard settings. That command connects to a Unix socket the
+the desktop's keyboard settings. That command connects to a socket the
 running Vertex listens on, sends one JSON line and reads one back:
 
     → {"command": "save-clip", "args": {"seconds": 60}}
@@ -15,6 +15,13 @@ one line per event.
 
 The socket also makes Vertex single-instance: launching it again just asks
 the running one to show its window.
+
+On Linux the socket is a Unix socket in the runtime dir, private to the
+user by its folder's permissions. Python has no Unix sockets on Windows, so
+there Vertex listens on a TCP port on 127.0.0.1 and writes the port, with a
+random token, to `control.json` in the user's own AppData folder. Every
+request carries the token: other accounts on the machine can reach the port
+but not read the file, so they can't drive this user's Vertex.
 """
 
 from __future__ import annotations
@@ -22,17 +29,23 @@ from __future__ import annotations
 import json
 import os
 import queue
+import secrets
 import select
 import socket
 import socketserver
+import tempfile
 import threading
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
-from vertex import __version__, control, paths
+from vertex import __version__, control, paths, system
 
 TIMEOUT = 10.0
 Handler = Callable[[str, dict], dict]
+
+
+# Whether to listen on a local TCP port rather than a Unix socket.
+USE_TCP = not hasattr(socket, "AF_UNIX") or system.WINDOWS
 
 
 class NotRunning(RuntimeError):
@@ -40,23 +53,52 @@ class NotRunning(RuntimeError):
         super().__init__("Vertex is not running.")
 
 
+def _connect(path: str, timeout: float | None) -> tuple[socket.socket, str]:
+    """A connection to the running Vertex, and the token its requests carry."""
+    if not USE_TCP:
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        token = ""
+        address = path
+    else:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                found = json.load(handle)
+            address, token = ("127.0.0.1", int(found["port"])), str(found["token"])
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise NotRunning() from exc
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        client.settimeout(timeout)
+        client.connect(address)
+    except OSError as exc:
+        client.close()
+        raise NotRunning() from exc
+    return client, token
+
+
+def _request(command: str, args: dict, token: str) -> bytes:
+    request = {"command": command, "args": args}
+    if token:
+        request["token"] = token
+    return json.dumps(request).encode() + b"\n"
+
+
 def send(command: str, socket_path: str | os.PathLike | None = None,
          timeout: float = TIMEOUT, **args) -> dict:
     """Send one command to the running Vertex and return its reply."""
     path = str(socket_path or paths.control_socket())
+    if command == "show":
+        system.allow_foreground()
+    client, token = _connect(path, timeout)
     try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-            client.settimeout(timeout)
-            client.connect(path)
-            client.sendall(json.dumps({"command": command, "args": args}).encode() + b"\n")
+        with client:
+            client.sendall(_request(command, args, token))
             reply = b""
             while not reply.endswith(b"\n"):
                 chunk = client.recv(65536)
                 if not chunk:
                     break
                 reply += chunk
-    except (FileNotFoundError, ConnectionRefusedError) as exc:
-        raise NotRunning() from exc
     except OSError as exc:
         raise NotRunning() from exc
     try:
@@ -70,13 +112,9 @@ def follow(socket_path: str | os.PathLike | None = None) -> Iterator[dict]:
     """Subscribe: the first reply (the state), then every event, as they come,
     until Vertex stops or the caller stops iterating."""
     path = str(socket_path or paths.control_socket())
-    try:
-        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        client.connect(path)
-    except OSError as exc:
-        raise NotRunning() from exc
+    client, token = _connect(path, None)
     with client, client.makefile("rb") as lines:
-        client.sendall(json.dumps({"command": "subscribe", "args": {}}).encode() + b"\n")
+        client.sendall(_request("subscribe", {}, token))
         for line in lines:
             try:
                 yield json.loads(line.decode())
@@ -85,11 +123,12 @@ def follow(socket_path: str | os.PathLike | None = None) -> Iterator[dict]:
 
 
 def is_running(socket_path: str | os.PathLike | None = None) -> bool:
+    """Whether a Vertex answers. On Windows a port left in a stale
+    control.json may since have gone to another program: only a pong counts."""
     try:
-        send("ping", socket_path, timeout=2)
+        return bool(send("ping", socket_path, timeout=2).get("ok"))
     except NotRunning:
         return False
-    return True
 
 
 class _RequestHandler(socketserver.StreamRequestHandler):
@@ -97,6 +136,10 @@ class _RequestHandler(socketserver.StreamRequestHandler):
         try:
             line = self.rfile.readline(65536)
             request = json.loads(line.decode() or "{}")
+            if self.server.token and not secrets.compare_digest(
+                    str(request.get("token", "")), self.server.token):
+                self._send(control.error(control.FAILED, "Not allowed."))
+                return
             command = str(request.get("command", ""))
             args = request.get("args") or {}
             if not isinstance(args, dict):
@@ -183,15 +226,44 @@ class Subscribers:
             return len(self._queues)
 
 
-class _Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
-    daemon_threads = True
-    allow_reuse_address = True
+class _Serving:
+    """What the request handler needs of either server."""
 
-    def __init__(self, path: str, dispatch: Handler, subscribers: Subscribers | None):
+    daemon_threads = True
+    token = ""
+
+    def setup_serving(self, dispatch: Handler, subscribers: Subscribers | None) -> None:
         self.dispatch = dispatch
         self.subscribers = subscribers
         self.stopping = threading.Event()
-        super().__init__(path, _RequestHandler)
+
+
+if hasattr(socketserver, "UnixStreamServer"):
+    class _Server(_Serving, socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+        allow_reuse_address = True
+
+        def __init__(self, path: str, dispatch: Handler, subscribers: Subscribers | None):
+            self.setup_serving(dispatch, subscribers)
+            super().__init__(path, _RequestHandler)
+
+
+class _TcpServer(_Serving, socketserver.ThreadingMixIn, socketserver.TCPServer):
+    # Never SO_REUSEADDR: on Windows it would let another program take the port.
+    allow_reuse_address = False
+
+    def __init__(self, dispatch: Handler, subscribers: Subscribers | None):
+        self.setup_serving(dispatch, subscribers)
+        self.token = secrets.token_hex(16)
+        super().__init__(("127.0.0.1", 0), _RequestHandler)
+
+
+def _write_port_file(path: Path, port: int, token: str) -> None:
+    """Write `control.json` whole, so a client never reads half of it."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".control-", suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump({"port": port, "token": token, "pid": os.getpid()}, handle)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
 
 
 class ControlServer:
@@ -206,7 +278,7 @@ class ControlServer:
         self.path = Path(socket_path or paths.control_socket())
         self.dispatch = dispatch
         self.subscribers = subscribers
-        self._server: _Server | None = None
+        self._server: _Serving | None = None
         self._thread: threading.Thread | None = None
 
     def start(self) -> bool:
@@ -217,8 +289,12 @@ class ControlServer:
             if is_running(self.path):
                 return False
             self.path.unlink()       # left behind by a crash
-        self._server = _Server(str(self.path), self.dispatch, self.subscribers)
-        os.chmod(self.path, 0o600)
+        if USE_TCP:
+            self._server = _TcpServer(self.dispatch, self.subscribers)
+            _write_port_file(self.path, self._server.server_address[1], self._server.token)
+        else:
+            self._server = _Server(str(self.path), self.dispatch, self.subscribers)
+            os.chmod(self.path, 0o600)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True,
                                         name="vertex-control")
         self._thread.start()

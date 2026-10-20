@@ -7,6 +7,7 @@ import subprocess
 
 from vertex.media.ffmpeg import BASE, FFPROBE, MediaError, run_quiet
 from vertex.media.probe import probe
+from vertex.system import NO_WINDOW
 
 # How far back to look for the keyframe before a cut point. Recorders key every
 # couple of seconds; beyond this the search costs more than the seek saves.
@@ -30,7 +31,7 @@ def keyframe_before(clip_path: str, seconds: float, window: float = KEYFRAME_WIN
              "-show_entries", "packet=pts_time,flags",
              "-read_intervals", f"{low:.3f}%{seconds + 0.05:.3f}",
              "-of", "csv=p=0", clip_path],
-            capture_output=True, text=True, timeout=30, check=True,
+            capture_output=True, text=True, timeout=30, check=True, **NO_WINDOW,
         ).stdout
     except (subprocess.SubprocessError, OSError):
         return seconds
