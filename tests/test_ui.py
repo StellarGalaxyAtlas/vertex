@@ -1532,6 +1532,12 @@ def test_the_import_dialog_lists_the_folders_it_found(qapp, tmp_path):
     dialog.folders.boxes["Apex"].setChecked(False)
     assert dialog.summary.text() == "Nothing new to copy."
     assert not dialog.copy_button.isEnabled()
+    assert dialog.folders.every.text() == "Select all"
+    dialog.folders.every.click()
+    assert dialog.summary.text().startswith("2 clips to copy")
+    assert dialog.folders.every.text() == "Deselect all"
+    dialog.folders.every.click()
+    assert dialog.summary.text() == "Nothing new to copy."
     dialog.deleteLater()
 
 
@@ -1595,7 +1601,27 @@ def test_the_name_teacher_learns_from_marked_parts(qapp):
     assert teacher.preview_title.text() == "What Vertex reads: 2 of 2 clips"
     mark("Clip", "date")
     assert "can't read" in teacher.note.text()
-    teacher.sample.deselect()
+    teacher._clear_marks()
     teacher._mark("game")
     assert "Select a part" in teacher.note.text()
+    teacher.deleteLater()
+
+
+def test_a_marked_part_survives_the_field_losing_focus(qapp):
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QFocusEvent
+    from PySide6.QtWidgets import QApplication
+
+    from vertex.ui.name_teacher import NameTeacher
+
+    teacher = NameTeacher()
+    teacher.set_names(["Clip_Valorant_16-06-2024.mp4"])
+    teacher.choose("Something else")
+    teacher.sample.setSelection(teacher.sample.text().index("Valorant"), len("Valorant"))
+    # What a click on a button does to the field: Qt takes its selection away.
+    QApplication.sendEvent(teacher.sample, QFocusEvent(QEvent.Type.FocusOut,
+                                                       Qt.FocusReason.MouseFocusReason))
+    assert not teacher.sample.hasSelectedText()
+    teacher.mark_buttons["game"].click()
+    assert teacher.pattern().template == "Clip_{game}_16-06-2024"
     teacher.deleteLater()
