@@ -19,8 +19,8 @@ def test_unknown_keys_are_ignored_and_dropped(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps(data))
     loaded = config.Config.load(path)
-    assert loaded.clip_path == data["clip_path"]
-    assert loaded.export_path == data["export_path"]
+    assert loaded.clip_path == os.path.normpath(data["clip_path"])
+    assert loaded.export_path == os.path.normpath(data["export_path"])
     assert loaded.recorder.replay_seconds == 60
     loaded.save(path)
     saved = json.loads(path.read_text())
