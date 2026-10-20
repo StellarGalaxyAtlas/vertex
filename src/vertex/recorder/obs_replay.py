@@ -22,6 +22,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 
+from vertex import paths
 from vertex.core.clips import staging_path
 from vertex.logs import RECORDER as log
 from vertex.media import probe, trim
@@ -301,7 +302,7 @@ class ObsRecorder:
 
     def _on_event(self, kind: str, data: dict) -> None:
         if kind == "ReplayBufferSaved":
-            raw = data.get("savedReplayPath", "")
+            raw = paths.normalize(data.get("savedReplayPath", ""))
             seconds = self._saves.popleft() if self._saves else None
             if raw:
                 threading.Thread(target=self._finish, args=(raw, seconds), daemon=True,

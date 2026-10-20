@@ -489,7 +489,7 @@ class SettingsView(QWidget):
         config.notifications = self.notifications.choices()
         config.notify_over_games = self.notifications.over_games_choice()
         rec = config.recorder
-        rec.command = self.command.text().strip() or backend.default_command()
+        rec.command = self._command()
         rec.autostart = self.rec_autostart.isChecked()
         self.choices.apply(rec)
         rec.framerate_mode = self.framerate_mode.currentData()
@@ -601,8 +601,16 @@ class SettingsView(QWidget):
 
     # --- Recorder helpers ---------------------------------------------------------
 
+    def _command(self) -> str:
+        """The recorder's command as typed; for OBS a path, which may be pasted
+        in quotes or with forward slashes."""
+        text = self.command.text().strip()
+        if backend.is_obs():
+            text = paths.normalize(text.strip('"'))
+        return text or backend.default_command()
+
     def _refresh_recorder(self) -> None:
-        command = self.command.text().strip() or backend.default_command()
+        command = self._command()
 
         def probe():
             info = backend.detect(command)

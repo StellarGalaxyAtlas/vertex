@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 import pytest
 
@@ -81,3 +82,17 @@ def test_assets_exist():
     for variant in paths.LOGO_VARIANTS:
         assert paths.mark_path(variant).is_file()
         assert paths.wordmark_path(variant).is_file()
+
+
+def test_paths_are_normalised_when_loaded():
+    loaded = config.Config.from_dict({"clip_path": "/clips/a/../b/", "log_path": "/logs//here",
+                                      "recorder": {"output_dir": "/saves/./x/"}})
+    assert loaded.clip_path == os.path.normpath("/clips/b")
+    assert loaded.log_path == os.path.normpath("/logs/here")
+    assert loaded.recorder.output_dir == os.path.normpath("/saves/x")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows' own path separators")
+def test_forward_slashes_become_backslashes_on_windows():
+    loaded = config.Config.from_dict({"clip_path": "C:/Users/me/Videos/"})
+    assert loaded.clip_path == "C:\\Users\\me\\Videos"

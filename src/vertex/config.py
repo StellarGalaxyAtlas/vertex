@@ -188,6 +188,11 @@ class Config:
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
+        # Tidied, as Windows' own separators, but '~' kept as written.
+        for owner, key in [*((config, key) for key in (*REQUIRED_FIELDS, "log_path")),
+                           (config.recorder, "output_dir")]:
+            value = getattr(owner, key).strip()
+            setattr(owner, key, os.path.normpath(value) if value else "")
         return config
 
     @classmethod

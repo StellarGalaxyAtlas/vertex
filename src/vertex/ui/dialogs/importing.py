@@ -74,7 +74,7 @@ class CopyClipsDialog(QDialog):
                                                   paths.normalize(self.source.text()) or
                                                   paths.normalize("~"))
         if chosen:
-            self.source.setText(paths.tilde(chosen))
+            self.source.setText(paths.tilde(paths.normalize(chosen)))
             self._scan()
 
     def _say(self, text: str, colour: str = "TEXT_MUTED") -> None:

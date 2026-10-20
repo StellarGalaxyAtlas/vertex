@@ -25,12 +25,6 @@ are 68–78 below (76 dropped).
 
 ### Windows: fixes from the first install
 
-**68.** Bug
-**Paths with / instead of \\**
-Folders picked in Qt's dialogs come back as C:/Users/…, and parts of
-Vertex compare or show them as they are. Normalise every path where it
-enters Vertex (folder fields, the import dialogs, the config when loaded).
-
 **69.** Bug
 **No thumbnails in the library**
 Find out why first: ffmpeg not on the PATH Vertex starts with, or a path

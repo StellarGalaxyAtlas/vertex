@@ -21,7 +21,7 @@ import subprocess
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from vertex import system
+from vertex import paths, system
 from vertex.config import AUDIO_CODECS, CONTAINERS, ENCODERS, QUALITIES, RecorderConfig
 from vertex.recorder.gsr import CaptureOption, GsrInfo, Track
 
@@ -90,6 +90,7 @@ def _registry_install_dirs() -> list[str]:
 
 def find(command: str = "") -> str:
     """obs64.exe: the one set in Settings, or the installed one; "" if none."""
+    command = paths.normalize(command.strip('"'))
     if command:
         return command if os.path.isfile(command) else ""
     dirs = _registry_install_dirs()
