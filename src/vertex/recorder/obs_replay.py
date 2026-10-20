@@ -109,7 +109,7 @@ class ObsRecorder:
                 raise RecorderError("The replay buffer is already running.")
             try:
                 os.makedirs(clip_dir, exist_ok=True)
-                os.makedirs(setup.save_dir, exist_ok=True)
+                paths.make_dir(setup.save_dir)
             except OSError as exc:
                 raise RecorderError(f"Could not create {exc.filename}: {exc}") from exc
             self.plan, self.clip_dir = setup, clip_dir

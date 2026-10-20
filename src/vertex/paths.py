@@ -92,6 +92,45 @@ def control_socket() -> Path:
     return runtime_dir() / ("control.json" if system.WINDOWS else "control.sock")
 
 
+def _in_appdata(path: str) -> bool:
+    folder = os.path.normcase(os.path.abspath(path))
+    for root in (system.appdata(), system.appdata(local=True)):
+        root = os.path.normcase(os.path.abspath(root))
+        if folder == root or folder.startswith(root.rstrip(os.sep) + os.sep):
+            return True
+    return False
+
+
+def real(path: str) -> str:
+    """Where `path` really is on disk, for handing to another program.
+
+    A Python packaged as a Windows app (the Microsoft Store's) writes new
+    folders and files under AppData into a private copy that only it sees:
+    ffmpeg, OBS and Explorer look for them in vain. realpath() names the
+    copy. Elsewhere, and outside AppData, `path` is returned as it is."""
+    if not system.WINDOWS or not path or not _in_appdata(path):
+        return path
+    return os.path.realpath(path)
+
+
+def make_dir(path: str | os.PathLike) -> str:
+    """os.makedirs(path, exist_ok=True), and the folder's real place (see
+    `real`). Under AppData on Windows, Windows' own mkdir makes it first: a
+    folder that already exists in AppData is used where it is, not copied
+    into the private one. Raises OSError like os.makedirs."""
+    path = os.fspath(path)
+    if system.WINDOWS and not os.path.isdir(path) and _in_appdata(path):
+        try:
+            # One string: cmd parses its own line, and the quotes keep a
+            # path's spaces and & together.
+            subprocess.run(f'cmd /d /c mkdir "{path}"', capture_output=True, timeout=10,
+                           check=False, **system.NO_WINDOW)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    os.makedirs(path, exist_ok=True)
+    return real(path)
+
+
 def normalize(path: str | os.PathLike | None) -> str:
     """Expand '~', collapse '..'/'.', drop a trailing slash. Blank stays ''."""
     text = os.fspath(path).strip() if path is not None else ""

@@ -26,16 +26,13 @@ are 68–78 below (76 dropped).
 ### Windows: fixes from the first install
 
 **69.** Bug
-**No thumbnails in the library**
-Find out why first: ffmpeg not on the PATH Vertex starts with, or a path
-it can't read. Needs `vertex doctor`'s output and the logs from that PC.
-
-**70.** Bug
-**Cache, State and logs folders missing from AppData; capitalization**
-Vertex creates them under %LOCALAPPDATA%\\Vertex on start. If they're not
-there, the likeliest cause is the Microsoft Store Python, which redirects
-AppData into its own package folder. To ask: which folders were seen
-where, and which capitalization is expected.
+**No thumbnails; Cache, State and logs missing from AppData**
+Cause: a Python packaged as a Windows app (the Microsoft Store's) keeps the
+folders it makes in AppData in a private copy, which OBS ("invalid path")
+and ffmpeg don't see. Built (2026-10-20): Vertex has Windows make its
+AppData folders, and hands other programs the real place of each;
+`vertex doctor` shows which Python runs Vertex and where each folder really
+is. To try on the friend's PC, and to ask which capitalization they saw.
 
 **71.** Bug
 **Startup apps lists Vertex as "pythonw.exe"**
@@ -44,6 +41,8 @@ that. Use a "Vertex" shortcut in the Startup folder instead.
 
 **72.** Bug
 **No icon on the Start menu shortcut**
+Likely the same cause as 69: the icon file sat in the private copy. To
+check after 69 is tried.
 
 **73.** Bug
 **The replay buffer doesn't start after first-run setup**

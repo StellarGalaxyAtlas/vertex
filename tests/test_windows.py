@@ -110,3 +110,29 @@ def test_the_start_menu_shortcut_is_written_by_powershell(windows, monkeypatch):
     assert "$link.TargetPath = 'C:\\Python\\pythonw.exe'" in script
     assert "$link.Arguments = '-m vertex'" in script
     assert desktop.icon_ink() == "light"
+
+
+def test_appdata_folders_are_made_by_windows_and_handed_out_where_they_are(
+        windows, monkeypatch):
+    ran = []
+    monkeypatch.setattr(paths.subprocess, "run", lambda line, **kw: ran.append(line))
+    cache = windows / "Local" / "Vertex" / "Cache"
+    assert paths.make_dir(cache) == str(cache) and cache.is_dir()
+    assert ran == [f'cmd /d /c mkdir "{cache}"']
+    paths.make_dir(cache)                       # already there: Windows isn't asked again
+    elsewhere = windows / "Clips"
+    paths.make_dir(elsewhere)
+    assert len(ran) == 1 and elsewhere.is_dir()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need rights there")
+def test_a_folder_kept_elsewhere_is_named_by_where_it_is(windows):
+    elsewhere = windows / "Clips"
+    elsewhere.mkdir()
+    private = windows / "Packages" / "Vertex"
+    private.mkdir(parents=True)
+    (windows / "Local").mkdir()
+    moved = windows / "Local" / "Moved"
+    moved.symlink_to(private)
+    assert paths.real(str(moved)) == str(private)
+    assert paths.real(str(elsewhere)) == str(elsewhere)

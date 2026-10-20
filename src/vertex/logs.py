@@ -27,7 +27,7 @@ import sys
 import threading
 from logging.handlers import RotatingFileHandler
 
-from vertex import APP_NAME, __version__
+from vertex import APP_NAME, __version__, paths
 
 MAX_BYTES = 2 * 1024 * 1024
 BACKUPS = 2
@@ -86,7 +86,7 @@ def setup(path: str) -> str:
     if path == _folder:
         return _folder
     try:
-        os.makedirs(path, exist_ok=True)
+        paths.make_dir(path)
         opened = {name: _handler(os.path.join(path, file)) for name, file in FILES.items()}
     except OSError as exc:
         APP.error("Couldn't write logs to %s: %s", path, exc)

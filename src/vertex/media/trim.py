@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 
+from vertex import paths
 from vertex.media.ffmpeg import BASE, FFPROBE, MediaError, run_quiet
 from vertex.media.probe import probe
 from vertex.system import NO_WINDOW
@@ -95,7 +96,7 @@ def trim(clip_path: str, out_path: str, start: float, end: float, timeout: float
     """
     if end - start < MIN_SELECTION:
         raise MediaError("The selection is too short to trim.")
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    paths.make_dir(os.path.dirname(os.path.abspath(out_path)))
     argv = trim_command(clip_path, out_path, start, end, audio_titles(clip_path))
     run_quiet(argv, timeout, "Could not trim the clip")
     return os.path.getsize(out_path)

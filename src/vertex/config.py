@@ -171,7 +171,7 @@ class Config:
             if not path:
                 continue
             try:
-                os.makedirs(path, exist_ok=True)
+                paths.make_dir(path)
             except OSError:
                 failed.append(path)
         return failed
@@ -214,7 +214,7 @@ class Config:
     def save(self, path: str | os.PathLike | None = None) -> None:
         """Write the file atomically, so a crash mid-save never truncates it."""
         target = Path(path or paths.config_path())
-        target.parent.mkdir(parents=True, exist_ok=True)
+        paths.make_dir(target.parent)
         fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".config-", suffix=".json")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:

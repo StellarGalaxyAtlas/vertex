@@ -70,8 +70,10 @@ def _windows_icon(variant: str) -> list[Path]:
         return []
     image = QImage(str(paths.mark_path(variant)))
     target = windows_icon()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    return [target] if not image.isNull() and image.save(str(target), "ICO") else []
+    paths.make_dir(target.parent)
+    if image.isNull() or not image.save(str(target), "ICO"):
+        return []
+    return [Path(paths.real(str(target)))]       # where Explorer can read it
 
 
 def _powershell_quote(text: str) -> str:

@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import shlex
 
-from vertex import system
+from vertex import paths, system
 from vertex.config import Config
 from vertex.recorder import gsr, obs, presets
 from vertex.recorder.gsr import CaptureOption, GsrInfo, Track
@@ -91,7 +91,7 @@ def launch_plan(config: Config, monitor_list: list[Monitor], tracks: list[Track]
     pixels = monitor.pixels if monitor is not None and all(monitor.pixels) \
         else presets.ASSUMED_PIXELS
     output = presets.output_size(config.recorder.resolution, pixels)
-    save_dir = os.path.join(config.resolved_cache_dir(), "obs")
+    save_dir = paths.real(os.path.join(config.resolved_cache_dir(), "obs"))
     return obs.plan(resolved, tracks, save_dir, pixels, output, obs.gpu_vendor(),
                     presets.clip_bytes(resolved, len(tracks)))
 

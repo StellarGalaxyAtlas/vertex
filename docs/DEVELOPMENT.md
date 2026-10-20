@@ -41,6 +41,10 @@ README's from a made-up demo library.
 - A config addition needs a default that keeps older config files loading.
 - Platform differences go through `vertex.system` (`system.WINDOWS`, the
   Windows API calls), not checks of their own.
+- A folder another program writes to or reads from (ffmpeg, OBS, Explorer)
+  is made with `paths.make_dir` and handed over as `paths.real(...)`: a
+  Python packaged as a Windows app keeps what it makes in AppData in a
+  private copy the others don't see.
 
 ## Layout
 

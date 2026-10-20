@@ -21,6 +21,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from vertex import paths
 from vertex.core.clips import staging_path
 from vertex.media.ffmpeg import BASE, MediaError, ProgressFn, run_pass, run_quiet
 from vertex.media.mixing import ffmpeg_graph
@@ -198,7 +199,7 @@ def encode(clip_path: str, out_path: str, start: float, end: float,
     duration = max(0.0, end - start)
     if duration < MIN_SELECTION:
         raise MediaError("The selection is too short to export.")
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    paths.make_dir(os.path.dirname(os.path.abspath(out_path)))
     if limit is None:
         argv, span = copy_command(clip_path, out_path, start, end, tracks)
         run_pass(argv, span, on_progress, 0.0, 1.0, cancel)
@@ -287,7 +288,7 @@ def export_clip(clip_path: str, clip_name: str, folder: str, start: float, end: 
                 cancel: threading.Event | None = None) -> ExportResult:
     """Export into `folder`, staged so nothing half-written is ever visible."""
     try:
-        os.makedirs(folder, exist_ok=True)
+        folder = paths.make_dir(folder)
     except OSError as exc:
         raise MediaError(f"Could not open the export folder: {exc}") from exc
     final = export_target(folder, clip_name, limit)

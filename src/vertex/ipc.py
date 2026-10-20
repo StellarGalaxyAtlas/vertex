@@ -283,7 +283,7 @@ class ControlServer:
 
     def start(self) -> bool:
         """Listen. Returns False if another Vertex already owns the socket."""
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        paths.make_dir(self.path.parent)
         os.chmod(self.path.parent, 0o700)
         if self.path.exists():
             if is_running(self.path):

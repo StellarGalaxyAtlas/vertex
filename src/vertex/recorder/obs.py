@@ -215,7 +215,7 @@ def enable_websocket() -> WebSocketSettings:
     # OBS shows its connection details once, on the server's first start.
     data["first_load"] = False
     data.setdefault("alerts_enabled", False)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    paths.make_dir(os.path.dirname(path))
     temporary = f"{path}.vertex"
     with open(temporary, "w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=4)
