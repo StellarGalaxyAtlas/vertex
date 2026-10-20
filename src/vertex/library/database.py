@@ -20,7 +20,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from vertex import fmt
-from vertex.core.naming import clean_tag, clean_tags, game_from_filename, game_key
+from vertex.core.naming import clean_tag, clean_tags, fixed_name, game_from_filename, game_key
 from vertex.logs import CLIPS as log
 
 DB_NAME = "library.db"
@@ -108,6 +108,9 @@ class Library:
         self.path = os.path.join(data_dir, DB_NAME)
         self.conn = sqlite3.connect(self.path)
         self.conn.row_factory = sqlite3.Row
+        # The user's game names (config.game_names), followed by every tag
+        # Vertex writes itself.
+        self.game_names: dict[str, str] = {}
         self._upgrade()
 
     @classmethod
@@ -117,6 +120,7 @@ class Library:
         library.path = ":memory:"
         library.conn = sqlite3.connect(":memory:")
         library.conn.row_factory = sqlite3.Row
+        library.game_names = {}
         library._upgrade()
         return library
 
@@ -290,8 +294,9 @@ class Library:
         return [display for _key, (display, _uses) in ranked]
 
     def canonical_game(self, game: str) -> str:
-        """`game` in the spelling the library already uses for it, if any."""
-        game = clean_tag(game)
+        """`game` as the user's game names have it, in the spelling the
+        library already uses for it, if any."""
+        game = fixed_name(clean_tag(game), self.game_names)
         known = {game_key(name): name for name in self.known_games()}
         return known.get(game_key(game), game)
 
@@ -306,6 +311,20 @@ class Library:
             return ""
         self._upsert(filename, game=game)
         return game
+
+    def rename_game(self, old: str, new: str) -> int:
+        """Retag every clip of the game `old` (in any spelling `game_key`
+        counts as the same) as `new`, which may be a game already in use.
+        Returns how many clips changed."""
+        new = clean_tag(new)
+        spellings = [game for game in self.known_games() if game_key(game) == game_key(old)]
+        if not new or not spellings or spellings == [new]:
+            return 0
+        with self.conn:
+            changed = self.conn.executemany(
+                "UPDATE clips SET game = ?, updated = ? WHERE game = ? COLLATE NOCASE",
+                [(new, time.time(), game) for game in spellings if game != new]).rowcount
+        return changed
 
     def autotag_games(self, filenames: Iterable[str]) -> dict[str, str]:
         """Tag every untagged clip with the game its file name records.
@@ -322,7 +341,7 @@ class Library:
         for filename in filenames:
             if filename in tagged_already:
                 continue
-            game = game_from_filename(filename)
+            game = fixed_name(game_from_filename(filename), self.game_names)
             if not game:
                 continue
             tagged[filename] = known.setdefault(game_key(game), game)

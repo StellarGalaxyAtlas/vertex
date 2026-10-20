@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from vertex import fmt
 from vertex.core.clips import is_clip
-from vertex.core.naming import game_from_filename, game_key, recorded_at
+from vertex.core.naming import fixed_name, game_from_filename, game_key, recorded_at
 from vertex.logs import CLIPS as log
 
 COPY_CHUNK = 4 * 1024 * 1024          # read/write size for a single clip
@@ -232,12 +232,14 @@ class ImportPlan:
                 for game, names in self.games.items() for name in names}
 
 
-def plan_import(folder: str, known_games=(), tagged=(), patterns=None) -> ImportPlan:
+def plan_import(folder: str, known_games=(), tagged=(), patterns=None,
+                names=None) -> ImportPlan:
     """Work out what tagging `folder` would do, touching nothing.
 
     `known_games` are tags already in use, so a derived game landing on one
     keeps the spelling in use; `tagged` are clips that already carry a game;
-    `patterns` read the names (by default the ones taught).
+    `patterns` read the names (by default the ones taught); `names` are the
+    user's game names, applied first.
     """
     known = {game_key(game): game for game in known_games}
     tagged = set(tagged)
@@ -256,5 +258,6 @@ def plan_import(folder: str, known_games=(), tagged=(), patterns=None) -> Import
             plan.strays.append(name)
             continue
         plan.games.setdefault(game, []).append(name)
-    plan.stored_as = {game: known.get(game_key(game), game) for game in plan.games}
+    fixed = {game: fixed_name(game, names or {}) for game in plan.games}
+    plan.stored_as = {game: known.get(game_key(fixed[game]), fixed[game]) for game in plan.games}
     return plan
