@@ -58,6 +58,9 @@ and push it. Code, tests and docs don't mention TODO items.
 
 - No Windows there: `tests/test_windows.py` switches the Windows branches on
   (`system.WINDOWS`, `ipc.USE_TCP`), and CI's Windows job runs it for real.
+- No OBS there either: `tests/fake_obs.py` stands in for obs-websocket.
+  What Vertex sets up in OBS is only proven on the maintainer's PC, so ask
+  them to try recording changes there.
 - Run the tests through `python -m pytest`: the bare `pytest` on the PATH can
   be a separate tool that can't import Vertex. If `import vertex` fails in a
   new container, run `pip install -e ".[dev]"` again.

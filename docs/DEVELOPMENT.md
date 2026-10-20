@@ -20,10 +20,11 @@ xvfb-run -a python -m pytest                      # UI tests included
 ```
 
 Tests never touch your real config or library. The recorder is tested
-against a stand-in GPU Screen Recorder script. `tests/test_windows.py` runs
-the Windows branches from any platform; on Windows itself CI runs that and
-the platform-neutral tests (the UI, media and recorder tests still assume
-Linux).
+against a stand-in GPU Screen Recorder script, and OBS against a stand-in
+obs-websocket server (`tests/fake_obs.py`). `tests/test_windows.py` and
+`tests/test_obs.py` run the Windows branches from any platform; on Windows
+itself CI runs those and the platform-neutral tests (the UI, media and GSR
+tests still assume Linux).
 
 `tools/` takes screenshots against fakes: `docs_screenshots.py` retakes the
 README's from a made-up demo library.
@@ -48,7 +49,7 @@ README's from a made-up demo library.
 | `core` | clips on disk: scanning, file-name parsing, importing, Trash |
 | `library` | the SQLite library (`library.db`, schema version 2) |
 | `media` | ffmpeg/ffprobe: probing, track roles and names, mixing, waveforms, trims, exports, thumbnails |
-| `recorder` | GPU Screen Recorder: detection, command building, monitors, presets, the replay buffer, `gsr-notify` |
+| `recorder` | the replay buffer: `backend` picks GPU Screen Recorder (`gsr`, `replay`, `gsr-notify`) or OBS (`obs`, `obsws`, `obs_replay`); monitors and presets for both |
 | `ui` | the PySide6 app: pages, editor, dialogs, settings, tray, theme |
 | `cli`, `ipc`, `control` | the `vertex` command, the control socket and its API |
 | `notifications`, `logs`, `desktop`, `kwin`, `doctor` | notification kinds, log files, start menu entry and autostart, raising the window on KDE, checks |
@@ -58,7 +59,15 @@ README's from a made-up demo library.
 outlives Vertex. It saves with `SIGUSR1` (or `SIGRTMIN+n` for the last N
 seconds) and reads saved paths from stdout. Each recorded part (game, chat,
 mic) is its own titled track, which `media/tracks.py` names in the editor.
-Windows has no recorder yet.
+
+**Recording** (Windows) drives OBS Studio over obs-websocket 5 (a small
+stdlib client in `obsws.py`). Starting switches OBS's WebSocket server on in
+its settings file while OBS is closed, starts OBS in the tray, and sets up
+the "Vertex" profile (simple output mode, the replay buffer, one track per
+part) and scene collection (the monitor, one WASAPI source per track).
+Changed output settings take effect by loading the profile again, by way of
+another one. OBS saves into the cache folder; each save is cut to the last N
+seconds when asked, its tracks titled, and moved into the clips folder.
 
 ## Control API
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import copy
 import os
-import shlex
 
 from PySide6.QtCore import QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QFontDatabase
@@ -37,7 +36,7 @@ from vertex.config import (
 )
 from vertex.core import storage
 from vertex.media import roles
-from vertex.recorder import gsr
+from vertex.recorder import backend, gsr, obs
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize, fill
@@ -243,7 +242,7 @@ class SettingsView(QWidget):
         self.stack.addWidget(self.pages["general"])
 
     def _build_recording(self) -> None:
-        status = Section("GPU Screen Recorder")
+        status = Section(backend.name())
         self.gsr_status = label("", "Muted", wrap=True)
         status.add(self.gsr_status)
         # Shown while the recorder is missing, too old or doesn't start.
@@ -253,8 +252,9 @@ class SettingsView(QWidget):
         help_row.setSpacing(10)
         self.install_button = button("How to install it", "primary",
                                      on_click=lambda: QDesktopServices.openUrl(
-                                         QUrl(gsr.INSTALL_URL)))
-        self.command_button = button("Set the command", on_click=self._go_to_command)
+                                         QUrl(backend.install_url())))
+        self.command_button = button("Set where OBS is" if backend.is_obs()
+                                     else "Set the command", on_click=self._go_to_command)
         recheck = button("Check again", on_click=self._refresh_recorder)
         for widget in (self.install_button, self.command_button, recheck):
             help_row.addWidget(widget)
@@ -284,36 +284,41 @@ class SettingsView(QWidget):
         clips.add(label("Each is saved as a separate audio track", "Dim", wrap=True))
         clips.add(self._build_estimate())
 
-        self.recording_advanced = advanced = Disclosure("Advanced",
-                                                        "Bitrate, codecs, audio and more")
+        # OBS takes fewer of these than GSR: its rows for the rest are hidden.
+        gsr_only = []
+        self.recording_advanced = advanced = Disclosure(
+            "Advanced", "Codecs, audio and more" if backend.is_obs()
+            else "Bitrate, codecs, audio and more")
         video = Section("Video")
         self.bitrate_mode = combo(BITRATE_MODES, "cbr")
-        video.add_row("Bitrate mode", self.bitrate_mode)
+        gsr_only.append(video.add_row("Bitrate mode", self.bitrate_mode))
         self.bitrate = QSpinBox()
         self.bitrate.setRange(0, 500000)
         self.bitrate.setSingleStep(1000)
         self.bitrate.setSuffix(" kbps")
         self.bitrate.setSpecialValueText("From video quality")
-        video.add_row("Bitrate", self.bitrate, "Constant bitrate only")
-        self.video_codec = combo(VIDEO_CODECS, "auto")
+        gsr_only.append(video.add_row("Bitrate", self.bitrate, "Constant bitrate only"))
+        self.video_codec = combo(obs.CODECS if backend.is_obs() else VIDEO_CODECS, "auto")
         video.add_row("Codec", self.video_codec, "H.264 is the most compatible")
         self.framerate_mode = combo(FRAMERATE_MODES, "vfr")
-        video.add_row("Frame rate mode", self.framerate_mode)
+        gsr_only.append(video.add_row("Frame rate mode", self.framerate_mode))
         self.container = combo(CONTAINERS, "mp4")
         video.add_row("Container", self.container)
         self.color_range = combo(COLOR_RANGES, "limited")
-        video.add_row("Color range", self.color_range)
+        gsr_only.append(video.add_row("Color range", self.color_range))
         self.encoder = combo(ENCODERS, "gpu")
         video.add_row("Encoder", self.encoder)
         self.keyint = QDoubleSpinBox()
         self.keyint.setRange(0.5, 10)
         self.keyint.setSingleStep(0.5)
         self.keyint.setSuffix(" s")
-        video.add_row("Keyframe interval", self.keyint, "Shorter means more precise trims")
+        gsr_only.append(video.add_row("Keyframe interval", self.keyint,
+                                      "Shorter means more precise trims"))
 
         replay = Section("Replay buffer")
         self.replay_storage = combo(REPLAY_STORAGES, "ram")
-        replay.add_row("Buffer location", self.replay_storage, "Disk uses less memory")
+        gsr_only.append(replay.add_row("Buffer location", self.replay_storage,
+                                       "Disk uses less memory"))
         self.output_dir = PathField(placeholder="The clips folder")
         self.output_dir.setMinimumWidth(380)
         replay.add_row("Save clips to", self.output_dir, "Leave blank for the clips folder")
@@ -330,20 +335,27 @@ class SettingsView(QWidget):
 
         recorder = Section("Recorder")
         self.command = QLineEdit()
-        self.command.setPlaceholderText("gpu-screen-recorder")
         self.command.setMinimumWidth(380)
-        recorder.add_row("Command", self.command, "For the Flatpak: flatpak run "
-                         "--command=gpu-screen-recorder com.dec05eba.gpu_screen_recorder")
+        if backend.is_obs():
+            self.command.setPlaceholderText("Where OBS is installed")
+            recorder.add_row("OBS", self.command, "obs64.exe, if OBS is somewhere else")
+        else:
+            self.command.setPlaceholderText("gpu-screen-recorder")
+            recorder.add_row("Command", self.command, "For the Flatpak: flatpak run "
+                             "--command=gpu-screen-recorder com.dec05eba.gpu_screen_recorder")
         self.extra_args = QLineEdit()
         self.extra_args.setPlaceholderText("-tune quality -low-power yes")
         self.extra_args.setMinimumWidth(380)
-        recorder.add_row("Extra arguments", self.extra_args)
+        gsr_only.append(recorder.add_row("Extra arguments", self.extra_args))
         self.preview = QPlainTextEdit()
         self.preview.setReadOnly(True)
         self.preview.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
-        self.preview.setFixedHeight(96)
-        recorder.add(label("Command preview", "Dim"))
+        self.preview.setFixedHeight(120 if backend.is_obs() else 96)
+        recorder.add(label("What Vertex sets up in OBS" if backend.is_obs()
+                           else "Command preview", "Dim"))
         recorder.add(self.preview)
+        for row in gsr_only:
+            row.setVisible(not backend.is_obs())
         advanced.add(Columns(video, replay))
         advanced.add(Columns(audio, recorder))
 
@@ -473,7 +485,7 @@ class SettingsView(QWidget):
         config.notifications = self.notifications.choices()
         config.notify_over_games = self.notifications.over_games_choice()
         rec = config.recorder
-        rec.command = self.command.text().strip() or "gpu-screen-recorder"
+        rec.command = self.command.text().strip() or backend.default_command()
         rec.autostart = self.rec_autostart.isChecked()
         self.choices.apply(rec)
         rec.framerate_mode = self.framerate_mode.currentData()
@@ -561,7 +573,7 @@ class SettingsView(QWidget):
         if not self.pending_recording():
             return True
         new = self.collect()
-        problems = gsr.validate(self._as_recorded(new.recorder))
+        problems = backend.validate(self._as_recorded(new.recorder))
         if problems:
             self.banner.show_message("Recording: " + problems[0], "error", 10000)
             self.show_page("recording")
@@ -586,13 +598,14 @@ class SettingsView(QWidget):
     # --- Recorder helpers ---------------------------------------------------------
 
     def _refresh_recorder(self) -> None:
-        command = self.command.text().strip() or "gpu-screen-recorder"
+        command = self.command.text().strip() or backend.default_command()
 
         def probe():
-            info = gsr.detect(command)
+            info = backend.detect(command)
             if not info.available:
                 return info, [], []
-            return info, gsr.list_capture_options(command), gsr.list_audio_devices(command)
+            return (info, backend.list_capture_options(command),
+                    backend.list_audio_devices(command))
 
         workers.run(probe, self._show_recorder, lambda _exc: None)
 
@@ -600,17 +613,20 @@ class SettingsView(QWidget):
         info, captures, devices = result
         working = info.available and not info.too_old
         if working:
-            note = "" if info.supports_track_names else \
+            note = "" if info.supports_track_names or backend.is_obs() else \
                 " — update to 5.15+ so clip tracks are named Game, Chat and Microphone"
-            self.gsr_status.setText(f"Found GPU Screen Recorder {info.version_text}{note}.")
+            self.gsr_status.setText(f"Found {backend.name()} {info.version_text}{note}.")
             theme.style(self.gsr_status, lambda: f"color: {theme.OK if not note else theme.WARN};")
         else:
             # Its own wording here: the recorder's says "set its command in
             # Settings", and this is Settings.
             if info.too_old:
-                minimum = ".".join(map(str, gsr.MIN_VERSION))
-                text = (f"GPU Screen Recorder {info.version_text} is too old: Vertex needs "
+                minimum = ".".join(map(str, backend.min_version()))
+                text = (f"{backend.name()} {info.version_text} is too old: Vertex needs "
                         f"{minimum} or newer.")
+            elif info.missing and backend.is_obs():
+                text = (f"{backend.name()} is not installed. Install it, or set where it is "
+                        f"if it's somewhere else.")
             elif info.missing:
                 text = ("GPU Screen Recorder is not installed. Install it, or set the "
                         "command that runs it if it's a Flatpak.")
@@ -637,13 +653,13 @@ class SettingsView(QWidget):
     # --- Capture --------------------------------------------------------------------
 
     def _as_recorded(self, rec):
-        """The settings as GSR will get them, for the monitor that is recorded."""
+        """The settings as the recorder will get them, for the monitor that is recorded."""
         return self.choices.recorded(rec)
 
     def _monitors_changed(self) -> None:
         self._clip_settings_changed()
         if self.stack.currentWidget() is self.pages.get("recording"):
-            self._refresh_recorder()     # GSR's list changes with the monitors
+            self._refresh_recorder()     # the recorder's list changes with the monitors
 
     # --- Clip settings ---------------------------------------------------------------
 
@@ -665,13 +681,13 @@ class SettingsView(QWidget):
         self._show_audio_choices(rec)
 
     def _show_audio_choices(self, rec) -> None:
-        """Each track's devices: none, the default, then the real devices GSR
-        can record. One missing now says what records in its place."""
+        """Each track's devices: none, the default, then the real devices the
+        recorder can record. One missing now says what records in its place."""
         outputs, inputs = [], []
         for name, description in self._audio_devices:
             if name.startswith("default_"):
                 continue
-            if name.endswith(".monitor"):
+            if backend.is_output(name):
                 outputs.append((f"device:{name}", description.removeprefix("Monitor of ")))
             else:
                 inputs.append((f"device:{name}", description))
@@ -714,9 +730,9 @@ class SettingsView(QWidget):
             # What will record, with stand-ins for devices that are missing now.
             tracks, _stood_in = gsr.available_tracks(
                 gsr.audio_tracks(config), [name for name, _d in self._audio_devices])
-            argv = gsr.build_argv(self._as_recorded(config.recorder), tracks,
-                                  config.resolved_recording_dir(), self.context.recorder.info)
-            self.preview.setPlainText(shlex.join(argv))
+            plan = backend.launch_plan(config, self.choices.monitor_map.monitors, tracks,
+                                       self.context.recorder.info)
+            self.preview.setPlainText(backend.describe(plan))
         except ValueError as exc:
             self.preview.setPlainText(f"(not valid yet: {exc})")
         self._show_pending()

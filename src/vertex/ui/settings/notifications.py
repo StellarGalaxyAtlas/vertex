@@ -6,7 +6,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from vertex import notifications
-from vertex.recorder import notifier
+from vertex.recorder import backend, notifier
 from vertex.ui import theme
 from vertex.ui.widgets import Section, Toggle, button
 
@@ -42,7 +42,9 @@ class NotificationsPage:
     def _show_notifier(self) -> bool:
         """Grey the switch out while GSR's notifier isn't installed. Looked for
         each time Settings opens, so installing it needs no restart."""
-        found = notifier.find() is not None
+        # GSR's notifier is Linux's; Windows has no such overlay to use.
+        self.over_games_row.setVisible(backend.has_notifier())
+        found = backend.has_notifier() and notifier.find() is not None
         self.over_games.setEnabled(found)
         self.over_games.setChecked(found and self._over_games_on)
         self.test_button.setEnabled(found and self._over_games_on)

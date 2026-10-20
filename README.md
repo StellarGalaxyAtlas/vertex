@@ -103,10 +103,12 @@ Export saves it in your Exports folder.
 </tr>
 </table>
 
-On Linux, GPU Screen Recorder keeps the last minute or two, with game, chat
-and mic as separate tracks, and notifications can show over games. Recording
-on Windows is not there yet: on Windows, Vertex is the library, editor and
-export for clips you already have.
+The replay buffer keeps the last minute or two, with game, chat and mic as
+separate tracks, each recording the device you pick (bring your own virtual
+devices to split game and chat). On Windows it records with OBS Studio:
+Vertex starts OBS in the tray and sets up an OBS profile and scene of its
+own, both called Vertex, leaving your others alone. On Linux it records with
+GPU Screen Recorder, and notifications can show over games.
 
 ## Settings
 
@@ -129,11 +131,15 @@ from Moments, and resets.
 
 ### Windows 10 and 11
 
-**1. Programs:** Python 3.10+, FFmpeg and libmpv. In PowerShell:
+**1. Programs:** Python 3.10+, FFmpeg, libmpv and, for recording, OBS
+Studio 30 or newer. In PowerShell:
 
 ```powershell
-winget install Python.Python.3.12 Gyan.FFmpeg
+winget install Python.Python.3.12 Gyan.FFmpeg OBSProject.OBSStudio
 ```
+
+Open OBS once to get past its first-run wizard, then close it: Vertex
+switches on OBS's WebSocket server and starts OBS itself.
 
 libmpv has no winget package: download a `mpv-dev-x86_64` archive from
 [mpv's Windows builds](https://sourceforge.net/projects/mpv-player-windows/files/libmpv/)
@@ -231,6 +237,10 @@ Some more personal words from the human behind the scene. This "project" would h
   The recording backend on Linux: the replay buffer, GPU encoding, and one
   track per audio device. Vertex runs it as a separate program and talks to it
   through its command line and signals.
+- **[OBS Studio](https://obsproject.com/)** — [github.com/obsproject/obs-studio](https://github.com/obsproject/obs-studio) ·
+  *GPL-2.0-or-later*
+  The recording backend on Windows. Vertex drives its replay buffer over
+  obs-websocket, and keeps a profile and scene of its own in it.
 - **[mpv](https://mpv.io/)** — [github.com/mpv-player/mpv](https://github.com/mpv-player/mpv) ·
   *GPLv2+ / LGPLv2.1+*
   The video playback, and the reason the multi-track mixer is possible at all:

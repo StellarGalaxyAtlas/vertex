@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from vertex import config as config_mod
 from vertex import paths, system
-from vertex.recorder import gsr, notifier, presets
+from vertex.recorder import gsr, notifier, obs, presets
 
 
 @dataclass
@@ -52,6 +52,7 @@ PACKAGES = {
 WINDOWS_HINTS = {
     "ffmpeg": "winget install Gyan.FFmpeg",
     "libmpv": "put libmpv-2.dll (from mpv's Windows builds) next to Vertex or on PATH",
+    "obs": "winget install OBSProject.OBSStudio",
 }
 
 
@@ -74,6 +75,25 @@ def _find_libmpv() -> str | None:
         if found:
             return found
     return None
+
+
+def _obs_checks(config: config_mod.Config) -> list[Check]:
+    found = obs.detect(config.recorder.command)
+    detail = found.version_text or ("found" if found.available else "not installed")
+    fix = found.error if found.available else _hint("obs") + " — or set where it is in Settings"
+    checks = [Check(obs.NAME, found.available and not found.too_old, detail, fix,
+                    required=False)]
+    if found.available:
+        websocket = obs.websocket_settings()
+        checks.append(Check(
+            "OBS WebSocket server", websocket.enabled or not obs.running(),
+            f"port {websocket.port}" if websocket.enabled else "off",
+            "close OBS and Vertex switches it on when it starts the replay buffer",
+            required=False))
+        problems = obs.validate(presets.resolve(config.recorder, []))
+        checks.append(Check("recorder settings", not problems, "; ".join(problems) or "valid",
+                            "fix them in Settings → Recording", required=False))
+    return checks
 
 
 def _gsr_checks(config: config_mod.Config) -> list[Check]:
@@ -121,9 +141,7 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
                             f"pip install {label}", required=module != "send2trash"))
 
     if system.WINDOWS:
-        checks.append(Check("recorder", False, "not available on Windows yet",
-                            "clips you already have can be imported, edited and shared",
-                            required=False))
+        checks += _obs_checks(config)
     else:
         checks += _gsr_checks(config)
 

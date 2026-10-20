@@ -8,7 +8,6 @@ through Qt signals on the UI thread.
 from __future__ import annotations
 
 import logging
-import shlex
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -19,8 +18,8 @@ from vertex.config import Config
 from vertex.library import Library
 from vertex.media import probe
 from vertex.media.thumbnails import ThumbnailCache
-from vertex.recorder import gsr, monitors, presets
-from vertex.recorder.replay import RecorderError, ReplayRecorder, State
+from vertex.recorder import backend, gsr, monitors, presets
+from vertex.recorder.replay import RecorderError, State
 from vertex.ui import screens, workers
 
 
@@ -89,7 +88,7 @@ class ThumbnailService(QObject):
 
 
 class RecorderController(QObject):
-    # GPU Screen Recorder dying while it records is started again once; dying
+    # The recorder dying while it records is started again once; dying
     # again this soon after that restart is left stopped (and said so).
     RECOVER_WINDOW = 60.0
 
@@ -103,21 +102,21 @@ class RecorderController(QObject):
         super().__init__(context)
         self.context = context
         self.info = gsr.GsrInfo(command=context.config.recorder.command)
-        self.recorder = ReplayRecorder(
+        self.recorder = backend.recorder(
             on_state=lambda state, error: workers.post(self._on_state, (state, error)),
             on_saved=lambda path: workers.post(self._on_saved, path))
         self._restart_pending = False
         self._restarting = False
-        # False once stopped, so a start still finding GSR doesn't launch
+        # False once stopped, so a start still finding the recorder doesn't launch
         # after all.
         self._wanted = False
         # The state last passed on, so a stop isn't announced twice.
         self._reported = State.STOPPED
-        # When GSR was last started again after dying, and whether that is
+        # When the recorder was last started again after dying, and whether that is
         # the restart underway.
         self._recovered_at = float("-inf")
         self._recovering = False
-        # What GSR said it can record when last asked: its monitors' names.
+        # What the recorder said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
 
     @property
@@ -134,37 +133,37 @@ class RecorderController(QObject):
         return self.recorder.running
 
     def detect(self, then=None) -> None:
-        """Find GSR and ask what it can record, off the UI thread."""
+        """Find the recorder and ask what it can record, off the UI thread."""
         command = self.context.config.recorder.command
 
         def probe():
-            info = gsr.detect(command)
-            return info, gsr.list_capture_options(command) if info.available else []
+            info = backend.detect(command)
+            return info, backend.list_capture_options(command) if info.available else []
 
         def done(result):
             info, self.capture_options = result
             if info != self.info:
                 if info.available:
-                    logs.RECORDER.info("Found GPU Screen Recorder %s (%s)", info.version_text,
-                                       command)
+                    logs.RECORDER.info("Found %s %s (%s)", backend.name(), info.version_text,
+                                       command or "where it is installed")
                 else:
-                    logs.RECORDER.warning("GPU Screen Recorder: %s", info.error or "not found")
+                    logs.RECORDER.warning("%s: %s", backend.name(), info.error or "not found")
             self.info = info
             self.info_changed.emit(self.info)
             if then is not None:
                 then(self.info)
 
         def failed(exc):
-            done((gsr.GsrInfo(command, error=f"Couldn't run GPU Screen Recorder: {exc}"), []))
+            done((gsr.GsrInfo(command, error=f"Couldn't run {backend.name()}: {exc}"), []))
 
         workers.run(probe, done, failed)
 
     def problems(self) -> list[str]:
         if not self.info.available:
-            return [self.info.error or "GPU Screen Recorder is not installed."]
+            return [self.info.error or f"{backend.name()} is not installed."]
         if self.info.too_old:
             return [self.info.error]
-        return gsr.validate(self._as_recorded())
+        return backend.validate(self._as_recorded())
 
     def _monitors(self) -> list[monitors.Monitor]:
         return monitors.arrange(self.capture_options, screens.desktop_screens())
@@ -175,13 +174,15 @@ class RecorderController(QObject):
         return monitors.target(self.context.config.recorder.capture, self._monitors())
 
     def _as_recorded(self):
-        """The settings as GSR gets them, for the monitor recorded now."""
+        """The settings as the recorder gets them, for the monitor recorded now."""
         return presets.resolve(self.context.config.recorder, self._monitors())
 
-    def argv(self) -> list[str]:
+    def launch_plan(self):
+        """What the recorder would be started with now: GSR's command line,
+        or what is set up in OBS."""
         config = self.context.config
-        return gsr.build_argv(self._as_recorded(), gsr.audio_tracks(config),
-                              config.resolved_recording_dir(), self.info)
+        return backend.launch_plan(config, self._monitors(), gsr.audio_tracks(config),
+                                   self.info)
 
     def start(self) -> None:
         if self.running:
@@ -203,7 +204,7 @@ class RecorderController(QObject):
             return
         # Asked every time: devices come and go between starts.
         command = self.context.config.recorder.command
-        workers.run(lambda: [name for name, _d in gsr.list_audio_devices(command)],
+        workers.run(lambda: [name for name, _d in backend.list_audio_devices(command)],
                     self._launch_with, lambda _exc: self._launch_with([]))
 
     def _launch_with(self, devices: list[str]) -> None:
@@ -219,11 +220,10 @@ class RecorderController(QObject):
             self.context.notify(
                 "track_missing", f"{role} audio: {device} isn't available",
                 f"Recording {what} instead" if what else "Recording without it")
-        argv = gsr.build_argv(self._as_recorded(), tracks, config.resolved_recording_dir(),
-                              self.info)
-        logs.RECORDER.info("Starting the replay buffer: %s", shlex.join(argv))
+        plan = backend.launch_plan(config, self._monitors(), tracks, self.info)
+        logs.RECORDER.info("Starting the replay buffer: %s", backend.describe(plan))
         try:
-            self.recorder.start(argv, config.resolved_recording_dir())
+            self.recorder.start(plan, config.resolved_recording_dir())
         except RecorderError as exc:
             self._on_state((State.FAILED, str(exc)))
 
@@ -263,15 +263,16 @@ class RecorderController(QObject):
         problem = ""
         if not self.running:
             problem = "The replay buffer is not running."
-        elif seconds is not None and int(seconds) not in gsr.SAVE_PRESETS:
-            problem = f"Only the last {sorted(gsr.SAVE_PRESETS)} seconds can be saved"
+        elif seconds is not None and int(seconds) not in backend.SAVE_PRESETS:
+            problem = f"Only the last {sorted(backend.SAVE_PRESETS)} seconds can be saved"
         if problem:
             # Saving from a shortcut or the tray shows nothing else of it.
             self.context.notify("clip_not_saved", "Clip not saved", problem)
             raise RecorderError(problem)
         logs.RECORDER.info("Saving %s",
                            f"the last {seconds} seconds" if seconds else "the replay buffer")
-        # Finding GSR to signal reads /proc: off the UI thread.
+        # Finding GSR to signal reads /proc, and OBS is asked over its socket:
+        # off the UI thread.
         workers.run(lambda: self.recorder.save(seconds), None,
                     lambda exc: self.context.notify("clip_not_saved", "Clip not saved",
                                                     str(exc)))
@@ -279,15 +280,15 @@ class RecorderController(QObject):
         return f"Saving {span}…"
 
     def _recover(self, error: str) -> bool:
-        """GSR died while recording: start it again, once. False when it
+        """The recorder died while recording: start it again, once. False when it
         wasn't running yet (a start that fails stays failed), or it died again
         within RECOVER_WINDOW of the last such restart."""
         if self._reported != State.RUNNING or self._restarting or not self._wanted:
             return False
         now = time.monotonic()
         if now - self._recovered_at < self.RECOVER_WINDOW:
-            logs.RECORDER.error("GPU Screen Recorder stopped again; leaving the replay "
-                                "buffer off")
+            logs.RECORDER.error("%s stopped again; leaving the replay buffer off",
+                                backend.name())
             return False
         self._recovered_at = now
         logs.RECORDER.warning("Starting the replay buffer again after it stopped (%s)", error)
@@ -308,11 +309,11 @@ class RecorderController(QObject):
             restarted = state == State.RUNNING
             recovered, self._recovering = self._recovering, False
         if state == State.STOPPED and self._reported == State.STOPPED:
-            return      # a stop reports itself, and so does GSR exiting
+            return      # a stop reports itself, and so does the recorder exiting
         self._reported = state
         if restarted:
             self.context.notify("replay_restarted", "Replay buffer restarted",
-                                "GPU Screen Recorder had stopped" if recovered else "")
+                                f"{backend.name()} had stopped" if recovered else "")
         elif state == State.RUNNING:
             seconds = self.context.config.recorder.replay_seconds
             self.context.notify("replay_started", "Replay buffer on",

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vertex import APP_NAME, notifications, paths
+from vertex import APP_NAME, notifications, paths, system
 
 # Subfolder of the user's videos dir that clips are recorded into by default.
 CLIP_SUBDIR = "Game Recordings"
@@ -51,10 +51,13 @@ ENCODERS = ("gpu", "cpu")
 
 @dataclass
 class RecorderConfig:
-    """How Vertex runs GPU Screen Recorder's replay buffer."""
+    """How Vertex runs the replay buffer: GPU Screen Recorder's on Linux,
+    OBS Studio's on Windows (see recorder.backend)."""
 
     autostart: bool = False          # start the replay buffer when Vertex starts
-    command: str = "gpu-screen-recorder"   # may be a full command, e.g. a Flatpak run line
+    # GSR's command, which may be a full one (a Flatpak run line); on Windows
+    # obs64.exe, "" = wherever OBS is installed.
+    command: str = "" if system.WINDOWS else "gpu-screen-recorder"
     capture: str = "screen"          # screen | portal | focused | region | <monitor name>
     region: str = ""                 # WxH+X+Y, for capture == "region"
     resolution: str = ""             # "1080p" (short side), "" = the monitor's own, or WxH

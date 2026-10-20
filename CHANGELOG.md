@@ -17,6 +17,11 @@ Vertex on Windows 10 and 11, without Sonar.
   microphone (Mic); a Chat track is picked in Settings › Recording.
 
 ### Added
+- Recording on Windows with OBS Studio 30+: Vertex starts OBS in the tray,
+  switches on its WebSocket server, and keeps its own "Vertex" profile and
+  scene. Each track records the device picked in Settings › Recording; the
+  video quality is High or Ultra (OBS's own two levels). `vertex doctor`
+  checks OBS and its WebSocket server.
 - Windows folders: settings in `%APPDATA%\Vertex`, the library, logs and
   thumbnails in `%LOCALAPPDATA%\Vertex`, clips in the Videos folder.
 - The control channel over a token-guarded local port on Windows.

@@ -639,7 +639,7 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     import sys
 
     from test_recorder import FAKE_GSR
-    from vertex.recorder import monitors
+    from vertex.recorder import backend, monitors
     from vertex.ui import screens
 
     fake_gsr = tmp_path / "gpu-screen-recorder"
@@ -652,7 +652,7 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     recorder = context.recorder
     recorder.start()
     assert wait_until(qapp, lambda: recorder.phase == "running")
-    assert "-w DP-1" in " ".join(recorder.argv())
+    assert "-w DP-1" in backend.describe(recorder.launch_plan())
 
     states, notices = [], []
     recorder.state_changed.connect(lambda state, _error: states.append(state))

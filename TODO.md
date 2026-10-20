@@ -16,6 +16,11 @@ picks them up into the library like GSR's. Each track (Game, Chat, Mic)
 records a device the user picks: they bring their own virtual devices,
 whatever made them; Vertex makes none. OBS is not bundled: Vertex finds it
 and says where to get it.
+Decided: Vertex starts OBS in the tray when the buffer starts; keeps its own
+"Vertex" profile and scene collection; switches OBS's WebSocket server on in
+OBS's settings file while OBS is closed; "save the last 30 seconds" cuts the
+save and keeps only the cut.
+Built; waiting on a try on the maintainer's Windows PC.
 
 **67.**
 **Hotkeys in Settings**

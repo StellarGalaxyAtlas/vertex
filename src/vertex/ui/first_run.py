@@ -25,7 +25,7 @@ from vertex import APP_NAME, fmt, paths
 from vertex.config import Config, default_config
 from vertex.core import importing
 from vertex.library.database import DB_NAME, Library
-from vertex.recorder import gsr, notifier
+from vertex.recorder import backend, gsr, notifier
 from vertex.ui import theme, workers
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.widgets import (
@@ -239,7 +239,7 @@ class FirstRunView(QWidget):
         row.addLayout(text, 1)
         self.install_button = button("How to install it", "primary",
                                      on_click=lambda: QDesktopServices.openUrl(
-                                         QUrl(gsr.INSTALL_URL)))
+                                         QUrl(backend.install_url())))
         row.addWidget(self.install_button, 0, Qt.AlignmentFlag.AlignVCenter)
         self.recheck_button = button("Check again", on_click=self._find_recorder)
         row.addWidget(self.recheck_button, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -247,7 +247,7 @@ class FirstRunView(QWidget):
         self.install.hide()
 
         section = Section("Recording")
-        self.gsr_status = label("Looking for GPU Screen Recorder…", "Dim", wrap=True)
+        self.gsr_status = label(f"Looking for {backend.name()}…", "Dim", wrap=True)
         section.add(self.gsr_status)
         # Its notifier, which shows Vertex's notifications over games.
         self.notifier_row = QWidget()
@@ -299,17 +299,18 @@ class FirstRunView(QWidget):
         self.notifier_check.setEnabled(False)
 
         def probe():
-            info = gsr.detect(command)
+            info = backend.detect(command)
             usable = info.available and not info.too_old
-            return (info, gsr.list_capture_options(command) if usable else [],
-                    notifier.find())
+            return (info, backend.list_capture_options(command) if usable else [],
+                    notifier.find() if backend.has_notifier() else None)
 
         workers.run(probe, self._got_recorder)
 
     def _got_recorder(self, result) -> None:
         info, options, notifier_path = result
         self.notifier_path = notifier_path
-        self._show_notifier(bool(notifier_path))
+        if backend.has_notifier():
+            self._show_notifier(bool(notifier_path))
         self.gsr_info = info
         self.recheck_button.setEnabled(True)
         usable = info.available and not info.too_old
@@ -318,7 +319,7 @@ class FirstRunView(QWidget):
         self.choices.set_capture_options(options)
         self._choices_changed()
         if usable:
-            self.gsr_status.setText(f"Recording with GPU Screen Recorder {info.version_text}.")
+            self.gsr_status.setText(f"Recording with {backend.name()} {info.version_text}.")
             theme.style(self.gsr_status, lambda: f"color: {theme.OK};")
             if not self._autostart_touched:
                 self.rec_autostart.setChecked(True)
@@ -326,22 +327,23 @@ class FirstRunView(QWidget):
         self.rec_autostart.setChecked(False)
         theme.style(self.gsr_status, lambda: f"color: {theme.WARN};")
         later = "Or carry on and set it up later in Settings."
+        name = backend.name()
         if info.too_old:
-            self.gsr_status.setText(f"GPU Screen Recorder {info.version_text} is too old.")
-            minimum = ".".join(map(str, gsr.MIN_VERSION))
-            self.install_title.setText("Update GPU Screen Recorder")
+            self.gsr_status.setText(f"{name} {info.version_text} is too old.")
+            minimum = ".".join(map(str, backend.min_version()))
+            self.install_title.setText(f"Update {name}")
             self.install_text.setText(f"Version {minimum} or newer is needed (you have "
                                       f"{info.version_text}). {later}")
             self.install_button.setText("How to update it")
         elif not info.missing:
-            self.gsr_status.setText("GPU Screen Recorder didn't start.")
-            self.install_title.setText("GPU Screen Recorder didn't start")
+            self.gsr_status.setText(f"{name} didn't start.")
+            self.install_title.setText(f"{name} didn't start")
             self.install_text.setText(f"{info.error} {later}")
             self.install_button.setText("How to install it")
         else:
-            self.gsr_status.setText("GPU Screen Recorder isn't installed.")
-            self.install_title.setText("Install GPU Screen Recorder")
-            self.install_text.setText(f"Vertex records with GPU Screen Recorder, which isn't "
+            self.gsr_status.setText(f"{name} isn't installed.")
+            self.install_title.setText(f"Install {name}")
+            self.install_text.setText(f"Vertex records with {name}, which isn't "
                                       f"installed. {later}")
             self.install_button.setText("How to install it")
 
@@ -361,7 +363,7 @@ class FirstRunView(QWidget):
 
     def _check_recording(self) -> bool:
         self.choices.apply(self.config.recorder)
-        problems = gsr.validate(self.choices.recorded(self.config.recorder))
+        problems = backend.validate(self.choices.recorded(self.config.recorder))
         self.moments_error.setText(problems[0] if problems else "")
         self.moments_error.setVisible(bool(problems))
         return not problems
