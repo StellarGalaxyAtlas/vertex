@@ -136,6 +136,9 @@ class SonarConfig:
 
 # --- The whole file ---------------------------------------------------------
 
+PLAYBACK_VOLUME_RANGE = (0, 300)
+
+
 @dataclass
 class Config:
     clip_path: str = ""
@@ -149,6 +152,9 @@ class Config:
     close_to_tray: bool = True
     colour_scheme: str = "navy"                                # a key of ui/theme.SCHEMES
     card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
+    # How loud the editor plays clips, in percent (PLAYBACK_VOLUME_RANGE): only
+    # what is heard while watching, never a clip, its mix or an export.
+    playback_volume: int = 100
     # The size last exported at (a label of media/export.SIZE_CHOICES); "" = none yet.
     export_size: str = ""
     # Desktop pop-ups switched away from their default, by kind (see notifications).
@@ -245,6 +251,8 @@ class Config:
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
+        config.playback_volume = min(max(config.playback_volume, PLAYBACK_VOLUME_RANGE[0]),
+                                     PLAYBACK_VOLUME_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
         config.sonar = _load_sonar(data.get("sonar"))
         return config

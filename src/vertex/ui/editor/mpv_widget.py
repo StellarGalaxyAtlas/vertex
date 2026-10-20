@@ -20,6 +20,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QGuiApplication, QNativeInterface, QOpenGLContext
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
+from vertex.config import PLAYBACK_VOLUME_RANGE
+
 
 def _get_proc_address(_ctx, name: bytes) -> int:
     context = QOpenGLContext.currentContext()
@@ -66,6 +68,8 @@ class MpvWidget(QOpenGLWidget):
             vo="libmpv", keep_open="yes", idle="yes", osc=False,
             input_default_bindings=False, input_vo_keyboard=False,
             audio_client_name="Vertex", title="Vertex", hr_seek="yes",
+            # The editor's playback volume goes to 300%.
+            volume_max=PLAYBACK_VOLUME_RANGE[1],
             # Plain bilinear scaling: the preview is shrunk to fit the editor,
             # where mpv's sharper default scalers look the same but cost an
             # older integrated GPU its frame rate. Exports are not affected.
