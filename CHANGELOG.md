@@ -30,6 +30,8 @@ Vertex on Windows 10 and 11, without Sonar.
 - Start menu shortcut and start at login (a "Vertex" shortcut in the Startup
   folder) on Windows, removed by `vertex uninstall-desktop`.
 - ffmpeg runs without console windows; Show in folder opens Explorer.
+- Importing clips reads the folders inside the chosen one too (Moments and
+  Medal keep a folder per game), with a list to leave folders out.
 - A Windows job in CI.
 
 ## 2.0.0 — unreleased

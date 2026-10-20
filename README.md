@@ -117,7 +117,8 @@ GPU Screen Recorder, and notifications can show over games.
 </p>
 
 Nine color schemes, recording options, shortcut commands to copy, importing
-from Moments, and resets.
+from Moments or Medal (including the folder per game, leaving out any folder
+you untick), and resets.
 
 ---
 

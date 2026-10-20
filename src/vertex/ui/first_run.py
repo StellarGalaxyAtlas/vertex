@@ -27,6 +27,7 @@ from vertex.core import importing
 from vertex.library.database import DB_NAME, Library
 from vertex.recorder import backend, gsr, notifier
 from vertex.ui import theme, workers
+from vertex.ui.dialogs.importing import FolderList
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.widgets import (
     ChoiceCard,
@@ -400,6 +401,9 @@ class FirstRunView(QWidget):
         pair.addWidget(self.in_place, 1)
         pair.addWidget(self.copy_in, 1)
         self.where.body.addLayout(pair)
+        self.folders = FolderList()
+        self.folders.changed.connect(self._folders_changed)
+        self.where.add(self.folders)
         self.copy_summary = label("", "Muted", wrap=True)
         self.where.add(self.copy_summary)
         self.progress_row = QWidget()
@@ -435,12 +439,15 @@ class FirstRunView(QWidget):
         clips = paths.tilde(self.clip_path.value()) or "your clips folder"
         self.copy_in.text.setText(f"Copy to {clips}")
         self.copy_summary.setVisible(self.copy_in.isChecked())
+        self.folders.show_plan(self.copy_plan if self.copy_in.isChecked() else None)
+        self._describe_found()
 
     def _scan(self) -> None:
         self._scan_timer.stop()
         self._scan_token += 1
         token = self._scan_token
         self.copy_plan = None
+        self.folders.show_plan(None)
         source, target = self.source.value(), self.clip_path.value()
         self._refresh_buttons()
         if not source:
@@ -470,15 +477,40 @@ class FirstRunView(QWidget):
             self._say(self.source_summary, "That folder doesn't exist.", "WARN")
             self._refresh_buttons()
             return
-        found = len(plan.files) + len(plan.present)
-        if not found:
+        if not plan.found:
             self._say(self.source_summary, "There are no clips in this folder.", "WARN")
             self._refresh_buttons()
             return
         self.copy_plan = plan
-        self._say(self.source_summary, f"Found {fmt.plural(found, 'clip')}.", "OK")
+        self._describe_found()
+        if self.copy_in.isChecked():
+            self.folders.show_plan(plan)
+        self._describe_copy()
+
+    def _describe_found(self) -> None:
+        plan = self.copy_plan
+        if plan is None:
+            return
+        text = f"Found {fmt.plural(plan.found, 'clip')}."
+        inside = plan.found - sum(f.clips for f in plan.folders if not f.path)
+        if inside and self.in_place.isChecked():
+            # The library shows the clips folder itself, not the folders in it.
+            self._say(self.source_summary, f"{text} {inside} of them are in folders inside "
+                                           f"it, which Vertex doesn't show: copy them to "
+                                           f"bring those in.", "WARN")
+            return
+        self._say(self.source_summary, text, "OK")
+
+    def _folders_changed(self) -> None:
+        if self.copy_plan is not None:
+            self.copy_plan.leave_out(self.folders.left_out())
+            self._describe_copy()
+
+    def _describe_copy(self) -> None:
+        plan = self.copy_plan
         if not plan.files:
-            self._say(self.copy_summary, "Already in your clips folder")
+            self._say(self.copy_summary, "Every folder is left out" if plan.left_out and
+                      not plan.present else "Already in your clips folder")
         elif not plan.fits:
             self._say(self.copy_summary, f"Copying needs {plan.total_human}, and only "
                                          f"{plan.free_human} is free there.", theme.DANGER)
@@ -525,6 +557,7 @@ class FirstRunView(QWidget):
         self.progress_row.show()
         for widget in (self.source, self.fresh, self.existing, self.in_place, self.copy_in):
             widget.setEnabled(False)
+        self.folders.set_enabled(False)
         self._refresh_buttons()
         total = max(1, plan.total_bytes)
 
@@ -546,6 +579,7 @@ class FirstRunView(QWidget):
         self.progress_row.hide()
         for widget in (self.source, self.fresh, self.existing, self.in_place, self.copy_in):
             widget.setEnabled(True)
+        self.folders.set_enabled(True)
         if self._cancel.is_set() and len(copied) + len(failed) < planned:
             self._stopped_note = f"Stopped after copying {fmt.plural(len(copied), 'clip')}."
             self._scan()

@@ -1487,3 +1487,48 @@ def test_settings_apply_at_once_and_recording_waits_for_apply(qapp, window, monk
     assert settings.apply_button.isHidden()
 
 
+
+
+def test_first_run_copies_clips_from_folders_inside_but_not_the_left_out_ones(qapp, tmp_path):
+    source = tmp_path / "Medal"
+    for folder, name in (("", "top.mp4"), ("First Light", "a.mp4"), ("Exports", "b.mp4")):
+        (source / folder).mkdir(parents=True, exist_ok=True)
+        (source / folder / name).write_bytes(b"x" * 10)
+    win, view = _setup(qapp, tmp_path)
+    for _ in range(2):
+        view._go(1)
+    view.existing.choose()
+    view.source.set_value(str(source))
+    assert wait_until(qapp, lambda: view.copy_plan is not None)
+    # Where they are, the ones in folders inside wouldn't show.
+    assert "2 of them are in folders inside it" in view.source_summary.text()
+    assert view.folders.isHidden()
+    view.copy_in.choose()
+    assert view.source_summary.text() == "Found 3 clips."
+    assert not view.folders.isHidden()
+    assert list(view.folders.boxes) == ["", "Exports", "First Light"]
+    assert "Copies 3 clips" in view.copy_summary.text()
+    view.folders.boxes["Exports"].setChecked(False)
+    assert "Copies 2 clips" in view.copy_summary.text()
+    view._go(1)
+    assert wait_until(qapp, lambda: view.current() == "tags" and view.tag_plan is not None)
+    assert sorted(os.listdir(tmp_path / "clips")) == ["a.mp4", "top.mp4"]
+    _close(win)
+
+
+def test_the_import_dialog_lists_the_folders_it_found(qapp, tmp_path):
+    from vertex.ui.dialogs.importing import CopyClipsDialog
+
+    source = tmp_path / "Moments"
+    for folder in ("Apex", "Exports"):
+        (source / folder).mkdir(parents=True)
+        (source / folder / f"{folder}.mp4").write_bytes(b"x" * 10)
+    dialog = CopyClipsDialog(None, str(tmp_path / "clips"), str(source))
+    assert list(dialog.folders.boxes) == ["Apex", "Exports"]
+    assert dialog.summary.text().startswith("2 clips to copy")
+    dialog.folders.boxes["Exports"].setChecked(False)
+    assert dialog.summary.text().startswith("1 clip to copy")
+    dialog.folders.boxes["Apex"].setChecked(False)
+    assert dialog.summary.text() == "Nothing new to copy."
+    assert not dialog.copy_button.isEnabled()
+    dialog.deleteLater()

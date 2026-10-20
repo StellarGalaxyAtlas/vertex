@@ -48,14 +48,6 @@ with the logs if it still doesn't start.
 
 ### Importing clips
 
-**74.** Bug
-**Import skips subfolders**
-Moments and Medal keep a folder per game: importing reads the folder and
-everything under it, into the clips folder side by side.
-Mockup: windows-port/mockups/4-import-subfolders.png, a list of the
-folders found with their clips, each one ticked; untick one (exports) to
-leave it out. To decide: this list, or every subfolder without one.
-
 **75.**
 **Teach Vertex a clip app's file names**
 Mockup: windows-port/mockups/1-file-names.png. When imported clips have

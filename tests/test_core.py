@@ -174,6 +174,42 @@ class TestImporting:
         copied, _ = importing.copy_clips(plan, cancelled=lambda: True)
         assert copied == []
 
+    def test_copy_reads_subfolders_and_can_leave_some_out(self, tmp_path):
+        src, dst = tmp_path / "Medal", tmp_path / "dst"
+        for folder in ("First Light", "Apex", "Exports", ".thumbs"):
+            (src / folder).mkdir(parents=True)
+        dst.mkdir()
+        _touch(str(src), "top.mp4", 1)
+        _touch(str(src / "First Light"), "a.mp4", 10)
+        _touch(str(src / "Apex"), "b.mp4", 20)
+        _touch(str(src / "Apex"), "a.mp4", 30)          # same name as in First Light
+        _touch(str(src / "Exports"), "c.mp4", 40)
+        _touch(str(src / ".thumbs"), "d.mp4", 50)
+        plan = importing.plan_copy(str(src), str(dst))
+        assert [(f.path, f.clips, f.bytes) for f in plan.folders] == [
+            ("", 1, 1), ("Apex", 2, 50), ("Exports", 1, 40), ("First Light", 1, 10)]
+        assert plan.found == 5
+        assert plan.files == [("top.mp4", 1), (os.path.join("Apex", "a.mp4"), 30),
+                              (os.path.join("Apex", "b.mp4"), 20),
+                              (os.path.join("Exports", "c.mp4"), 40)]
+        assert plan.present == [os.path.join("First Light", "a.mp4")]
+        plan.leave_out({"Exports", "Apex"})
+        assert plan.files == [("top.mp4", 1), (os.path.join("First Light", "a.mp4"), 10)]
+        assert plan.total_bytes == 11 and plan.present == []
+        copied, failed = importing.copy_clips(plan)
+        assert copied == ["top.mp4", "a.mp4"] and not failed
+        assert sorted(os.listdir(dst)) == ["a.mp4", "top.mp4"]
+        assert os.path.getsize(dst / "a.mp4") == 10
+
+    def test_copy_does_not_read_the_clips_folder_inside_the_source(self, tmp_path):
+        src = tmp_path / "Videos"
+        dst = src / "Game Recordings"
+        dst.mkdir(parents=True)
+        _touch(str(dst), "mine.mp4")
+        _touch(str(src), "old.mp4")
+        plan = importing.plan_copy(str(src), str(dst))
+        assert plan.files == [("old.mp4", 10)] and plan.found == 1
+
     def test_plan_import_reuses_known_spelling(self, tmp_path):
         folder = str(tmp_path)
         _touch(folder, "THE-FINALS__2024-06-16__19-45-23.mp4")

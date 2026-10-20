@@ -24,15 +24,33 @@ COPY_REPORT_EVERY = 8 * 1024 * 1024   # how much must land before reporting agai
 
 
 @dataclass
+class CopyFolder:
+    """A folder under the source holding recordings: "" is the source itself."""
+
+    path: str
+    clips: int = 0
+    bytes: int = 0
+
+
+@dataclass
 class CopyPlan:
-    """Which recordings a copy would bring in, and what that would cost."""
+    """Which recordings a copy would bring in, and what that would cost.
+
+    Every recording under `source` is found, in subfolders too (Moments and
+    Medal keep a folder per game); they all land side by side in `target`.
+    `folders` lists where they were found, and `leave_out` drops folders
+    from the copy (another app's exports, say)."""
 
     source: str = ""
     target: str = ""
-    files: list[tuple[str, int]] = field(default_factory=list)   # (name, bytes)
+    files: list[tuple[str, int]] = field(default_factory=list)   # (path under source, bytes)
     present: list[str] = field(default_factory=list)             # already there
     total_bytes: int = 0
     free_bytes: int = 0
+    folders: list[CopyFolder] = field(default_factory=list)
+    left_out: set[str] = field(default_factory=set)              # paths of folders
+    _found: list[tuple[str, int]] = field(default_factory=list, repr=False)
+    _existing: set[str] = field(default_factory=set, repr=False)
 
     @property
     def fits(self) -> bool:
@@ -47,29 +65,71 @@ class CopyPlan:
     def free_human(self) -> str:
         return fmt.size(self.free_bytes)
 
+    @property
+    def found(self) -> int:
+        """Recordings found, in every folder."""
+        return len(self._found)
+
+    def leave_out(self, folders) -> None:
+        """Copy everything but the recordings in `folders` (CopyFolder paths)."""
+        self.left_out = set(folders)
+        self.files, self.present, self.total_bytes = [], [], 0
+        taken = set(self._existing)
+        for path, size in self._found:
+            if os.path.dirname(path) in self.left_out:
+                continue
+            # One clips folder: a name taken there, or by a clip in an
+            # earlier folder, is left alone.
+            name = os.path.basename(path)
+            if name in taken:
+                self.present.append(path)
+                continue
+            taken.add(name)
+            self.files.append((path, size))
+            self.total_bytes += size
+
 
 def plan_copy(source: str, target: str) -> CopyPlan:
-    """Work out which recordings would be copied from `source` into `target`.
+    """Work out which recordings would be copied from `source` and the
+    folders under it into `target`.
 
-    Only the folder itself is read: a Moments library keeps thumbnails and
-    exports in folders of their own beside the recordings. A name already in
-    the target is left alone — re-running an import must never clobber a clip
-    that has been edited since.
+    A name already in the target is left alone — re-running an import must
+    never clobber a clip that has been edited since. Hidden folders, and the
+    target itself if it lies under `source`, aren't read.
     """
     existing = set(os.listdir(target)) if os.path.isdir(target) else set()
-    plan = CopyPlan(source=source, target=target)
-    for name in sorted(os.listdir(source)):
-        if not is_clip(name):
-            continue
-        if name in existing:
-            plan.present.append(name)
-            continue
-        try:
-            size = os.path.getsize(os.path.join(source, name))
-        except OSError:
-            continue
-        plan.files.append((name, size))
-        plan.total_bytes += size
+    plan = CopyPlan(source=source, target=target, _existing=existing)
+    skip = os.path.realpath(target)
+
+    def visit(folder: str) -> None:
+        here = CopyFolder(os.path.relpath(folder, source) if folder != source else "")
+        subfolders = []
+        with os.scandir(folder) as entries:
+            for entry in sorted(entries, key=lambda e: e.name.lower()):
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        if not entry.name.startswith(".") and \
+                                os.path.realpath(entry.path) != skip:
+                            subfolders.append(entry.path)
+                        continue
+                    if not is_clip(entry.name):
+                        continue
+                    size = entry.stat().st_size
+                except OSError:
+                    continue
+                plan._found.append((os.path.join(here.path, entry.name), size))
+                here.clips += 1
+                here.bytes += size
+        if here.clips:
+            plan.folders.append(here)
+        for path in subfolders:
+            try:
+                visit(path)
+            except OSError as exc:
+                log.warning("Couldn't read %s: %s", path, exc)
+
+    visit(source)
+    plan.leave_out(())
     # A clips folder chosen during setup doesn't exist yet; the space that
     # counts is on the drive it will be created on.
     existing_parent = os.path.abspath(target)
@@ -115,12 +175,13 @@ def copy_clips(plan: CopyPlan,
         os.makedirs(plan.target, exist_ok=True)
     except OSError as err:
         log.error("Couldn't create %s: %s", plan.target, err)
-        return copied, [(name, str(err)) for name, _size in plan.files]
+        return copied, [(os.path.basename(path), str(err)) for path, _size in plan.files]
     done_bytes = 0
-    for index, (name, size) in enumerate(plan.files, start=1):
+    for index, (path, size) in enumerate(plan.files, start=1):
         if cancelled is not None and cancelled():
             break
-        source = os.path.join(plan.source, name)
+        name = os.path.basename(path)
+        source = os.path.join(plan.source, path)
         target = os.path.join(plan.target, name)
         partial = os.path.join(plan.target, f".{name}.part")
         settled = done_bytes
