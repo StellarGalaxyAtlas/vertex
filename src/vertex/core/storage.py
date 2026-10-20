@@ -56,7 +56,7 @@ def storage_stats(clip_dir: str) -> StorageStats:
     would otherwise be reported against a disk it has nothing to do with.
     """
     clips_bytes = 0
-    target = "/"
+    target = os.path.expanduser("~")
     if clip_dir and os.path.isdir(clip_dir):
         target = clip_dir
         with os.scandir(clip_dir) as entries:

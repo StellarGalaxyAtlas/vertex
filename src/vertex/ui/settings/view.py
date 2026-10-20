@@ -35,6 +35,7 @@ from vertex.config import (
     REPLAY_STORAGES,
     VIDEO_CODECS,
     Config,
+    default_config,
 )
 from vertex.core import storage
 from vertex.recorder import gsr
@@ -206,8 +207,11 @@ class SettingsView(QWidget):
         appearance.add(self.schemes)
 
         folders = Section("Folders")
-        self.clip_path = PathField(placeholder="~/Videos/Game Recordings")
-        self.export_path = PathField(placeholder="~/Videos/Game Recordings/Vertex/Exports")
+        # The defaults for this account and system: Videos is wherever, and
+        # whatever, the desktop calls it.
+        defaults = default_config()
+        self.clip_path = PathField(placeholder=paths.tilde(defaults.clip_path))
+        self.export_path = PathField(placeholder=paths.tilde(defaults.export_path))
         folders.add_row("Clips", self.clip_path)
         folders.add_row("Exports", self.export_path)
         self.data_path = PathField(placeholder=str(paths.default_data_dir()))
