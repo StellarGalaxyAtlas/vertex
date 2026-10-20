@@ -17,7 +17,7 @@ import argparse
 import json
 import sys
 
-from vertex import APP_NAME, __version__, ipc
+from vertex import APP_NAME, __version__, ipc, system
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -94,6 +94,21 @@ def _watch() -> int:
     return 0
 
 
+def _start_apart(background: bool) -> int:
+    """`vertex` typed in a terminal on Windows: Vertex starts on its own and
+    the terminal is handed back, so closing it doesn't quit Vertex."""
+    from vertex import desktop
+
+    try:
+        system.start_detached([*desktop.launch_command(),
+                               *(["--background"] if background else [])])
+    except OSError as exc:
+        print(f"Couldn't start {APP_NAME}: {exc}", file=sys.stderr)
+        return 1
+    print(f"{APP_NAME} is starting. This window can be closed.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
 
@@ -103,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "show":
             print(f"{APP_NAME} is not running.", file=sys.stderr)
             return 1
+        if system.in_console():
+            return _start_apart(args.background)
         from vertex.ui.app import run
 
         return run(background=args.background)

@@ -51,6 +51,28 @@ def known_folder(role: str) -> str:
         ole32.CoTaskMemFree(found)
 
 
+def in_console() -> bool:
+    """Whether this process has a console window: started as `vertex` from a
+    terminal, not from a shortcut (VertexApp.exe) or another program."""
+    if not WINDOWS:
+        return False
+    import ctypes
+
+    try:
+        return bool(ctypes.windll.kernel32.GetConsoleWindow())
+    except (OSError, AttributeError):
+        return False
+
+
+def start_detached(argv: list[str]) -> None:
+    """Start a program apart from this one's console: it keeps running when
+    the terminal is closed. Raises OSError if it can't be started."""
+    flags = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+             if WINDOWS else 0)
+    subprocess.Popen(argv, creationflags=flags, close_fds=True, stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def allow_foreground() -> None:
     """Let the running Vertex bring its window to the front when asked by
     this process: Windows only lets the app the user is using do that, so

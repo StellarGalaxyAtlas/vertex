@@ -241,3 +241,18 @@ def test_a_window_goes_on_the_taskbar_as_vertex():
         assert desktop.put_on_taskbar(hwnd)
     finally:
         user32.DestroyWindow(hwnd)
+
+
+def test_vertex_typed_in_a_terminal_starts_apart_from_it(monkeypatch, capsys):
+    from vertex import cli, ipc, system
+
+    started = []
+    monkeypatch.setattr(ipc, "is_running", lambda: False)
+    monkeypatch.setattr(system, "in_console", lambda: True)
+    monkeypatch.setattr(system, "start_detached", started.append)
+    assert cli.main(["--background"]) == 0
+    assert started[0][-1] == "--background"
+    assert "can be closed" in capsys.readouterr().out
+    if sys.platform != "win32":
+        monkeypatch.undo()
+        assert not system.in_console()          # elsewhere Vertex runs in place

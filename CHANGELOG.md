@@ -13,6 +13,8 @@ Vertex on Windows 10 and 11, without Sonar.
 - The Stream Deck link on the Shortcuts page, for now.
 
 ### Changed
+- On Windows, `vertex` typed in a terminal starts Vertex apart from it and
+  returns, so closing the terminal doesn't quit Vertex.
 - Enter in a confirmation takes what it asks for (Delete, Apply), not
   Cancel.
 - A clip's tracks default to the default output (Game) and the default
