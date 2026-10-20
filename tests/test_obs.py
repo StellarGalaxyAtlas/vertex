@@ -27,8 +27,8 @@ def wait_for(condition, timeout=10.0):
 
 
 @pytest.fixture
-def fake(sample_clip):
-    server = FakeObs(replay_file=str(sample_clip))
+def fake():
+    server = FakeObs()
     yield server
     server.close()
 
@@ -183,7 +183,8 @@ class TestReplayBuffer:
         assert "Vertex Mic" not in fake.inputs
         recorder.stop()
 
-    def test_a_save_becomes_a_clip_with_named_tracks(self, connected, tmp_path):
+    def test_a_save_becomes_a_clip_with_named_tracks(self, connected, tmp_path, sample_clip):
+        connected.replay_file = str(sample_clip)
         saved = []
         recorder = ObsRecorder(on_saved=saved.append)
         clips = tmp_path / "clips"
