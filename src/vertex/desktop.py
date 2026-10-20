@@ -2,8 +2,8 @@
 
 On Linux, per the freedesktop specs: everything written lives under the
 user's XDG data/config dirs. On Windows: a shortcut in the user's Start menu,
-its icon in Vertex's AppData folder, and a value under the user's Run key in
-the registry for starting at login. Either way it is recorded by name, so
+its icon in Vertex's AppData folder, and a shortcut in the Startup folder
+for starting at login. Either way it is recorded by name, so
 `vertex uninstall-desktop` removes exactly what `vertex install-desktop`
 wrote and nothing else.
 
@@ -50,16 +50,28 @@ def added_marker() -> Path:
 
 # --- Windows ------------------------------------------------------------------
 
-RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+def _programs() -> Path:
+    return Path(system.appdata()) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
 
 
 def start_menu_shortcut() -> Path:
-    return (Path(system.appdata()) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
-            / f"{APP_NAME}.lnk")
+    return _programs() / f"{APP_NAME}.lnk"
+
+
+def startup_shortcut() -> Path:
+    """Starts Vertex when the user signs in. A shortcut, not a Run value in
+    the registry: Windows lists a shortcut by its own name, a Run value by
+    the program it starts (pythonw.exe)."""
+    return _programs() / "Startup" / f"{APP_NAME}.lnk"
 
 
 def windows_icon() -> Path:
     return paths.local_dir() / f"{APP_ID}.ico"
+
+
+def _shortcut_icon() -> Path:
+    """The icon where Explorer can read it (see paths.real)."""
+    return Path(paths.real(str(windows_icon())))
 
 
 def _windows_icon(variant: str) -> list[Path]:
@@ -94,31 +106,6 @@ def _write_shortcut(path: Path, argv: list[str], icon: Path) -> None:
         "$link.Save()"))
     subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
                    capture_output=True, timeout=60, check=True, **system.NO_WINDOW)
-
-
-def _run_value(enabled: bool, argv: list[str] | None = None) -> None:
-    import winreg
-
-    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
-        if enabled:
-            line = subprocess.list2cmdline([*(argv or launch_command()), "--background"])
-            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, line)
-        else:
-            try:
-                winreg.DeleteValue(key, APP_NAME)
-            except FileNotFoundError:
-                pass
-
-
-def _run_value_set() -> bool:
-    import winreg
-
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
-            winreg.QueryValueEx(key, APP_NAME)
-    except OSError:
-        return False
-    return True
 
 
 # --- Both ---------------------------------------------------------------------
@@ -246,7 +233,7 @@ def install(variant: str = paths.DEFAULT_LOGO_VARIANT, autostart: bool | None = 
     argv = argv or launch_command()
     if system.WINDOWS:
         written = _windows_icon(paths.logo_variant(variant))
-        _write_shortcut(start_menu_shortcut(), argv, windows_icon())
+        _write_shortcut(start_menu_shortcut(), argv, _shortcut_icon())
         written.append(start_menu_shortcut())
         if autostart is not None:
             set_autostart(autostart, argv)
@@ -288,7 +275,14 @@ def update_icons(variant: str) -> list[Path]:
 
 def set_autostart(enabled: bool, argv: list[str] | None = None) -> None:
     if system.WINDOWS:
-        _run_value(enabled, argv)
+        if enabled:
+            _write_shortcut(startup_shortcut(), [*(argv or launch_command()), "--background"],
+                            _shortcut_icon())
+        else:
+            try:
+                startup_shortcut().unlink()
+            except FileNotFoundError:
+                pass
         return
     if enabled:
         _write(autostart_file(), desktop_entry(argv or launch_command(), hidden_start=True))
@@ -300,17 +294,15 @@ def set_autostart(enabled: bool, argv: list[str] | None = None) -> None:
 
 
 def autostart_enabled() -> bool:
-    return _run_value_set() if system.WINDOWS else autostart_file().exists()
+    return (startup_shortcut() if system.WINDOWS else autostart_file()).exists()
 
 
 def uninstall() -> list[Path]:
     """Remove the entry, autostart and icons `install` writes. Returns what
     was removed. The marker stays, so Vertex doesn't add the entry back."""
     if system.WINDOWS:
-        autostart = autostart_enabled()
-        _run_value(False)
-        removed = [Path(f"HKCU\\{RUN_KEY}\\{APP_NAME}")] if autostart else []
-        for path in (start_menu_shortcut(), windows_icon()):
+        removed = []
+        for path in (start_menu_shortcut(), startup_shortcut(), windows_icon()):
             try:
                 path.unlink()
                 removed.append(path)

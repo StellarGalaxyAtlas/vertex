@@ -23,10 +23,12 @@ Vertex on Windows 10 and 11, without Sonar.
   video quality is High or Ultra (OBS's own two levels). `vertex doctor`
   checks OBS and its WebSocket server.
 - Windows folders: settings in `%APPDATA%\Vertex`, the library, logs and
-  thumbnails in `%LOCALAPPDATA%\Vertex`, clips in the Videos folder.
+  thumbnails in `%LOCALAPPDATA%\Vertex`, clips in the Videos folder. They are
+  made where OBS and ffmpeg see them, also on the Microsoft Store's Python;
+  `vertex doctor` says where each one is.
 - The control channel over a token-guarded local port on Windows.
-- Start menu shortcut and start at login on Windows, removed by
-  `vertex uninstall-desktop`.
+- Start menu shortcut and start at login (a "Vertex" shortcut in the Startup
+  folder) on Windows, removed by `vertex uninstall-desktop`.
 - ffmpeg runs without console windows; Show in folder opens Explorer.
 - A Windows job in CI.
 

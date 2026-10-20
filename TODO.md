@@ -34,11 +34,6 @@ AppData folders, and hands other programs the real place of each;
 `vertex doctor` shows which Python runs Vertex and where each folder really
 is. To try on the friend's PC, and to ask which capitalization they saw.
 
-**71.** Bug
-**Startup apps lists Vertex as "pythonw.exe"**
-The registry Run entry starts pythonw.exe, and Windows names it after
-that. Use a "Vertex" shortcut in the Startup folder instead.
-
 **72.** Bug
 **No icon on the Start menu shortcut**
 Likely the same cause as 69: the icon file sat in the private copy. To

@@ -136,3 +136,17 @@ def test_a_folder_kept_elsewhere_is_named_by_where_it_is(windows):
     moved.symlink_to(private)
     assert paths.real(str(moved)) == str(private)
     assert paths.real(str(elsewhere)) == str(elsewhere)
+
+
+def test_vertex_starts_at_sign_in_from_a_shortcut_named_vertex(windows, monkeypatch):
+    ran = []
+    monkeypatch.setattr(desktop.subprocess, "run", lambda argv, **_kw: ran.append(argv))
+    startup = windows / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs" / \
+        "Startup" / "Vertex.lnk"
+    desktop.set_autostart(True, ["C:\\Python\\pythonw.exe", "-m", "vertex"])
+    script = ran[0][-1]
+    assert f"'{startup}'" in script and "$link.Arguments = '-m vertex --background'" in script
+    startup.write_text("")                      # what PowerShell would have written
+    assert desktop.autostart_enabled()
+    desktop.set_autostart(False)
+    assert not startup.exists() and not desktop.autostart_enabled()
