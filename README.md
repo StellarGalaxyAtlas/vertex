@@ -80,7 +80,8 @@ telemetry and no account.
 </p>
 
 All your clips with previews. Filter by game, person or favorites, search,
-tag and rename.
+tag and rename. A game with a wrong name is renamed from the games menu
+(right-click it): its clips are retagged, and new clips get the new name too.
 
 ## Editor and export
 
@@ -91,7 +92,8 @@ tag and rename.
 </tr>
 </table>
 
-A volume slider per audio track and trimming without quality loss. Share
+A volume slider per audio track, a playback volume (up to 300%, only for
+watching), and trimming without quality loss. Share
 sizes the clip for Discord and copies it, ready to paste or drag into a chat;
 Export saves it in your Exports folder.
 
@@ -113,8 +115,8 @@ their channel, and a priority list picks your headset and mic.
 </tr>
 </table>
 
-GPU Screen Recorder keeps the last minute or two. Game, chat and mic are
-saved as separate tracks. Notifications can show over games.
+GPU Screen Recorder keeps the last minute or two. Game, chat, media and mic
+are saved as separate tracks. Notifications can show over games.
 
 ## Settings
 
@@ -127,7 +129,8 @@ from Moments or Medal (including the folder per game, leaving out any folder
 you untick), and resets. Vertex reads the game and the date from clip names:
 add each app that recorded them (Medal, ShadowPlay, Xbox Game Bar, OBS and
 more), or mark up one of your own names to teach it. A name the first app
-can't read goes to the next.
+can't read goes to the next, and Vertex lists what reading your clips' names
+again would change, for you to apply.
 
 ---
 
