@@ -6,6 +6,7 @@ import ctypes.util
 import importlib.util
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 
 from vertex import config as config_mod
@@ -112,6 +113,11 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),
                         "run Vertex once to go through setup", required=False))
+    # A virtual environment's (pipx's) own python says little: name the
+    # Python it was made from too.
+    python = sys.executable if sys.prefix == sys.base_prefix else \
+        f"{sys.executable}, made from {sys.base_prefix}"
+    checks.append(Check("python", True, python, required=False))
     try:
         subprocess.run(["xdg-open", "--version"], capture_output=True, timeout=5)
         checks.append(Check("xdg-open", True, "found", required=False))
