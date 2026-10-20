@@ -67,12 +67,15 @@ class NamePattern:
 
     @cached_property
     def regex(self) -> re.Pattern:
+        return self._regex(1)
+
+    def _regex(self, shortest_game: int) -> re.Pattern:
         pieces = []
         for part in self.parts:
             if part.kind == "text":
                 pieces.append(re.escape(part.text))
             elif part.kind == "game":
-                pieces.append(r"(?P<game>.+?)")
+                pieces.append(f"(?P<game>.{{{shortest_game},}}?)")
             elif part.kind == "skip":
                 pieces.append(f".{{{part.text}}}" if part.text else r".*?")
             else:
@@ -87,6 +90,15 @@ class NamePattern:
         if not match:
             return None
         found = match.groupdict()
+        # A game ending in a number runs into a date written straight after
+        # it ("Helldivers2" + "20260817…"): the shortest game leaves no real
+        # date, so the game takes more until one is left.
+        while found.get("game") and found.get("Y") and not _timestamp(found):
+            match = self._regex(len(found["game"]) + 1).match(stem)
+            if not match:
+                found = self.regex.match(stem).groupdict()
+                break
+            found = match.groupdict()
         game = found.get("game") or ""
         if game:
             game = self.tidy_game(game)
@@ -96,7 +108,7 @@ class NamePattern:
         for char in self.spaces:
             text = text.replace(char, " ")
         if self.split_words:
-            text = re.sub(r"(?<=[a-z])(?=[A-Z])|(?<=\d)(?=[A-Z][a-z])", " ", text)
+            text = re.sub(r"(?<=[a-z])(?=[A-Z\d])|(?<=\d)(?=[A-Z][a-z])", " ", text)
         return " ".join(text.split())
 
     def to_dict(self) -> dict:
@@ -184,6 +196,8 @@ def _format_regex(fmt: str) -> str:
 def _timestamp(found: dict) -> float:
     if not found.get("Y"):
         return 0.0      # a time alone doesn't say when
+    if not 1990 <= int(found["Y"]) <= datetime.date.today().year + 1:
+        return 0.0      # no clip was recorded then: digits of something else
     try:
         moment = datetime.datetime(int(found["Y"]), int(found["M"]), int(found["D"]),
                                    int(found.get("h") or 0), int(found.get("m") or 0),

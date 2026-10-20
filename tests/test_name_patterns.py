@@ -140,3 +140,17 @@ def test_the_first_pattern_that_reads_a_name_is_its_reader():
     assert naming.reader_of("THE-FINALS__2024-06-16__19-45-23.mp4", [medal]) == naming.BUILT_IN
     assert naming.reader_of("Replay_2026-03-28_05-28-25.mp4", []) == naming.BUILT_IN
     assert naming.reader_of("clip_final_edit.mp4", [medal]) is None
+
+
+def test_a_game_ending_in_a_number_keeps_it_when_a_date_follows_straight_on():
+    medal = PRESETS[0].pattern
+    for name, game in (("MedalTVHelldivers220260817235610725.mp4", "Helldivers 2"),
+                       ("MedalTVCounterStrike220260817235610725.mp4", "Counter Strike 2"),
+                       ("MedalTVBattlefield204220260817235610725.mp4", "Battlefield 2042"),
+                       ("MedalTVLeft4Dead220260817235610725.mp4", "Left 4 Dead 2")):
+        reading = medal.read(name)
+        assert reading.game == game
+        assert datetime.datetime.fromtimestamp(reading.when) == \
+            datetime.datetime(2026, 8, 17, 23, 56, 10)
+    game_bar = PRESETS[3].pattern
+    assert game_bar.read("Helldivers 2 2024-05-18 20-32-45.mp4").game == "Helldivers 2"
