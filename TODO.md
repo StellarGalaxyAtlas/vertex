@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 79.
+and bugs get the next free number: 80.
 
 ---
 
@@ -76,13 +76,22 @@ split (FirstLight → First Light).
 
 **77.**
 **A fourth track: Music**
-Mockup: windows-port/mockups/3-recording-tracks.png. Optional, off until a
+Mockup: windows-port/mockups/2-recording-tracks.png. Optional, off until a
 device is picked. The editor shows its lane only in clips that have it.
 
 **78.**
 **Recording volume per track**
 Same mockup. A 0–100% slider per track in Settings › Recording, set as the
 OBS source's volume, so clips play back right at 100%.
+
+### Editor
+
+**79.**
+**Playback volume in the editor**
+Mockup: windows-port/mockups/3-editor-playback-volume.png. One slider by
+the time readout, 0–300%, that makes playback louder or quieter while
+watching a clip. Only playback: the clip, its track mix and exports stay
+as they are. Remembered between clips.
 
 ### Later
 
