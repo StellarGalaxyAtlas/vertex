@@ -1740,6 +1740,14 @@ def test_editor_plays_mixes_and_trims(qapp, window):
     editor._save()
     edit = window.context.library.get_edit(clip.name)
     assert edit.trim_start == 0.5 and edit.mix_for("Vertex Mic").volume == 0.4
+    # Playback volume: only what is heard, kept for the next clip.
+    editor.volume.setValue(250)
+    assert editor.player_widget.player.volume == 250 and editor.volume_readout.text() == "250%"
+    editor.volume_button.click()
+    assert editor.player_widget.player.volume == 0
+    editor.volume_button.click()
+    assert editor.volume.value() == 250 and window.context.config.playback_volume == 250
+    assert window.context.library.get_edit(clip.name).mix_for("Vertex Mic").volume == 0.4
     editor._start_trim("copy")
     assert wait_until(qapp, lambda: editor._trim_job is None, timeout=30)
     assert any("(trimmed)" in name for name in os.listdir(os.path.dirname(clip.path)))

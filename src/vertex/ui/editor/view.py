@@ -14,11 +14,13 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QPushButton,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
 from vertex import fmt
+from vertex.config import PLAYBACK_VOLUME_RANGE
 from vertex.core import clips as clips_mod
 from vertex.logs import CLIPS as log
 from vertex.media import mixing, probe, trim, waveform
@@ -168,6 +170,8 @@ class EditorView(QWidget):
         self.time_label.setMinimumWidth(110)
         transport.addSpacing(10)
         transport.addWidget(self.time_label)
+        transport.addSpacing(8)
+        self._build_playback_volume(transport)
         transport.addStretch(1)
         self.status = label("", "Muted")
         transport.addWidget(self.status)
@@ -230,6 +234,61 @@ class EditorView(QWidget):
         layout.addLayout(editor)
         self._update_estimate()
 
+    def _build_playback_volume(self, transport: QHBoxLayout) -> None:
+        """How loud the clip plays here; the clip, its mix and exports stay as
+        they are. Kept for the next clip."""
+        self._unmuted = self.context.config.playback_volume or 100
+        self.volume_button = IconButton("volume", "Mute playback", 18, "TEXT_MUTED")
+        self.volume_button.clicked.connect(self._toggle_playback_mute)
+        transport.addWidget(self.volume_button)
+        self.volume = QSlider(Qt.Orientation.Horizontal)
+        self.volume.setRange(*PLAYBACK_VOLUME_RANGE)
+        self.volume.setValue(self.context.config.playback_volume)
+        self.volume.setFixedWidth(120)
+        self.volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.volume.setToolTip("Playback volume, here only: the clip and its exports stay "
+                               "as they are. Double-click for 100%.")
+        self.volume.mouseDoubleClickEvent = lambda _e: self.volume.setValue(100)
+        # Not the accent: that never sits on an audio control.
+        theme.style(self.volume, lambda: f"QSlider::sub-page:horizontal {{ background: "
+                                         f"{theme.TEXT_MUTED}; border-radius: 2px; }}")
+        self.volume.valueChanged.connect(self._playback_volume_changed)
+        transport.addWidget(self.volume)
+        self.volume_readout = label("", "Muted")
+        self.volume_readout.setFixedWidth(44)
+        self.volume_readout.setAlignment(Qt.AlignmentFlag.AlignRight |
+                                         Qt.AlignmentFlag.AlignVCenter)
+        transport.addWidget(self.volume_readout)
+        self._show_playback_volume()
+
+    def _toggle_playback_mute(self) -> None:
+        if self.volume.value():
+            self._unmuted = self.volume.value()
+            self.volume.setValue(0)
+        else:
+            self.volume.setValue(self._unmuted)
+
+    def _playback_volume_changed(self, value: int) -> None:
+        self.context.config.playback_volume = value
+        self.context.save_config_later()
+        self._show_playback_volume()
+        self._apply_playback_volume()
+
+    def _show_playback_volume(self) -> None:
+        value = self.volume.value()
+        self.volume_readout.setText(f"{value}%")
+        self.volume_button.set_icon("mute" if value == 0 else "volume", "TEXT_MUTED")
+        self.volume_button.setToolTip("Unmute playback" if value == 0 else "Mute playback")
+
+    def _apply_playback_volume(self) -> None:
+        player = self.player_widget.player if self.player_widget else None
+        if player is None:
+            return
+        try:
+            player["volume"] = self.volume.value()
+        except Exception:            # plays on at the volume it had
+            pass
+
     # --- Size ------------------------------------------------------------------
 
     def resizeEvent(self, event):
@@ -258,6 +317,10 @@ class EditorView(QWidget):
             widget.setIconSize(QSize(round(16 * scale), round(16 * scale)))
         self.time_label.setStyleSheet(text)
         self.time_label.setMinimumWidth(round(110 * scale))
+        self.volume_button.set_size(round(18 * scale))
+        self.volume.setFixedWidth(round(120 * scale))
+        self.volume_readout.setStyleSheet(text)
+        self.volume_readout.setFixedWidth(round(44 * scale))
         self._update_estimate()
         for widget in self.video_labels:
             widget.setStyleSheet(text)
@@ -304,6 +367,7 @@ class EditorView(QWidget):
             return
         player = self.player_widget.player
         self._apply_mix()
+        self._apply_playback_volume()
         if self.trim_start > 0:
             try:
                 player["start"] = f"{self.trim_start:.3f}"
