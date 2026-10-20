@@ -6,7 +6,9 @@ A pattern is a template, kept in the settings as text:
     MedalTV{game}{datetime:YYYYMMDDHHmmss}{skip}
 
 Plain text must be in the name as it is; `{game}` is the game, `{skip}` any
-text that changes from clip to clip (a counter, milliseconds), and
+text that changes from clip to clip (a counter, milliseconds), `{skip:7}`
+exactly that many characters (what tells it apart from a game right beside
+it), and
 `{date:…}`, `{time:…}`, `{datetime:…}` read when the clip was recorded, in a
 format made of YYYY, MM, DD, HH, mm and ss with the separators between them.
 A brace in plain text is written twice ({{ or }}).
@@ -72,7 +74,7 @@ class NamePattern:
             elif part.kind == "game":
                 pieces.append(r"(?P<game>.+?)")
             elif part.kind == "skip":
-                pieces.append(r".*?")
+                pieces.append(f".{{{part.text}}}" if part.text else r".*?")
             else:
                 pieces.append(_format_regex(part.text))
         return re.compile("^" + "".join(pieces) + _SUFFIX + "$")
@@ -137,6 +139,10 @@ def parse(template: str) -> tuple[Part, ...]:
             raise PatternError(f"Vertex doesn't know {{{kind}}}.")
         if kind in WHEN_KINDS and not _CODE.search(fmt):
             raise PatternError(f"{{{kind}}} needs a format, such as YYYY-MM-DD.")
+        if kind == "skip" and fmt and not (fmt.isdigit() and int(fmt) > 0):
+            raise PatternError("{skip:…} takes a number of characters, such as {skip:7}.")
+        if kind == "game" and fmt:
+            raise PatternError("{game} takes no format.")
         reads = {"game": {"game"}, "date": {"date"}, "time": {"time"},
                  "datetime": {"date", "time"}, "skip": set()}[kind]
         if reads & seen:
@@ -241,15 +247,23 @@ class Mark:
 def from_marks(name: str, marks, app: str = "My clips", split_words: bool = False,
                spaces: str = "") -> NamePattern:
     """A pattern from one name and the parts marked in it; what isn't marked
-    is plain text. Raises PatternError if the marks can't make one."""
+    is plain text. Raises PatternError if the marks can't make one.
+
+    A part to ignore right beside the game, with nothing between them, says
+    nothing about where one ends and the other starts, so it keeps the length
+    it has in this name."""
     stem = os.path.splitext(name)[0] if name.lower().endswith(_EXTENSIONS) else name
+    marks = sorted(marks, key=lambda m: m.start)
     parts, at = [], 0
-    for mark in sorted(marks, key=lambda m: m.start):
+    for index, mark in enumerate(marks):
         if mark.start < at:
             raise PatternError("Two marked parts overlap.")
         if mark.start > at:
             parts.append(Part("text", stem[at:mark.start]))
-        parts.append(Part(mark.kind, mark.format if mark.kind in WHEN_KINDS else ""))
+        fmt = mark.format if mark.kind in WHEN_KINDS else ""
+        if mark.kind == "skip" and _touches_game(marks, index):
+            fmt = str(mark.end - mark.start)
+        parts.append(Part(mark.kind, fmt))
         at = mark.end
     if at < len(stem):
         parts.append(Part("text", stem[at:]))
@@ -257,6 +271,13 @@ def from_marks(name: str, marks, app: str = "My clips", split_words: bool = Fals
     if pattern.read(stem) is None:
         raise PatternError("Those marks don't read the name back.")
     return pattern
+
+
+def _touches_game(marks, index: int) -> bool:
+    mark = marks[index]
+    return any(0 <= other < len(marks) and marks[other].kind == "game" and
+               (marks[other].end == mark.start or marks[other].start == mark.end)
+               for other in (index - 1, index + 1))
 
 
 # --- Presets ---------------------------------------------------------------------
@@ -281,13 +302,15 @@ PRESETS: tuple[Preset, ...] = (
            "THE-FINALS__2024-06-16__19-45-23.mp4", checked=True),
     Preset(NamePattern("NVIDIA ShadowPlay / NVIDIA App",
                        "{game} {date:YYYY.MM.DD} - {time:HH.mm.ss}{skip}"),
-           "Apex Legends 2024.06.16 - 19.45.23.02.DVR.mp4"),
+           "Call of Duty Black Ops II 2023.01.27 - 19.38.28.03.DVR.mp4", checked=True),
     Preset(NamePattern("Xbox Game Bar", "{game} {date:YYYY-MM-DD} {time:HH-mm-ss}"),
-           "Halo Infinite 2024-06-16 19-45-23.mp4"),
+           "Minecraft 2024-05-18 20-32-45.mp4"),
     Preset(NamePattern("OBS Studio", "{skip}{date:YYYY-MM-DD} {time:HH-mm-ss}"),
            "Replay 2024-06-16 19-45-23.mkv"),
-    Preset(NamePattern("AMD Adrenalin", "{skip}{date:YYYY.MM.DD}-{time:HH.mm}{skip}"),
-           "Replay_2024.06.16-19.45.mp4"),
+    # "_replay_" before the date in an instant replay, and seconds or a
+    # counter after the time in some driver versions.
+    Preset(NamePattern("AMD Adrenalin", "{game}_{skip}{date:YYYY.MM.DD}-{time:HH.mm}{skip}"),
+           "Cyberpunk 2077_replay_2024.05.18-20.32.mp4"),
     Preset(NamePattern("GPU Screen Recorder", "Replay_{date:YYYY-MM-DD}_{time:HH-mm-ss}"),
            "Replay_2024-06-16_19-45-23.mp4", checked=True),
 )

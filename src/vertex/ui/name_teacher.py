@@ -6,7 +6,7 @@ from __future__ import annotations
 import datetime
 import os
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -82,6 +82,11 @@ class NameTeacher(QWidget):
         self.sample = QLineEdit()
         self.sample.setPlaceholderText("A clip's file name")
         self.sample.textEdited.connect(self._sample_edited)
+        # Qt drops a line edit's selection when it loses focus, and a click
+        # elsewhere can take it away: the last selection is kept until the
+        # user clears it in the field itself.
+        self._selection = (-1, "")
+        self.sample.selectionChanged.connect(self._selected)
         row.addWidget(self.sample, 1)
         row.addWidget(button("Pick a clip…", on_click=self._pick))
         row.addWidget(button("Paste", on_click=self._paste))
@@ -92,6 +97,7 @@ class NameTeacher(QWidget):
         self.mark_buttons = {}
         for kind, text in MARK_LABELS.items():
             mark = button(text, on_click=lambda _c=False, k=kind: self._mark(k))
+            mark.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             marks.addWidget(mark)
             self.mark_buttons[kind] = mark
         marks.addWidget(button("Start over", "ghost", on_click=self._clear_marks))
@@ -217,18 +223,26 @@ class NameTeacher(QWidget):
         self.sample.setText(name)
         self._sample_edited()
 
+    def _selected(self) -> None:
+        if self.sample.hasSelectedText():
+            self._selection = (self.sample.selectionStart(), self.sample.selectedText())
+        elif self.sample.hasFocus():
+            self._selection = (-1, "")
+
     def _sample_edited(self, _text: str = "") -> None:
+        self._selection = (-1, "")
         self._marks = []
         self._own_pattern = None
         self._refresh()
 
     def _clear_marks(self) -> None:
+        self._selection = (-1, "")
         self._marks = []
         self._own_pattern = None
         self._refresh()
 
     def _mark(self, kind: str) -> None:
-        start, text = self.sample.selectionStart(), self.sample.selectedText()
+        start, text = self._selection
         if start < 0 or not text:
             self._say("Select a part of the name first, then say what it is.", "WARN")
             return
@@ -247,6 +261,7 @@ class NameTeacher(QWidget):
         self._marks = [m for m in self._marks if m.kind not in reads and
                        (m.end <= new.start or m.start >= new.end)] + [new]
         self._own_pattern = None
+        self._selection = (-1, "")
         self.sample.deselect()
         self._refresh()
 
