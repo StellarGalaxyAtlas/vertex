@@ -1291,6 +1291,8 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio, monkeypatch):
     script = tmp_path / "gsr"
     script.write_text("#!/bin/sh\ncase \"$1\" in\n --version) echo 5.15.1 ;;\n"
                       " --list-capture-options) printf 'DP-1|2560x1440\\nportal\\n' ;;\n"
+                      " --list-audio-devices) printf 'spotify.monitor|Monitor of Spotify\\n"
+                      "headset|Headset Mic\\n' ;;\n"
                       "esac\n")
     script.chmod(0o755)
     config = Config()
@@ -1318,6 +1320,15 @@ def test_first_run_finds_the_recorder(qapp, tmp_path, fake_audio, monkeypatch):
     assert [m.name for m in view.choices.monitor_map.monitors] == ["DP-1"]
     assert view.choices.resolution.itemText(0) == "720p · 1280 × 720"
     assert view.rec_autostart.isEnabled() and view.rec_autostart.isChecked()
+    # Each track picks its device: Sonar's channels, then what the recorder
+    # can record.
+    media, mic = view.tracks.devices["media"], view.tracks.devices["mic"]
+    assert media.currentData() == "device:vertex_media.monitor"
+    assert media.itemText(media.count() - 1) == "Spotify"
+    media.setCurrentIndex(media.findData("device:spotify.monitor"))
+    mic.setCurrentIndex(mic.findData("device:headset"))
+    assert (view.config.recorder.media_audio, view.config.recorder.mic_audio) == \
+        ("device:spotify.monitor", "device:headset")
     win._quitting = True
     win.context.shutdown()
 
