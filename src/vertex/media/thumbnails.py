@@ -13,8 +13,10 @@ import os
 import shutil
 import subprocess
 
+from vertex.logs import CLIPS as log
 from vertex.media.ffmpeg import BASE
 from vertex.media.probe import duration as probe_duration
+from vertex.proc import last_line
 from vertex.system import NO_WINDOW
 
 SEEK_SECONDS = 1.0      # skip the black intro frame most recordings open on
@@ -62,19 +64,22 @@ class ThumbnailCache:
         if not os.path.exists(clip_path):
             return None
         tmp = f"{target}.tmp.jpg"
+        error = ""
         # A clip shorter than the seek has no frame there; fall back to the first.
         for seek in (SEEK_SECONDS, 0.0):
             argv = [*BASE, "-v", "error", "-y", "-ss", str(seek), "-i", clip_path,
                     "-frames:v", "1", "-vf", f"scale={THUMB_WIDTH}:-2", tmp]
             try:
-                subprocess.run(argv, check=True, timeout=30,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **NO_WINDOW)
-                if os.path.getsize(tmp) > 0:
+                done = subprocess.run(argv, timeout=30, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.PIPE, **NO_WINDOW)
+                if done.returncode == 0 and os.path.getsize(tmp) > 0:
                     os.replace(tmp, target)      # never leave a partial JPEG
                     return target
-            except (subprocess.SubprocessError, OSError):
-                pass
+                error = last_line(done.stderr, f"ffmpeg exited with {done.returncode}")
+            except (subprocess.SubprocessError, OSError) as exc:
+                error = str(exc)
         _remove(tmp)
+        log.warning("No thumbnail for %s: %s", clip_path, error)
         return None
 
     # --- Hover previews ----------------------------------------------------

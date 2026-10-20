@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ctypes.util
 import importlib.util
+import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 
 from vertex import config as config_mod
@@ -123,6 +125,20 @@ def _gsr_checks(config: config_mod.Config) -> list[Check]:
     return checks
 
 
+def _folder_check(name: str, folder: str) -> Check:
+    """Where a folder Vertex keeps things in is, and whether it is really
+    there: Windows can keep an app's AppData folders somewhere else, where
+    the programs Vertex starts (ffmpeg, OBS) don't look."""
+    if not os.path.isdir(folder):
+        return Check(name, False, f"{paths.tilde(folder)} (not there yet)",
+                     "run Vertex once to create it", required=False)
+    real = os.path.realpath(folder)
+    if os.path.normcase(real) != os.path.normcase(os.path.abspath(folder)):
+        return Check(name, False, f"{paths.tilde(folder)}, kept in {paths.tilde(real)}",
+                     "ffmpeg and OBS may not find it there", required=False)
+    return Check(name, True, paths.tilde(folder), required=False)
+
+
 def run_checks(config: config_mod.Config | None = None) -> list[Check]:
     config = config or config_mod.Config.load_or_default()
     checks: list[Check] = []
@@ -148,6 +164,11 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),
                         "run Vertex once to go through setup", required=False))
+    checks.append(Check("python", True, sys.executable, required=False))
+    for name, folder in (("library", config.resolved_data_dir()),
+                         ("state", config.resolved_state_dir()),
+                         ("cache", config.resolved_cache_dir())):
+        checks.append(_folder_check(name, folder))
     if system.WINDOWS:
         return checks
     try:

@@ -96,3 +96,17 @@ def test_paths_are_normalised_when_loaded():
 def test_forward_slashes_become_backslashes_on_windows():
     loaded = config.Config.from_dict({"clip_path": "C:/Users/me/Videos/"})
     assert loaded.clip_path == "C:\\Users\\me\\Videos"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need rights there")
+def test_doctor_says_where_a_folder_really_is(tmp_path):
+    from vertex import doctor
+
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    link = tmp_path / "cache"
+    link.symlink_to(real)
+    assert doctor._folder_check("cache", str(real)).ok
+    moved = doctor._folder_check("cache", str(link))
+    assert not moved.ok and str(real) in moved.detail
+    assert "not there" in doctor._folder_check("cache", str(tmp_path / "none")).detail
