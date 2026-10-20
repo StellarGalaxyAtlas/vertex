@@ -1502,6 +1502,24 @@ def test_text_dialogs_grow_to_fit_their_wrapped_text(qapp, window):
     dialog.reject()
 
 
+def test_enter_takes_what_a_dialog_asks_for(qapp, window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from vertex.ui.widgets import ChoiceDialog
+
+    for choices, wanted in (([("Move to Trash", "delete", "danger")], "delete"),
+                            ([("Discard", "discard", ""), ("Apply", "apply", "primary")],
+                             "apply")):
+        dialog = ChoiceDialog(window, "Delete clip", "Delete it?", "", choices)
+        dialog.show()
+        qapp.processEvents()
+        QTest.keyClick(dialog.focusWidget() or dialog, Qt.Key.Key_Return)
+        assert dialog.result_value == wanted
+
+
+
+
 def test_reset_confirms_by_typing_the_word(qapp, window):
     from vertex.ui.settings.reset import TypeToConfirm
 
