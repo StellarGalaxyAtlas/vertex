@@ -42,13 +42,19 @@ check after 69 is tried.
 **73.** Bug
 **The replay buffer doesn't start after first-run setup**
 Even with "Start the replay buffer with Vertex" on.
+Likely the same cause as 69: OBS called the save folder in Cache an
+invalid path, so the buffer failed to start. To check after 69 is tried,
+with the logs if it still doesn't start.
 
 ### Importing clips
 
 **74.** Bug
 **Import skips subfolders**
 Moments and Medal keep a folder per game: importing reads the folder and
-everything under it.
+everything under it, into the clips folder side by side.
+Mockup: windows-port/mockups/4-import-subfolders.png, a list of the
+folders found with their clips, each one ticked; untick one (exports) to
+leave it out. To decide: this list, or every subfolder without one.
 
 **75.**
 **Teach Vertex a clip app's file names**
