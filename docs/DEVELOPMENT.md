@@ -43,7 +43,7 @@ README's from a made-up demo library.
 
 | Package | What's in it |
 |---|---|
-| `core` | clips on disk: scanning, file-name parsing, importing, Trash |
+| `core` | clips on disk: scanning, file-name parsing (`name_patterns`: presets and taught patterns), importing, Trash |
 | `library` | the SQLite library (`library.db`, schema version 2) |
 | `media` | ffmpeg/ffprobe: probing, track names, mixing, waveforms, trims, exports, thumbnails |
 | `audio` | Sonar: channels, a `pactl` wrapper, device lists, level meters, the device manager |

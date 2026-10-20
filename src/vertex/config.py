@@ -16,6 +16,7 @@ from typing import Any
 
 from vertex import APP_NAME, notifications, paths
 from vertex.audio import channels
+from vertex.core.name_patterns import NamePattern
 
 # Subfolder of the user's videos dir that clips are recorded into by default.
 CLIP_SUBDIR = "Game Recordings"
@@ -158,6 +159,13 @@ class Config:
     recorder: RecorderConfig = field(default_factory=RecorderConfig)
     sonar: SonarConfig = field(default_factory=SonarConfig)
 
+    # How clip apps write the game and the time into names, as the user
+    # taught Vertex (NamePattern.to_dict()), tried first to last.
+    name_patterns: list[dict] = field(default_factory=list)
+
+    def patterns(self) -> list[NamePattern]:
+        return [p for p in map(NamePattern.from_dict, self.name_patterns) if p is not None]
+
     # --- Paths ---------------------------------------------------------------
 
     def resolved_clip_dir(self) -> str:
@@ -229,7 +237,11 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
-        config = _fill(cls(), data, skip=("recorder", "sonar"))
+        config = _fill(cls(), data, skip=("recorder", "sonar", "name_patterns"))
+        taught = data.get("name_patterns")
+        if isinstance(taught, list):
+            config.name_patterns = [pattern.to_dict() for pattern in
+                                    map(NamePattern.from_dict, taught) if pattern is not None]
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])

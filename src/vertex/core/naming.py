@@ -12,6 +12,8 @@ import datetime
 import os
 import re
 
+from vertex.core.name_patterns import NamePattern, Reading
+
 # SteelSeries Moments names a recording "<Game>__<date>__<time>.mp4", writing
 # the spaces in a game's name as dashes. The date and time are matched strictly
 # so another recorder's naming can never be read as a game. A trim keeps the
@@ -68,30 +70,58 @@ def game_key(game: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", game.casefold())
 
 
-def game_from_filename(name: str) -> str:
+# The patterns the user taught Vertex (Settings › Import and setup), tried
+# before the conventions above. Set from the settings by the app.
+_taught: list[NamePattern] = []
+
+
+def use_patterns(patterns) -> None:
+    _taught[:] = list(patterns)
+
+
+def taught_patterns() -> list[NamePattern]:
+    return list(_taught)
+
+
+def _read(name: str, patterns) -> Reading | None:
+    for pattern in _taught if patterns is None else patterns:
+        reading = pattern.read(name)
+        if reading is not None:
+            return reading
+    return None
+
+
+def _tag(game: str) -> str:
+    return CAPTURE_NAMES.get(game.casefold()) or clean_tag(game.translate(TRADEMARKS))
+
+
+def game_from_filename(name: str, patterns=None) -> str:
     """The game a clip's file name says it holds, or "" if the name doesn't say.
 
     "THE-FINALS__2024-06-16__19-45-23.mp4" → "THE FINALS". GPU Screen
     Recorder's fixed "Replay_…" naming carries no game at all, so those clips
     are left for the library (or the Sonar game channel) to tag instead.
+    `patterns` are tried first (by default the ones taught).
     """
+    reading = _read(name, patterns)
+    if reading is not None and reading.game:
+        return _tag(reading.game)
     stem = os.path.splitext(name)[0]
     match = MOMENTS_FILENAME.match(stem)
     if not match:
         return ""
-    game = match.group("game")
-    special = CAPTURE_NAMES.get(game.casefold())
-    if special:
-        return special
-    return clean_tag(game.replace("-", " ").translate(TRADEMARKS))
+    return _tag(match.group("game").replace("-", " "))
 
 
-def recorded_at(name: str) -> float:
+def recorded_at(name: str, patterns=None) -> float:
     """When a clip's file name says it was recorded, or 0.0 if it doesn't say.
 
     Read as local time, the clock the recorder wrote it by. The parts go
     through `datetime`, so an impossible date can't come back as a timestamp.
     """
+    reading = _read(name, patterns)
+    if reading is not None and reading.when:
+        return reading.when
     match = CLIP_TIMESTAMP.search(os.path.splitext(name)[0])
     if not match:
         return 0.0

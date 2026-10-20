@@ -201,6 +201,7 @@ class MainWindow(QMainWindow):
         if not self._services_started:
             context.config.sonar.output_device = config.sonar.output_device
             context.config.sonar.mic_device = config.sonar.mic_device
+        context.config.name_patterns = config.name_patterns
         failed = context.config.ensure_dirs()
         context.save_config()
         if failed:
