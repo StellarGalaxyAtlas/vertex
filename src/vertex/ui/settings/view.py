@@ -42,12 +42,12 @@ from vertex.recorder import backend, gsr, obs
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.name_teacher import NameTeacher
-from vertex.ui.settings.clip_choices import ClipChoices, ClipSize, fill
+from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
-from vertex.ui.settings.tracks import TrackTable
+from vertex.ui.settings.tracks import TrackTable, tracks_note
 from vertex.ui.widgets import (
     Banner,
     Columns,
@@ -285,11 +285,7 @@ class SettingsView(QWidget):
         self.game_audio, self.chat_audio = devices[roles.GAME.id], devices[roles.CHAT.id]
         self.music_audio, self.mic_audio = devices[roles.MUSIC.id], devices[roles.MIC.id]
         clips.add(self.tracks)
-        clips.add(label("Each is saved as a separate audio track; one set to None isn't "
-                        "recorded." + (" The volume is what the track is recorded at, so "
-                                       "clips play back right at 100%."
-                                       if backend.has_track_volume() else ""),
-                        "Dim", wrap=True))
+        clips.add(label(tracks_note(), "Dim", wrap=True))
         clips.add(self._build_estimate())
 
         # OBS takes fewer of these than GSR: its rows for the rest are hidden.
@@ -527,10 +523,6 @@ class SettingsView(QWidget):
         rec.output_dir = self.output_dir.value()
         rec.audio_codec = self.audio_codec.currentData()
         rec.audio_bitrate = self.audio_bitrate.value()
-        for widget, name in ((self.game_audio, "game_audio"), (self.chat_audio, "chat_audio"),
-                             (self.music_audio, "music_audio"), (self.mic_audio, "mic_audio")):
-            if widget.currentData() is not None:
-                setattr(rec, name, widget.currentData())
         self.tracks.apply(rec)
         rec.extra_args = self.extra_args.text().strip()
         return config
@@ -716,27 +708,7 @@ class SettingsView(QWidget):
         self._show_audio_choices(rec)
 
     def _show_audio_choices(self, rec) -> None:
-        """Each track's devices: none, the default, then the real devices the
-        recorder can record. One missing now says what records in its place."""
-        outputs, inputs = [], []
-        for name, description in self._audio_devices:
-            if name.startswith("default_"):
-                continue
-            if backend.is_output(name):
-                outputs.append((f"device:{name}", description.removeprefix("Monitor of ")))
-            else:
-                inputs.append((f"device:{name}", description))
-
-        for widget, setting, role, default_text, real in (
-                (self.game_audio, "game_audio", roles.GAME.id, "Default output", outputs),
-                (self.chat_audio, "chat_audio", roles.CHAT.id, "Default output", outputs),
-                (self.music_audio, "music_audio", roles.MUSIC.id, "Default output", outputs),
-                (self.mic_audio, "mic_audio", roles.MIC.id, "Default microphone", inputs)):
-            fallback = gsr.fallback_source(role)
-            instead = "default output" if fallback == "default_output" else "default microphone"
-            fill(widget, [("", "None"), (fallback, default_text), *real], getattr(rec, setting),
-                 lambda value, instead=instead: f"{value.removeprefix('device:')} "
-                                                f"(not available: {instead})")
+        self.tracks.show_devices(self._audio_devices, rec)
 
     def _show_estimate(self) -> None:
         size = self.clip_estimate.estimate(self.collect(), self._as_recorded)

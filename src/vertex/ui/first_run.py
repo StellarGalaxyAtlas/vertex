@@ -30,6 +30,7 @@ from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import FolderList
 from vertex.ui.name_teacher import NameTeacher
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
+from vertex.ui.settings.tracks import TrackTable, tracks_note
 from vertex.ui.widgets import (
     ChoiceCard,
     PathField,
@@ -269,6 +270,13 @@ class FirstRunView(QWidget):
         self.choices.changed.connect(self._choices_changed)
         self.choices.quality_picked.connect(self._quality_picked)
         self.choices.monitors_changed.connect(self._choices_changed)
+        # Settings' tracks: which device each one records.
+        self.tracks = TrackTable(backend.has_track_volume())
+        self.tracks.load(self.config.recorder)
+        self.tracks.show_devices([], self.config.recorder)
+        self.tracks.changed.connect(self._tracks_changed)
+        section.add(self.tracks)
+        section.add(label(tracks_note(), "Dim", wrap=True))
         self.rec_autostart = Toggle(self.config.recorder.autostart if self.again else False)
         self._autostart_touched = self.again
         self.rec_autostart.clicked.connect(lambda: setattr(self, "_autostart_touched", True))
@@ -289,6 +297,10 @@ class FirstRunView(QWidget):
         self.choices.show(self.config.recorder)
         self.clip_size.estimate(self.config, self.choices.recorded)
 
+    def _tracks_changed(self) -> None:
+        self.tracks.apply(self.config.recorder)
+        self.clip_size.estimate(self.config, self.choices.recorded)
+
     def _quality_picked(self) -> None:
         # As in Settings: picking a level drops a bitrate set by hand.
         if self.choices.video_quality.currentData() != "custom":
@@ -304,12 +316,13 @@ class FirstRunView(QWidget):
             info = backend.detect(command)
             usable = info.available and not info.too_old
             return (info, backend.list_capture_options(command) if usable else [],
-                    notifier.find() if backend.has_notifier() else None)
+                    notifier.find() if backend.has_notifier() else None,
+                    backend.list_audio_devices(command) if usable else [])
 
         workers.run(probe, self._got_recorder)
 
     def _got_recorder(self, result) -> None:
-        info, options, notifier_path = result
+        info, options, notifier_path, devices = result
         self.notifier_path = notifier_path
         if backend.has_notifier():
             self._show_notifier(bool(notifier_path))
@@ -319,6 +332,7 @@ class FirstRunView(QWidget):
         self.install.setVisible(not usable)
         self.rec_autostart.setEnabled(usable)
         self.choices.set_capture_options(options)
+        self.tracks.show_devices(devices, self.config.recorder)
         self._choices_changed()
         if usable:
             self.gsr_status.setText(f"Recording with {backend.name()} {info.version_text}.")
@@ -807,6 +821,7 @@ class FirstRunView(QWidget):
             if not getattr(config, key):
                 setattr(config, key, getattr(defaults, key))
         self.choices.apply(config.recorder)
+        self.tracks.apply(config.recorder)
         config.recorder.autostart = self.rec_autostart.isChecked()
         if self._bringing_clips():
             config.name_patterns = [p.to_dict() for p in self._patterns()]

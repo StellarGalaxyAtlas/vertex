@@ -8,12 +8,21 @@ from PySide6.QtWidgets import QComboBox, QGridLayout, QSlider, QWidget
 
 from vertex.config import TRACK_VOLUME_RANGE
 from vertex.media import roles
+from vertex.recorder import backend, gsr
 from vertex.ui import theme
+from vertex.ui.settings.clip_choices import fill
 from vertex.ui.widgets import label
 
 # (role, the row's name): one track each, in the clip's order.
 TRACKS = ((roles.GAME, "Game"), (roles.CHAT, "Chat"), (roles.MUSIC, "Music"),
           (roles.MIC, "Microphone"))
+
+
+def tracks_note() -> str:
+    """The line under the table."""
+    return ("Each is saved as a separate audio track; one set to None isn't recorded."
+            + (" The volume is what the track is recorded at, so clips play back right "
+               "at 100%." if backend.has_track_volume() else ""))
 
 
 class TrackTable(QWidget):
@@ -64,6 +73,30 @@ class TrackTable(QWidget):
         if with_volume:
             grid.setColumnStretch(2, 3)
 
+    def show_devices(self, devices: list[tuple[str, str]], rec) -> None:
+        """Each track's choices: none, the default, then the real devices the
+        recorder can record (`devices`: its names and descriptions). One
+        missing now says what records in its place."""
+        outputs, inputs = [], []
+        for name, description in devices:
+            if name.startswith("default_"):
+                continue
+            if backend.is_output(name):
+                outputs.append((f"device:{name}", description.removeprefix("Monitor of ")))
+            else:
+                inputs.append((f"device:{name}", description))
+        for role, _name in TRACKS:
+            fallback = gsr.fallback_source(role.id)
+            output = fallback == "default_output"
+            instead = "default output" if output else "default microphone"
+            fill(self.devices[role.id],
+                 [("", "None"), (fallback, "Default output" if output else "Default microphone"),
+                  *(outputs if output else inputs)],
+                 getattr(rec, f"{role.id}_audio"),
+                 lambda value, instead=instead: f"{value.removeprefix('device:')} "
+                                                f"(not available: {instead})")
+            self._show(role.id)
+
     def load(self, rec) -> None:
         for role_id, slider in self.volumes.items():
             slider.blockSignals(True)
@@ -72,6 +105,9 @@ class TrackTable(QWidget):
             self._show(role_id)
 
     def apply(self, rec) -> None:
+        for role_id, device in self.devices.items():
+            if device.currentData() is not None:
+                setattr(rec, f"{role_id}_audio", device.currentData())
         for role_id, slider in self.volumes.items():
             setattr(rec, f"{role_id}_volume", slider.value())
 
