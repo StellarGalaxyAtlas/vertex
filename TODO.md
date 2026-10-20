@@ -78,15 +78,17 @@ on the friend's PC: that OBS records each track at its volume.
 
 **80.**
 **Game names: map a name Vertex reads to the tag it should be**
-On Windows and Linux (e.g. Sonar's "Heroes of the Storm(Retail)" →
-"Heroes of the Storm"), for new clips and the ones tagged already.
-Mockup windows-port/mockups/7-game-names.png (A: a list in Settings, B:
-Rename… in the games menu); waiting for the pick.
+Built (2026-10-20) as option B of windows-port/mockups/7-game-names.png:
+Rename… in the library's games menu retags the clips and, ticked, adds a
+game name every automatic tag follows; Settings › Import and setup lists
+them. Linux Vertex gets it with the port list.
 
 **81.**
 **Tag new clips with the fullscreen game on Windows**
-The foreground app that fills its screen when a clip is saved; Desktop when
-there is none. Waits on 80's questions.
+Built (2026-10-20): the foreground window that fills its monitor, by its
+title (else the program's name); a browser, Discord or video player, or
+nothing fullscreen, is Desktop. To try on the friend's PC: games in
+exclusive and borderless fullscreen.
 
 **82.**
 **"Tag games from file names" in Settings does nothing after setup**

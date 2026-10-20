@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtWidgets import (
+    QCheckBox,
     QCompleter,
     QDialog,
     QFrame,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from vertex import fmt
 from vertex.core.naming import clean_tag, clean_tags, game_key
 from vertex.ui import theme
 from vertex.ui.widgets import FlowLayout, IconButton, button, label
@@ -147,3 +149,71 @@ class TagDialog(QDialog):
         dialog = cls(parent, clip_title, game, people, games, people_pool)
         dialog.exec()
         return dialog.result_tags
+
+
+class RenameGameDialog(QDialog):
+    """Rename a game: its clips are retagged, merging into a game already
+    in use when the new name is one, and new clips are tagged that way
+    too unless that's unticked. `result_rename` is (new name, remember)."""
+
+    def __init__(self, parent, game: str, clips: int, games: dict[str, int]):
+        super().__init__(parent)
+        self.setWindowTitle("Rename game")
+        self.setMinimumWidth(480)
+        self.result_rename: tuple[str, bool] | None = None
+        self._game = game
+        self._games = {name: count for name, count in games.items() if name != game}
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 20)
+        layout.setSpacing(10)
+        layout.addWidget(label(f"Rename “{game}”", "Subheading", wrap=True))
+        layout.addWidget(label(f"Its {fmt.plural(clips, 'clip')} are retagged. A name you "
+                               f"already have merges them.", "Muted", wrap=True))
+        layout.addSpacing(4)
+        self.name = QLineEdit(game)
+        self.name.selectAll()
+        self.name.setCompleter(_completer(list(self._games), self))
+        self.name.textChanged.connect(self._changed)
+        layout.addWidget(self.name)
+        self.hint = label("", "Dim")
+        layout.addWidget(self.hint)
+        self.remember = QCheckBox("Tag new clips with this name too")
+        self.remember.setChecked(True)
+        layout.addWidget(self.remember)
+
+        layout.addSpacing(10)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        cancel = button("Cancel", on_click=self.reject)
+        cancel.setAutoDefault(False)
+        row.addWidget(cancel)
+        self.rename = button("Rename", "primary", on_click=self._rename)
+        self.rename.setDefault(True)
+        row.addWidget(self.rename)
+        layout.addLayout(row)
+        self.name.setFocus()
+        self._changed(game)
+
+    def _match(self, text: str) -> str:
+        key = game_key(text)
+        return next((name for name in self._games if key and game_key(name) == key), "")
+
+    def _changed(self, text: str) -> None:
+        match = self._match(text)
+        self.hint.setText(f"Merges with “{match}”, {fmt.plural(self._games[match], 'clip')}"
+                          if match else "")
+        self.hint.setVisible(bool(match))
+        self.rename.setEnabled(bool(clean_tag(text)) and clean_tag(text) != self._game)
+
+    def _rename(self) -> None:
+        name = self._match(self.name.text()) or clean_tag(self.name.text())
+        if not name or name == self._game:
+            return
+        self.result_rename = (name, self.remember.isChecked())
+        self.accept()
+
+    @classmethod
+    def ask(cls, parent, game, clips, games):
+        dialog = cls(parent, game, clips, games)
+        dialog.exec()
+        return dialog.result_rename

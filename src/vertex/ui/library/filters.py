@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QSizePolicy,
     QStyle,
     QStyledItemDelegate,
@@ -181,6 +182,7 @@ class FacetMenu(QFrame):
     the facet chosen."""
 
     picked = Signal(object)
+    rename = Signal(str)          # a game, by right-click › Rename… or F2
     VISIBLE_ROWS = 10
 
     def __init__(self, placeholder: str, rows: list[tuple[str, Facet, int]], current: Facet,
@@ -209,6 +211,8 @@ class FacetMenu(QFrame):
         self.list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.list.itemClicked.connect(lambda item: self._pick(item))
         self.list.entered.connect(lambda _i: self.list.viewport().update())
+        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._menu)
         for text, facet, count in rows:
             item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, facet)
@@ -234,7 +238,34 @@ class FacetMenu(QFrame):
         if first is not None:
             self.list.setCurrentRow(first)
 
+    def _game_of(self, item: QListWidgetItem | None) -> str:
+        facet = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        return facet.value if facet is not None and facet.kind == "game" else ""
+
+    def _menu(self, point) -> None:
+        game = self._game_of(self.list.itemAt(point))
+        if not game:
+            return
+        menu = QMenu(self)
+        menu.addAction("Rename…", lambda: self._rename(game))
+        menu.exec(self.list.viewport().mapToGlobal(point))
+
+    def _rename(self, game: str) -> None:
+        self.close()
+        self.rename.emit(game)
+
+    def keyPressEvent(self, event):
+        game = self._game_of(self.list.currentItem())
+        if event.key() == Qt.Key.Key_F2 and game:
+            self._rename(game)
+            return
+        super().keyPressEvent(event)
+
     def eventFilter(self, watched, event):
+        if watched is self.find and event.type() == QEvent.Type.KeyPress and \
+                event.key() == Qt.Key.Key_F2:
+            self.keyPressEvent(event)
+            return True
         # Up and down move through the list while typing in the search.
         if watched is self.find and event.type() == QEvent.Type.KeyPress and \
                 event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down):
@@ -268,6 +299,8 @@ class FilterRow(QWidget):
     """The filters, then the grid's controls (`tools`) and the disk. When the
     page is too narrow for all of it, the disk's text goes first, then the
     card-size icons, then the disk's bar."""
+
+    rename_game = Signal(str)
 
     def __init__(self, state: LibraryState, tools: list[QWidget], size_icons: list[QWidget],
                  parent=None):
@@ -381,6 +414,7 @@ class FilterRow(QWidget):
         rows = [first] + [(name, Facet(kind, name), count) for name, count in entries]
         self.menu = FacetMenu(placeholder, rows, state.facet, self)
         self.menu.picked.connect(state.set_facet)
+        self.menu.rename.connect(self.rename_game)
         self.menu.show_under(chip)
 
     # --- Narrow pages -----------------------------------------------------------

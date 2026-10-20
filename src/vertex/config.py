@@ -17,6 +17,7 @@ from typing import Any
 from vertex import APP_NAME, hotkeys, notifications, paths, system
 from vertex.control import SAVE_LENGTHS
 from vertex.core.name_patterns import NamePattern
+from vertex.core.naming import add_game_name
 
 # Subfolder of the user's videos dir that clips are recorded into by default.
 CLIP_SUBDIR = "Game Recordings"
@@ -94,6 +95,8 @@ class RecorderConfig:
     chat_volume: int = 100
     media_volume: int = 100
     mic_volume: int = 100
+    # Tag a saved clip with the game filling the screen (Windows), or Desktop.
+    tag_from_fullscreen: bool = True
     extra_args: str = ""
 
 
@@ -137,6 +140,10 @@ class Config:
     # the "Save the last" one saves.
     hotkeys: dict[str, str] = field(default_factory=dict)
     hotkey_last_seconds: int = 30
+
+    # Game names the user fixed: a name Vertex reads (from a clip's name or
+    # the fullscreen window) → the tag it writes instead (naming.fixed_name).
+    game_names: dict[str, str] = field(default_factory=dict)
 
     def patterns(self) -> list[NamePattern]:
         return [p for p in map(NamePattern.from_dict, self.name_patterns) if p is not None]
@@ -221,6 +228,11 @@ class Config:
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.hotkeys = {action: hotkey.text for action, hotkey in
                           hotkeys.bindings(config.hotkeys).items()}
+        names: dict[str, str] = {}
+        for old, new in config.game_names.items():
+            if isinstance(new, str):
+                names = add_game_name(names, old, new)
+        config.game_names = names
         if config.hotkey_last_seconds not in SAVE_LENGTHS:
             config.hotkey_last_seconds = Config.hotkey_last_seconds
         config.playback_volume = min(max(config.playback_volume, PLAYBACK_VOLUME_RANGE[0]),

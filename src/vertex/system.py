@@ -166,6 +166,79 @@ def set_window_app_id(hwnd: int, app_id: str, command: str, icon: str, name: str
     return ok
 
 
+# Windows of the desktop and the taskbar: the foreground with no app in front.
+_SHELL_CLASSES = frozenset({"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"})
+
+
+def fullscreen_app() -> tuple[str, str] | None:
+    """(title, program path) of the window in front when it fills its
+    screen, the way a game does, borderless or not; ("", "") when no window
+    does. None where that can't be told: not Windows, or Vertex's own
+    window is in front, so whatever was played is behind it."""
+    if not WINDOWS:
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    class MONITORINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                    ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+    MONITOR_DEFAULTTONEAREST = 2
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    try:
+        user32 = ctypes.WinDLL("user32")
+        kernel32 = ctypes.WinDLL("kernel32")
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND,
+                                                    ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+        user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+        user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+        user32.MonitorFromWindow.restype = wintypes.HMONITOR
+        user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.QueryFullProcessImageNameW.argtypes = [
+            wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return "", ""
+        name = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, name, len(name))
+        if name.value in _SHELL_CLASSES:
+            return "", ""
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value == os.getpid():
+            return None
+        rect, screen = wintypes.RECT(), MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)) or not user32.GetMonitorInfoW(
+                user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ctypes.byref(screen)):
+            return None
+        whole = screen.rcMonitor
+        if (rect.left > whole.left or rect.top > whole.top
+                or rect.right < whole.right or rect.bottom < whole.bottom):
+            return "", ""
+        title = ctypes.create_unicode_buffer(user32.GetWindowTextLengthW(hwnd) + 1)
+        user32.GetWindowTextW(hwnd, title, len(title))
+        program = ""
+        process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+        if process:
+            try:
+                path, size = ctypes.create_unicode_buffer(1024), wintypes.DWORD(1024)
+                if kernel32.QueryFullProcessImageNameW(process, 0, path, ctypes.byref(size)):
+                    program = path.value
+            finally:
+                kernel32.CloseHandle(process)
+        return title.value, program
+    except (OSError, AttributeError):
+        return None
+
+
 PERSONALIZE_KEY = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 
 

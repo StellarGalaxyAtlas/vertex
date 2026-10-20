@@ -54,6 +54,12 @@ Vertex on Windows 10 and 11, without Sonar.
   track's device and volume too.
 - A playback volume in the editor, 0–300%, kept between clips; the clip, its
   mix and exports stay as they are.
+- On Windows, a saved clip is tagged with the game filling the screen (its
+  window's title), or Desktop when none does; a switch in Settings ›
+  Recording.
+- Renaming a game from the library's games menu (right-click, or F2):
+  its clips are retagged, merging into a game you already have, and new
+  clips get the new name too. Settings › Import and setup lists the renames.
 - A Windows job in CI.
 
 ## 2.0.0 — unreleased

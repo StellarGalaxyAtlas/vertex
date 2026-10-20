@@ -256,3 +256,11 @@ def test_vertex_typed_in_a_terminal_starts_apart_from_it(monkeypatch, capsys):
     if sys.platform != "win32":
         monkeypatch.undo()
         assert not system.in_console()          # elsewhere Vertex runs in place
+
+
+def test_windows_is_asked_what_fills_the_screen():
+    window = system.fullscreen_app()
+    if sys.platform != "win32":
+        assert window is None
+        return
+    assert window is None or all(isinstance(part, str) for part in window)

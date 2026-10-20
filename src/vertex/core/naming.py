@@ -158,6 +158,7 @@ _NOT_GAMES = frozenset({
     "wineserver", "pressure-vessel-wrap", "reaper", "proton", "gamescope",
     "firefox", "chromium", "chrome", "discord", "spotify", "vesktop", "obs",
     "pipewire", "wireplumber", "pulseaudio", "paplay", "pw-play", "mpv",
+    "msedge", "brave", "opera", "vlc", "explorer",
 })
 
 
@@ -174,3 +175,37 @@ def game_from_app(name: str) -> str:
     if " " not in text and ("_" in text or "-" in text):
         text = clean_tag(text.replace("_", " ").replace("-", " "))
     return text.translate(TRADEMARKS).strip()
+
+
+def game_from_window(title: str, program: str) -> str:
+    """A tag-worthy game name from a fullscreen window: its title, or its
+    program's name when it has none ("HeroesOfTheStorm_x64.exe" → as is).
+    A browser, chat or media app filling the screen comes back "": that's
+    no game being played."""
+    program = re.split(r"[\\/]", program)[-1]      # a Windows path, read anywhere
+    if program and not game_from_app(program):
+        return ""
+    return clean_tag(title.translate(TRADEMARKS)) or game_from_app(program)
+
+
+def fixed_name(game: str, names: dict[str, str]) -> str:
+    """`game` as the user's game names say it should be tagged ("Heroes of
+    the Storm(Retail)" → "Heroes of the Storm"), matched as `game_key` does;
+    unchanged when no name says otherwise."""
+    if not names or not game:
+        return game
+    return {game_key(old): new for old, new in names.items()}.get(game_key(game), game)
+
+
+def add_game_name(names: dict[str, str], old: str, new: str) -> dict[str, str]:
+    """`names` with `old` tagged as `new` from now on. A name that led to
+    `old` leads to `new` instead, and one leading away from `new` is
+    dropped, so following a name never goes round in a circle."""
+    old, new = clean_tag(old), clean_tag(new)
+    if not old or not new or game_key(old) == game_key(new):
+        return dict(names)
+    kept = {name: (new if game_key(to) == game_key(old) else to)
+            for name, to in names.items()
+            if game_key(name) not in (game_key(old), game_key(new))}
+    kept[old] = new
+    return kept

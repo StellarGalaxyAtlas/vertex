@@ -8,12 +8,13 @@ through Qt signals on the UI thread.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from vertex import fmt, hotkeys, logs, notifications
+from vertex import fmt, hotkeys, logs, notifications, system
 from vertex.config import Config
 from vertex.core import naming
 from vertex.library import Library
@@ -117,6 +118,8 @@ class RecorderController(QObject):
         # the restart underway.
         self._recovered_at = float("-inf")
         self._recovering = False
+        # (when, game) of the last save asked for, to tag the clip it brings.
+        self._game_hint: tuple[float, str] = (0.0, "")
         # What the recorder said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
 
@@ -277,6 +280,9 @@ class RecorderController(QObject):
         workers.run(lambda: self.recorder.save(seconds), None,
                     lambda exc: self.context.notify("clip_not_saved", "Clip not saved",
                                                     str(exc)))
+        self._game_hint = (0.0, "")
+        if system.WINDOWS and self.context.config.recorder.tag_from_fullscreen:
+            workers.run(system.fullscreen_app, self._got_fullscreen, lambda _exc: None)
         span = f"the last {fmt.duration(seconds)}" if seconds else "the replay buffer"
         return f"Saving {span}…"
 
@@ -325,8 +331,20 @@ class RecorderController(QObject):
             self.context.notify("replay_failed", "Replay buffer stopped", error)
         self.state_changed.emit(state.value, error or "")
 
+    def _got_fullscreen(self, window: tuple[str, str] | None) -> None:
+        if window is not None:
+            game = naming.game_from_window(*window) or naming.DESKTOP_TAG
+            self._game_hint = (time.monotonic(), game)
+
     def _on_saved(self, path: str) -> None:
+        when, game = self._game_hint
+        library = self.context.library
         logs.RECORDER.info("Saved %s", path)
+        name = os.path.basename(path)
+        if game and time.monotonic() - when < 60 and library is not None and \
+                (tag := library.tag_if_untagged(name, game)):
+            logs.CLIPS.info("Tagged %s with %s (on screen when it was saved)", name, tag)
+        self._game_hint = (0.0, "")
         self.saved.emit(path)
 
     def shutdown(self) -> None:
@@ -420,8 +438,25 @@ class Context(QObject):
         except Exception as exc:     # run without a library rather than not at all
             self.notify("vertex_problem", "Couldn't open the library", str(exc))
             self.library = Library.in_memory()
+        self.library.game_names = self.config.game_names
         self.thumbs = ThumbnailService(self.config.resolved_cache_dir(), self)
         self.library_reset.emit()
+
+    def rename_game(self, old: str, new: str, remember: bool = True) -> int:
+        """Retag the clips of game `old` as `new`; when `remember`, tag new
+        clips that way too. Returns how many clips changed."""
+        changed = self.library.rename_game(old, new) if self.library is not None else 0
+        if remember:
+            self.set_game_names(naming.add_game_name(self.config.game_names, old, new))
+        if changed:
+            logs.CLIPS.info("Retagged %s from %s to %s", fmt.plural(changed, "clip"), old, new)
+        return changed
+
+    def set_game_names(self, names: dict[str, str]) -> None:
+        self.config.game_names = names
+        if self.library is not None:
+            self.library.game_names = names
+        self.save_config()
 
     def save_config(self) -> None:
         self._save_timer.stop()

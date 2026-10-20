@@ -35,11 +35,11 @@ from vertex.media import tracks as track_labels
 from vertex.media.ffmpeg import Cancelled
 from vertex.ui import icons, theme, workers
 from vertex.ui.dialogs.export import copy_file_to_clipboard
-from vertex.ui.dialogs.tags import TagDialog
+from vertex.ui.dialogs.tags import RenameGameDialog, TagDialog
 from vertex.ui.library.delegate import INFO_H, PAD, ClipDelegate
 from vertex.ui.library.filters import FilterRow
 from vertex.ui.library.model import ClipModel, ClipRole
-from vertex.ui.library.state import LibraryState
+from vertex.ui.library.state import Facet, LibraryState
 from vertex.ui.widgets import ChoiceDialog, IconButton, Segmented, button, label
 
 CARD_STEP = 20           # how much one notch of the size slider or Ctrl+scroll changes
@@ -248,6 +248,7 @@ class LibraryView(QWidget):
         refresh.clicked.connect(self.reload)
         self.filters = FilterRow(state, [self.sort, card_size, refresh], self.size_icons)
         self.filters.setContentsMargins(0, 0, 8, 0)
+        self.filters.rename_game.connect(self.rename_game)
         layout.addWidget(self.filters)
 
         self.stack = QStackedWidget()
@@ -412,6 +413,18 @@ class LibraryView(QWidget):
                                library.known_games(), library.known_people())
         if result is not None:
             self.state.set_tags(clip, *result)
+
+    def rename_game(self, game: str) -> None:
+        """Retag a game's clips with another name, and remember it if asked."""
+        games = dict(self.state.games())
+        result = RenameGameDialog.ask(self, game, games.get(game, 0), games)
+        if result is None:
+            return
+        name, remember = result
+        self.context.rename_game(game, name, remember)
+        if self.state.facet == Facet("game", game):
+            self.state.facet = Facet("game", name)
+        self.state.reload()
 
     def connect_keys(self, grid: ClipGrid) -> None:
         """What a grid's keys do: here and on Home alike."""

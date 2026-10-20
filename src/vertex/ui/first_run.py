@@ -666,11 +666,11 @@ class FirstRunView(QWidget):
             snapshot = None
             data_dir = self.config.resolved_data_dir()
 
-        patterns = self._patterns()
+        patterns, names = self._patterns(), dict(self.config.game_names)
 
         def plan():
             known, tagged = snapshot if snapshot is not None else library_snapshot(data_dir)
-            return importing.plan_import(folder, known, tagged, patterns)
+            return importing.plan_import(folder, known, tagged, patterns, names)
 
         def done(result):
             if token == self._tag_token:

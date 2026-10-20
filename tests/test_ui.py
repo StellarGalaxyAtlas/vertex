@@ -1834,3 +1834,81 @@ def test_a_hotkey_runs_its_action(qapp, window):
         window.context.hotkeys.pressed.emit(action)
     assert ran == [("save-clip", {}), ("save-clip", {"seconds": 60}),
                    ("replay", {"action": "toggle"}), ("show", {})]
+
+
+def test_a_saved_clip_is_tagged_with_the_fullscreen_game(qapp, window, monkeypatch):
+    from types import SimpleNamespace
+
+    from vertex import system
+
+    context, library = window.context, window.context.library
+    recorder = context.recorder
+    monkeypatch.setattr(recorder, "recorder", SimpleNamespace(running=True,
+                                                              save=lambda _seconds: None,
+                                                              stop=lambda timeout: None))
+    monkeypatch.setattr(system, "WINDOWS", True)
+    context.rename_game("HeroesOfTheStorm_x64", "Heroes of the Storm")
+    windows = [("", r"C:\Games\HeroesOfTheStorm_x64.exe"), ("", ""), None]
+    asked = []
+    monkeypatch.setattr(system, "fullscreen_app", lambda: asked.append(1) or windows.pop(0))
+    hints = []
+    real_got = recorder._got_fullscreen
+    monkeypatch.setattr(recorder, "_got_fullscreen",
+                        lambda window: (real_got(window), hints.append(window)))
+
+    for count, clip in enumerate(("a.mp4", "b.mp4", "c.mp4"), 1):
+        recorder.save()
+        assert wait_until(qapp, lambda count=count: len(hints) == count)
+        recorder._on_saved(f"/clips/{clip}")
+    games = {name: game for name, (game, _people) in library.tags().items()}
+    # Nothing fullscreen is the desktop; Vertex in front can't tell.
+    assert games.get("a.mp4") == "Heroes of the Storm"
+    assert games.get("b.mp4") == "Desktop"
+    assert not games.get("c.mp4")
+    assert context.config.game_names == {"HeroesOfTheStorm_x64": "Heroes of the Storm"}
+
+
+def test_renaming_a_game_retags_its_clips_and_new_ones(qapp, window):
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtTest import QTest
+
+    from vertex.ui.dialogs.tags import RenameGameDialog
+    from vertex.ui.library.state import Facet
+
+    state, context = window.state, window.context
+    clip = state.find("Replay_2026-01-02_03-04-05.mp4")
+    state.set_tags(clip, "Heroes of the Storm(Retail)", [])
+    state.set_facet(Facet("game", "Heroes of the Storm(Retail)"))
+    filters = window.library_view.filters
+    filters._open("game")
+    menu = filters.menu
+    # F2 on the game picked in the menu renames it.
+    menu.list.setCurrentRow(next(row for row in range(menu.list.count())
+                                 if menu.list.item(row).text().startswith("Heroes")))
+    seen = {}
+
+    def rename():
+        dialog = next(w for w in qapp.topLevelWidgets()
+                      if isinstance(w, RenameGameDialog) and w.isVisible())
+        seen["typed"] = dialog.name.text()
+        dialog.name.setText("apex legends")
+        seen["hint"] = dialog.hint.text()
+        dialog.name.setText("Heroes of the Storm")
+        QTest.keyClick(dialog.name, Qt.Key.Key_Return)
+    QTimer.singleShot(0, rename)
+    QTest.keyClick(menu.find, Qt.Key.Key_F2)
+    assert seen == {"typed": "Heroes of the Storm(Retail)",
+                    "hint": "Merges with “Apex Legends”, 1 clip"}
+    assert state.tags_of(state.find(clip.name))[0] == "Heroes of the Storm"
+    assert state.facet == Facet("game", "Heroes of the Storm")
+    assert context.config.game_names == {"Heroes of the Storm(Retail)": "Heroes of the Storm"}
+    assert context.library.tag_if_untagged("new.mp4", "Heroes of the Storm (Retail)") == \
+        "Heroes of the Storm"
+
+    # Settings lists it, and forgets it.
+    settings = window.settings_view
+    window.navigate("settings")
+    settings.show_page("import")
+    assert len(settings.game_names._rows) == 1 and settings.game_names.empty.isHidden()
+    settings._forget_game_name("Heroes of the Storm(Retail)")
+    assert context.config.game_names == {} and not settings.game_names.empty.isHidden()

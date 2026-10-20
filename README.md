@@ -79,7 +79,8 @@ telemetry and no account.
 </p>
 
 All your clips with previews. Filter by game, person or favorites, search,
-tag and rename.
+tag and rename. A game with a wrong name is renamed from the games menu
+(right-click it): its clips are retagged, and new clips get the new name too.
 
 ## Editor and export
 
@@ -109,7 +110,8 @@ mic as separate tracks, each recording the device you pick (bring your own
 virtual devices to split game and chat). On Windows it records with OBS Studio,
 at the volume set for each track:
 Vertex starts OBS in the tray and sets up an OBS profile and scene of its
-own, both called Vertex, leaving your others alone. On Linux it records with
+own, both called Vertex, leaving your others alone. A clip saved there is
+tagged with the game filling the screen, or Desktop. On Linux it records with
 GPU Screen Recorder, and notifications can show over games.
 
 ## Settings

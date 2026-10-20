@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import desktop, logs, paths
+from vertex import desktop, logs, paths, system
 from vertex.config import (
     AUDIO_CODECS,
     BITRATE_MODES,
@@ -43,6 +43,7 @@ from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
+from vertex.ui.settings.game_names import GameNames
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
@@ -67,7 +68,7 @@ from vertex.ui.widgets import (
 APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                  "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
                  "notify_over_games")
-RECORDER_AT_ONCE = ("autostart",)
+RECORDER_AT_ONCE = ("autostart", "tag_from_fullscreen")
 
 LABELS = {
     "very_high": "Very high", "qp": "Constant quality (QP)", "vbr": "Variable bitrate",
@@ -188,7 +189,7 @@ class SettingsView(QWidget):
             field.committed.connect(lambda _v: self.apply_now())
         for switch in (self.keep_logs, self.close_to_tray, self.autostart,
                        self.notifications.over_games, *self.notifications.switches.values(),
-                       self.rec_autostart):
+                       self.rec_autostart, self.tag_from_game):
             switch.toggled.connect(lambda _on: self.apply_now())
         self.schemes.picked.connect(lambda _s: self.apply_now())
         self.output_dir.changed.connect(lambda _v: self._show_pending())
@@ -280,6 +281,10 @@ class SettingsView(QWidget):
         self.resolution, self.fps = self.choices.resolution, self.choices.fps
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
+        self.tag_from_game = Toggle()
+        tag_row = clips.add_row("Tag clips with the game", self.tag_from_game,
+                                "The app filling the screen when a clip is saved, else Desktop")
+        tag_row.setVisible(system.WINDOWS)
         self.tracks = TrackTable(backend.has_track_volume())
         devices = self.tracks.devices
         self.game_audio, self.chat_audio = devices[roles.GAME.id], devices[roles.CHAT.id]
@@ -425,8 +430,18 @@ class SettingsView(QWidget):
         self.sources.added.connect(lambda: self.banner.show_message(
             "Saved. Review tags to tag the clips you have.", "ok"))
         names.add(self.sources)
-        self.pages["import"] = scroll_page((copy_section, tag_section, setup), names)
+        renames = Section("Game names", "Games you renamed in the library: new clips are "
+                                        "tagged with the new name too")
+        self.game_names = GameNames()
+        self.game_names.removed.connect(self._forget_game_name)
+        renames.add(self.game_names)
+        self.pages["import"] = scroll_page((copy_section, tag_section, setup), names, renames)
         self.stack.addWidget(self.pages["import"])
+
+    def _forget_game_name(self, name: str) -> None:
+        names = {old: new for old, new in self.context.config.game_names.items() if old != name}
+        self.context.set_game_names(names)
+        self.game_names.set_names(names)
 
     # --- Load / collect / save -------------------------------------------------
 
@@ -442,6 +457,7 @@ class SettingsView(QWidget):
         config = self.context.config
         self.sources.set_patterns(config.patterns())
         self._show_names()
+        self.game_names.set_names(config.game_names)
         self.clip_path.set_value(config.clip_path)
         self.export_path.set_value(config.export_path)
         self.data_path.set_value(config.data_path)
@@ -462,6 +478,7 @@ class SettingsView(QWidget):
         rec = config.recorder
         self.command.setText(rec.command)
         self.rec_autostart.setChecked(rec.autostart)
+        self.tag_from_game.setChecked(rec.tag_from_fullscreen)
         self.choices.capture = rec.capture
         self.choices.show_capture()
         _set_combo(self.framerate_mode, rec.framerate_mode)
@@ -500,6 +517,7 @@ class SettingsView(QWidget):
         rec = config.recorder
         rec.command = self._command()
         rec.autostart = self.rec_autostart.isChecked()
+        rec.tag_from_fullscreen = self.tag_from_game.isChecked()
         self.choices.apply(rec)
         rec.framerate_mode = self.framerate_mode.currentData()
         rec.video_codec = self.video_codec.currentData()
