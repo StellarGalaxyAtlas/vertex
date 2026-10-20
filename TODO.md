@@ -74,6 +74,25 @@ lane, off until a device is picked; first called Music), a 0–100% recording vo
 set on the OBS source, and a 0–300% playback volume in the editor. To try
 on the friend's PC: that OBS records each track at its volume.
 
+### Game tags
+
+**80.**
+**Game names: map a name Vertex reads to the tag it should be**
+On Windows and Linux (e.g. Sonar's "Heroes of the Storm(Retail)" →
+"Heroes of the Storm"), for new clips and the ones tagged already.
+Mockup windows-port/mockups/7-game-names.png (A: a list in Settings, B:
+Rename… in the games menu); waiting for the pick.
+
+**81.**
+**Tag new clips with the fullscreen game on Windows**
+The foreground app that fills its screen when a clip is saved; Desktop when
+there is none. Waits on 80's questions.
+
+**82.**
+**"Tag games from file names" in Settings does nothing after setup**
+Work out what it should do (maybe "re-read tags automatically"), after 80
+and 81.
+
 ### Later
 
 **67.**
