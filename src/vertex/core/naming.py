@@ -109,7 +109,7 @@ def reader_of(name: str, patterns) -> int | None:
 
 
 def _tag(game: str) -> str:
-    return CAPTURE_NAMES.get(game.casefold()) or clean_tag(game.translate(TRADEMARKS))
+    return CAPTURE_NAMES.get(game_key(game)) or clean_tag(game.translate(TRADEMARKS))
 
 
 def game_from_filename(name: str, patterns=None) -> str:

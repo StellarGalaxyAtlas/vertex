@@ -300,15 +300,20 @@ class Library:
         known = {game_key(name): name for name in self.known_games()}
         return known.get(game_key(game), game)
 
-    def tag_if_untagged(self, filename: str, game: str) -> str:
-        """Give a clip a game only if it has none. Returns the tag written, or ''."""
+    def tag_recorded(self, filename: str, game: str) -> str:
+        """Tag a clip Vertex just recorded with the game playing as it saved.
+        Only a game nobody typed is replaced: none, or the one its file name
+        gives (which the library may have written as the file appeared).
+        Returns the tag written, or ''."""
         game = self.canonical_game(game)
         if not game:
             return ""
         row = self.conn.execute(
             "SELECT game FROM clips WHERE filename = ?", (filename,)).fetchone()
         if row is not None and row["game"]:
-            return ""
+            from_name = fixed_name(game_from_filename(filename), self.game_names)
+            if game_key(row["game"]) != game_key(from_name):
+                return ""
         self._upsert(filename, game=game)
         return game
 

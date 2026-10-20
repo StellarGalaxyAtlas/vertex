@@ -754,7 +754,7 @@ class RecorderController(QObject):
         library = self.context.library
         logs.RECORDER.info("Saved %s", path)
         if game and time.monotonic() - when < 60 and library is not None and \
-                library.tag_if_untagged(os.path.basename(path), game):
+                library.tag_recorded(os.path.basename(path), game):
             logs.CLIPS.info("Tagged %s with %s (playing on the Game channel)",
                             os.path.basename(path), game)
         self._game_hint = (0.0, "")

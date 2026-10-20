@@ -437,7 +437,7 @@ class MainWindow(QMainWindow):
 
     def _clip_saved(self, path: str) -> None:
         self.state.reload()
-        self.context.notify("clip_saved", "Clip saved", os.path.basename(path))
+        self.context.notify("clip_saved", "Clip saved", "It's in your library")
 
     def _notified(self, notice: notifications.Notice) -> None:
         """Every notice shows at the bottom of the window. It pops up too, if its

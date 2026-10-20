@@ -39,7 +39,7 @@ def test_the_library_retags_a_game_and_follows_the_names():
 
     library.game_names = {"HeroesOfTheStorm_x64": "Heroes of the Storm",
                           "OVERWATCH-2": "Overwatch"}
-    assert library.tag_if_untagged("e.mp4", "HeroesOfTheStorm_x64") == "Heroes of the Storm"
+    assert library.tag_recorded("e.mp4", "HeroesOfTheStorm_x64") == "Heroes of the Storm"
     assert library.autotag_games(["OVERWATCH-2__2024-06-16__19-45-23.mp4"]) == {
         "OVERWATCH-2__2024-06-16__19-45-23.mp4": "Overwatch"}
 
@@ -75,6 +75,13 @@ def test_reading_names_again_groups_what_changes_by_game():
     assert [(g.game_was, g.game, len(g.changes), g.dates) for g in groups] == [
         ("Helldivers", "HELLDIVERS 2", 2, 1), ("", "", 1, 1)]
     assert groups[1].changes[0].filename == "Replay_2026-08-17_23-56-10.mp4"
+
+    # A name that says Desktop doesn't undo a game; it does tag an untagged clip.
+    desktop = ["Desktop-Capture__2026-10-20__21-00-00.mp4",
+               "Desktop-Capture__2026-10-20__21-05-00.mp4"]
+    groups = importing.plan_reread(desktop, {desktop[0]: "Heroes of the Storm"},
+                                   {name: importing.recorded_at(name) for name in desktop})
+    assert [(g.game_was, g.game, len(g.changes)) for g in groups] == [("", "Desktop", 1)]
 
     library = Library.in_memory()
     library.apply_reread({names[0]: "HELLDIVERS 2"}, {names[4]: when})

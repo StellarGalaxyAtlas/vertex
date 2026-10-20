@@ -2158,7 +2158,7 @@ def test_renaming_a_game_retags_its_clips_and_new_ones(qapp, window):
     assert state.tags_of(state.find(clip.name))[0] == "Heroes of the Storm"
     assert state.facet == Facet("game", "Heroes of the Storm")
     assert context.config.game_names == {"Heroes of the Storm(Retail)": "Heroes of the Storm"}
-    assert context.library.tag_if_untagged("new.mp4", "Heroes of the Storm (Retail)") == \
+    assert context.library.tag_recorded("new.mp4", "Heroes of the Storm (Retail)") == \
         "Heroes of the Storm"
 
     # Settings lists it, and forgets it.
@@ -2168,6 +2168,18 @@ def test_renaming_a_game_retags_its_clips_and_new_ones(qapp, window):
     assert len(settings.game_names._rows) == 1 and settings.game_names.empty.isHidden()
     settings._forget_game_name("Heroes of the Storm(Retail)")
     assert context.config.game_names == {} and not settings.game_names.empty.isHidden()
+
+
+def test_a_saved_clip_takes_the_game_channel_over_its_name(window, library_dir):
+    import time
+
+    context = window.context
+    name = "Desktop-Capture__2026-10-20__21-00-00.mp4"
+    context.library.autotag_games([name])         # as the file appeared
+    context.recorder._game_hint = (time.monotonic(), "Heroes of the Storm")
+    context.recorder._on_saved(os.path.join(library_dir, name))
+    assert context.library.get_edit(name).game == "Heroes of the Storm"
+    assert window.banner.text() == "Clip saved: It's in your library"
 
 
 def test_settings_read_the_names_again_and_apply_what_is_ticked(qapp, window, library_dir,

@@ -63,12 +63,17 @@ def test_autotag_fills_blanks_with_known_spelling():
     assert library.get_edit("THE-FINALS__2024-06-16__19-45-24.mp4").game == "Typed"
 
 
-def test_tag_if_untagged():
+def test_tag_recorded_replaces_only_a_game_nobody_typed():
     library = Library.in_memory()
     library.set_tags("a.mp4", "Deep Rock Galactic", [])
-    assert library.tag_if_untagged("b.mp4", "deep rock galactic") == "Deep Rock Galactic"
-    assert library.tag_if_untagged("a.mp4", "Other") == ""
-    assert library.tag_if_untagged("c.mp4", "  ") == ""
+    assert library.tag_recorded("b.mp4", "deep rock galactic") == "Deep Rock Galactic"
+    assert library.tag_recorded("a.mp4", "Other") == ""
+    assert library.tag_recorded("c.mp4", "  ") == ""
+    # The game its name gave, written as the file appeared, gives way.
+    name = "Desktop-Capture__2026-10-20__21-00-00.mp4"
+    assert library.autotag_games([name]) == {name: "Desktop"}
+    assert library.tag_recorded(name, "Heroes of the Storm") == "Heroes of the Storm"
+    assert library.get_edit(name).game == "Heroes of the Storm"
 
 
 def test_known_games_and_people_rank_by_use():

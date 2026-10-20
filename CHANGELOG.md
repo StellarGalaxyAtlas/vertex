@@ -50,6 +50,8 @@ added.
 - `.mkv` clips are listed alongside `.mp4`.
 - Clips named `Replay_…` are no longer tagged *Desktop* automatically.
 - Enter in a confirmation takes what it asks for (Delete, Apply), not Cancel.
+- The clip-saved notification says the clip is in your library instead of
+  naming its file.
 - Settings' folder fields show the real default clips and exports folders.
 - Library schema is versioned (`PRAGMA user_version`); 1.x libraries upgrade in
   place.

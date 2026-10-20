@@ -19,7 +19,13 @@ from dataclasses import dataclass, field
 
 from vertex import fmt
 from vertex.core.clips import is_clip
-from vertex.core.naming import fixed_name, game_from_filename, game_key, recorded_at
+from vertex.core.naming import (
+    DESKTOP_TAG,
+    fixed_name,
+    game_from_filename,
+    game_key,
+    recorded_at,
+)
 from vertex.logs import CLIPS as log
 
 COPY_CHUNK = 4 * 1024 * 1024          # read/write size for a single clip
@@ -296,14 +302,17 @@ def plan_reread(names, tags: dict[str, str], dates: dict[str, float], patterns=N
     """What reading the clips called `names` again would change, grouped by
     game, the most clips first; dates only, last. `tags` and `dates` are what
     the library has; a game already in use keeps its spelling, and a game
-    that only changes spelling isn't a change."""
+    that only changes spelling isn't a change, nor is Desktop over a game."""
     known = {game_key(game): game for game in tags.values() if game}
     groups: dict[tuple[str, str], RereadGroup] = {}
     for name in sorted(names):
         game_was = tags.get(name, "")
         game = fixed_name(game_from_filename(name, patterns), game_names or {})
         game = known.get(game_key(game), game)
-        if not game or game_key(game) == game_key(game_was):
+        # A name read as Desktop only says it holds no game: it never
+        # replaces one the clip has (from the Game channel, say).
+        if not game or game_key(game) == game_key(game_was) or \
+                (game_was and game_key(game) == game_key(DESKTOP_TAG)):
             game = ""
         when, when_was = recorded_at(name, patterns), dates.get(name, 0.0)
         if not when or abs(when - when_was) < 1:
