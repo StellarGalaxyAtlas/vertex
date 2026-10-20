@@ -9,6 +9,7 @@ from vertex.core.name_patterns import (
     Mark,
     NamePattern,
     PatternError,
+    Reading,
     formats_for,
     from_marks,
     parse,
@@ -34,6 +35,15 @@ def test_medal_names_give_the_game_with_its_words_apart():
     assert medal.read("MedalTVApexLegends20260101120000001 (trimmed).mp4").game == \
         "Apex Legends"
     assert medal.read("THE-FINALS__2024-06-16__19-45-23.mp4") is None
+
+
+def test_the_amd_preset_reads_replays_seconds_and_counters():
+    amd = next(p for p in PRESETS if p.app == "AMD Adrenalin").pattern
+    for name in ("Cyberpunk 2077_2024.05.18-20.32.mp4",
+                 "Cyberpunk 2077_replay_2024.05.18-20.32.mp4",
+                 "Cyberpunk 2077_2024.05.18-20.32.45.mp4",
+                 "Cyberpunk 2077_2024.05.18-20.32_1.mp4"):
+        assert amd.read(name) == Reading("Cyberpunk 2077", _when(2024, 5, 18, 20, 32)), name
 
 
 def test_a_template_round_trips_and_bad_ones_are_refused():
@@ -74,6 +84,26 @@ def test_marking_up_a_name_makes_a_pattern_for_the_others():
         "Counter Strike 2"
     with pytest.raises(PatternError):
         from_marks(name, [mark("Valorant", "game"), mark("Valo", "skip")])
+
+
+def test_an_ignored_part_beside_the_game_keeps_its_length():
+    name = "MedalTVAssassinsCreedII20260102140204766.mp4"
+    stem = name[:-4]
+
+    def mark(text, kind, fmt=""):
+        start = stem.index(text)
+        return Mark(start, start + len(text), kind, fmt)
+
+    pattern = from_marks(name, [mark("MedalTV", "skip"), mark("AssassinsCreedII", "game"),
+                                mark("20260102", "date", "YYYYMMDD"),
+                                mark("1402", "time", "HHmm"), mark("04766", "skip")])
+    assert pattern.template == "{skip:7}{game}{date:YYYYMMDD}{time:HHmm}{skip}"
+    assert pattern.read(name).game == "AssassinsCreedII"
+    assert pattern.read("MedalTVHalo20260102140204766.mp4").game == "Halo"
+    assert template_of(parse("{skip:7}{game}")) == "{skip:7}{game}"
+    for bad in ("{skip:x}", "{skip:0}", "{game:7}"):
+        with pytest.raises(PatternError):
+            parse(bad)
 
 
 def test_taught_patterns_tag_and_date_imports(tmp_path):

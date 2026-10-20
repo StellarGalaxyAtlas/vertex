@@ -42,8 +42,12 @@ class FolderList(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
+        top = QHBoxLayout()
         self.heading = label("", "Muted", wrap=True)
-        layout.addWidget(self.heading)
+        top.addWidget(self.heading, 1)
+        self.every = button("Deselect all", "ghost", on_click=self._tick_every)
+        top.addWidget(self.every, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(top)
         self.host = QWidget()
         self.grid = QGridLayout(self.host)
         self.grid.setContentsMargins(0, 0, 8, 0)
@@ -75,13 +79,30 @@ class FolderList(QWidget):
                                   f"(this folder)"
             box = QCheckBox(name)
             box.setChecked(folder.path not in plan.left_out)
-            box.toggled.connect(lambda _on: self.changed.emit())
+            box.toggled.connect(self._toggled)
             self.boxes[folder.path] = box
             self.grid.addWidget(box, row, 0)
             self.grid.addWidget(label(fmt.plural(folder.clips, "clip"), "Muted"), row, 1, right)
             self.grid.addWidget(label(fmt.size(folder.bytes), "Muted"), row, 2, right)
         self.scroll.setFixedHeight(min(self.host.sizeHint().height(), self.MAX_HEIGHT))
+        self._name_every()
         self.show()
+
+    def _toggled(self, _on: bool) -> None:
+        self._name_every()
+        self.changed.emit()
+
+    def _name_every(self) -> None:
+        ticked = all(box.isChecked() for box in self.boxes.values())
+        self.every.setText("Deselect all" if ticked else "Select all")
+
+    def _tick_every(self) -> None:
+        tick = self.every.text() == "Select all"
+        for box in self.boxes.values():
+            box.blockSignals(True)
+            box.setChecked(tick)
+            box.blockSignals(False)
+        self._toggled(tick)
 
     def left_out(self) -> set[str]:
         return {path for path, box in self.boxes.items() if not box.isChecked()}
@@ -89,6 +110,7 @@ class FolderList(QWidget):
     def set_enabled(self, enabled: bool) -> None:
         for box in self.boxes.values():
             box.setEnabled(enabled)
+        self.every.setEnabled(enabled)
 
 
 class CopyClipsDialog(QDialog):
