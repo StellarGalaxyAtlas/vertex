@@ -164,7 +164,11 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),
                         "run Vertex once to go through setup", required=False))
-    checks.append(Check("python", True, sys.executable, required=False))
+    # A virtual environment's (pipx's) own python.exe says little: name the
+    # Python it was made from too.
+    python = sys.executable if sys.prefix == sys.base_prefix else \
+        f"{sys.executable}, made from {sys.base_prefix}"
+    checks.append(Check("python", True, python, required=False))
     for name, folder in (("library", config.resolved_data_dir()),
                          ("state", config.resolved_state_dir()),
                          ("cache", config.resolved_cache_dir())):
