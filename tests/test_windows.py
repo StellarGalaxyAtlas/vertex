@@ -33,7 +33,7 @@ def test_folders_live_in_appdata(windows):
 
 def test_videos_folder_falls_back_when_windows_cannot_say(windows, monkeypatch):
     monkeypatch.setattr(system, "known_folder", lambda role: "")
-    assert paths.xdg_user_dir("VIDEOS", "~/Videos") == os.path.expanduser("~/Videos")
+    assert paths.xdg_user_dir("VIDEOS", "~/Videos") == paths.normalize("~/Videos")
     monkeypatch.setattr(system, "known_folder", lambda role: "D:\\Videos")
     assert paths.xdg_user_dir("VIDEOS", "~/Videos").endswith("Videos")
 
