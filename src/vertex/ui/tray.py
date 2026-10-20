@@ -1,13 +1,12 @@
-"""The tray icon: Vertex keeps routing audio and buffering replays while the
-window is closed, and this is how you reach it."""
+"""The tray icon: Vertex keeps buffering replays while the window is closed,
+and this is how you reach it."""
 
 from __future__ import annotations
 
-from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from vertex import APP_NAME, notifications
-from vertex.audio import channels, devices
 from vertex.recorder.replay import RecorderError
 from vertex.ui import icons
 
@@ -21,19 +20,10 @@ class Tray(QSystemTrayIcon):
         menu = QMenu()
         self.show_action = self._add(menu, f"Show {APP_NAME}", window.bring_to_front)
         self._add(menu, "Open Library", lambda: self._open("library"))
-        self._add(menu, "Open Sonar", lambda: self._open("sonar"))
         menu.addSeparator()
         self.replay_action = self._add(menu, "Start replay buffer", context.recorder.toggle)
         self.save_action = self._add(menu, "Save clip", lambda: self._save(None))
         self.save_30_action = self._add(menu, "Save the last 30 seconds", lambda: self._save(30))
-        menu.addSeparator()
-        self.sonar_action = self._add(menu, "Sonar", lambda: context.sonar.set_enabled(
-            not context.config.sonar.enabled))
-        self.sonar_action.setCheckable(True)
-        # Switching devices for now, as on the Sonar page: the lists keep their order.
-        self.output_menu = menu.addMenu("Output device")
-        self.mic_menu = menu.addMenu("Microphone")
-        self._shown_devices = None
         menu.addSeparator()
         self._add(menu, "Quit", window.quit)
         self.setContextMenu(menu)
@@ -41,11 +31,7 @@ class Tray(QSystemTrayIcon):
         self.activated.connect(self._activated)
         self.messageClicked.connect(window.bring_to_front)
         context.recorder.state_changed.connect(self._recorder_state)
-        context.sonar.status_changed.connect(lambda _s: self._sonar_state())
-        context.sonar.devices_changed.connect(lambda _o, _i: self._sonar_state())
-        context.config_changed.connect(self._sonar_state)
         self._recorder_state("stopped", "")
-        self._sonar_state()
 
     @staticmethod
     def _add(menu: QMenu, text: str, handler) -> QAction:
@@ -82,47 +68,6 @@ class Tray(QSystemTrayIcon):
                "restarting": "restarting the replay buffer",
                "failed": "replay buffer stopped"}.get(state, "replay buffer off")
         self.setToolTip(f"{APP_NAME} — {tip}")
-
-    def _sonar_state(self) -> None:
-        self.sonar_action.setChecked(self.context.config.sonar.enabled)
-        self._fill_devices()
-
-    def device_lists(self) -> tuple[list[tuple[str, str, bool]], list[tuple[str, str, bool]]]:
-        """The outputs and the mics the submenus offer, as (name, label, in use),
-        in the device manager's order, without excluded devices."""
-        controller, sonar = self.context.sonar, self.context.config.sonar
-        status = controller.status
-
-        def entries(found, priority, excluded, current):
-            labels = {device.name: device.description or device.name for device in found}
-            names = devices.pickable(priority, excluded, [device.name for device in found])
-            return [(name, labels[name], name == current) for name in names]
-
-        return (entries(controller.outputs, sonar.output_priority, sonar.output_excluded,
-                        status.output),
-                entries(controller.inputs, sonar.mic_priority, sonar.mic_excluded, status.mic))
-
-    def _fill_devices(self) -> None:
-        on = self.context.config.sonar.enabled and self.context.sonar.status.active
-        lists = self.device_lists() if on else ([], [])
-        if (on, lists) == self._shown_devices:
-            return
-        self._shown_devices = (on, lists)
-        for submenu, entries, channel_id in ((self.output_menu, lists[0], ""),
-                                             (self.mic_menu, lists[1], channels.MIC.id)):
-            submenu.clear()
-            for old in submenu.findChildren(QActionGroup):
-                old.deleteLater()
-            submenu.menuAction().setEnabled(on)
-            group = QActionGroup(submenu)
-            for name, text, in_use in entries:
-                action = self._add(submenu, text, lambda _c=False, n=name, c=channel_id:
-                                   self.context.sonar.pick_device(n, c))
-                action.setCheckable(True)
-                action.setChecked(in_use)
-                group.addAction(action)
-            if on and not entries:
-                self._add(submenu, "Nothing connected", lambda: None).setEnabled(False)
 
     def pop_up(self, notice: notifications.Notice) -> None:
         """Show a notice on the desktop."""

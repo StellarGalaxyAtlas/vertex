@@ -79,17 +79,17 @@ class TestArgv:
         assert "-restore-portal-session" not in argv and "-ab" not in argv
 
     def test_tracks_are_named_on_new_recorders(self):
-        # Sonar's Game, Chat and Mic by default, Sonar on or not.
+        # The default output as Game and the default mic as Mic, by default.
         config = Config()
         tracks = gsr.audio_tracks(config)
-        assert [t.channel for t in tracks] == ["game", "chat", "mic"]
+        assert [t.channel for t in tracks] == ["game", "mic"]
         new = gsr.GsrInfo("gsr", True, (5, 15, 1))
         old = gsr.GsrInfo("gsr", True, (5, 10, 2))
         argv = gsr.build_argv(config.recorder, tracks, "/c", new)
-        assert "name:Vertex Game|device:vertex_game.monitor" in argv
-        assert "name:Vertex Mic|device:vertex_mic" in argv
+        assert "name:Vertex Game|default_output" in argv
+        assert "name:Vertex Mic|default_input" in argv
         argv = gsr.build_argv(config.recorder, tracks, "/c", old)
-        assert "device:vertex_game.monitor" in argv
+        assert "default_output" in argv
         assert not [a for a in argv if a.startswith("name:")]
 
     def test_tracks_are_the_devices_chosen_titled_by_role(self):
@@ -102,8 +102,12 @@ class TestArgv:
             ("device:alsa_input.usb-mic", "Vertex Mic", "mic")]
 
     def test_missing_devices_are_stood_in_for(self):
-        tracks = gsr.audio_tracks(Config())
-        # Sonar off: its channels are missing, the defaults stand in.
+        config = Config()
+        config.recorder.game_audio = "device:usb_headset.monitor"
+        config.recorder.chat_audio = "device:usb_headset.monitor"
+        config.recorder.mic_audio = "device:usb_mic"
+        tracks = gsr.audio_tracks(config)
+        # The headset unplugged: the defaults stand in.
         devices = ["default_output", "default_input", "alsa_output.x.monitor"]
         usable, stood_in = gsr.available_tracks(tracks, devices)
         assert [(t.source, t.title) for t in usable] == [
@@ -111,8 +115,8 @@ class TestArgv:
             ("default_input", "Vertex Mic")]
         assert [(t.channel, instead) for t, instead in stood_in] == [
             ("game", "default_output"), ("chat", "default_output"), ("mic", "default_input")]
-        # Sonar on: the devices chosen, untouched.
-        devices += ["vertex_game.monitor", "vertex_chat.monitor", "vertex_mic"]
+        # Plugged back in: the devices chosen, untouched.
+        devices += ["usb_headset.monitor", "usb_mic"]
         assert gsr.available_tracks(tracks, devices) == (tracks, [])
         # Not even a default input: that track is left out.
         usable, stood_in = gsr.available_tracks(tracks, ["default_output"])

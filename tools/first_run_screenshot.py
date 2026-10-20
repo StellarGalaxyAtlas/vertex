@@ -1,4 +1,4 @@
-"""Screenshot every step of first-run setup against fake devices, for UI work.
+"""Screenshot every step of first-run setup against a fake recorder, for UI work.
 
 usage: xvfb-run -a python tools/first_run_screenshot.py OUT_PREFIX [WIDTH ...]
 
@@ -8,8 +8,7 @@ and width: by default 1280 × 820 (the default window) and 980 × 640 (the
 minimum). The Moments step is shot twice: with no GPU Screen Recorder
 ("moments-missing") and with the stand-in recorder and three monitors of
 tools/settings_screenshot.py. The last two steps bring along a fake
-SteelSeries Moments library. Needs no audio server and never touches your real
-config.
+SteelSeries Moments library. Never touches your real config.
 """
 
 import os
@@ -43,12 +42,8 @@ def main(prefix: str, widths: list[int]) -> int:
     assert vertex.__file__.startswith(os.path.join(REPO, "src")), vertex.__file__
 
     from settings_screenshot import fake_recorder_and_monitors
-    from sonar_screenshot import fake_server
 
     import vertex.ui.services as services
-
-    fake = fake_server()
-    services.Pactl = lambda: fake
     from vertex.recorder import gsr
     real_detect = gsr.detect
     fake_recorder_and_monitors()
@@ -79,7 +74,7 @@ def main(prefix: str, widths: list[int]) -> int:
     for width in widths:
         height = 820 if width >= 1280 else 640
         shots += [(width, height, step) for step in
-                  ("folders", "sonar", "moments-missing", "moments", "library", "tags")]
+                  ("folders", "moments-missing", "moments", "library", "tags")]
 
     def prepare(step):
         if step in ("moments-missing", "moments"):

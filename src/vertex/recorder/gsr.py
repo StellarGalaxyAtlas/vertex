@@ -3,9 +3,9 @@ command line from Vertex's settings.
 
 Everything about a recording is a command-line flag, so the whole of
 `RecorderConfig` maps onto one argv, built here as a pure function. Audio is
-where Vertex adds something: with Sonar on, every recorded channel becomes its
-own track, titled after the channel, so every clip carries the same tracks in
-the same layout whatever the hardware is called.
+where Vertex adds something: every recorded part (game, chat, mic) becomes
+its own track, titled after the part, so every clip carries the same tracks
+in the same layout whatever the hardware is called.
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ import shlex
 import subprocess
 from dataclasses import dataclass
 
-from vertex.audio import channels
 from vertex.config import (
     BITRATE_MODES,
     COLOR_RANGES,
@@ -28,6 +27,7 @@ from vertex.config import (
     Config,
     RecorderConfig,
 )
+from vertex.media import roles
 
 # `-a "name:<title>|device:<node>"` sets a track's title. Versions before this
 # take the "name:" part for a device and refuse to start.
@@ -165,7 +165,7 @@ def list_capture_options(command: str) -> list[CaptureOption]:
 class Track:
     """One audio track of a recording."""
 
-    source: str      # what GSR records: "device:vertex_game.monitor", "default_output", …
+    source: str      # what GSR records: "default_output", "app:Discord", "device:…"
     title: str       # the track title written into the clip ("" = GSR's own)
     channel: str = ""
 
@@ -176,8 +176,8 @@ class Track:
 
 
 # A clip's audio tracks: the lane each becomes, and the setting naming its device.
-AUDIO_ROLES = ((channels.GAME.id, "game_audio"), (channels.CHAT.id, "chat_audio"),
-               (channels.MIC.id, "mic_audio"))
+AUDIO_ROLES = ((roles.GAME.id, "game_audio"), (roles.CHAT.id, "chat_audio"),
+               (roles.MIC.id, "mic_audio"))
 
 
 def audio_tracks(config: Config) -> list[Track]:
@@ -188,13 +188,13 @@ def audio_tracks(config: Config) -> list[Track]:
     for role, setting in AUDIO_ROLES:
         source = getattr(config.recorder, setting).strip()
         if source:
-            tracks.append(Track(source, channels.BY_ID[role].track_title, role))
+            tracks.append(Track(source, roles.BY_ID[role].track_title, role))
     return tracks
 
 
 def fallback_source(role: str) -> str:
     """What a track records while its own device is missing."""
-    return "default_input" if role == channels.MIC.id else "default_output"
+    return "default_input" if role == roles.MIC.id else "default_output"
 
 
 def _recordable(source: str, devices: set[str]) -> bool:
@@ -208,7 +208,7 @@ def _recordable(source: str, devices: set[str]) -> bool:
 def available_tracks(tracks: list[Track],
                      devices: list[str]) -> tuple[list[Track], list[tuple[Track, str]]]:
     """The tracks to record now. GSR won't start at all with a device it
-    doesn't have (Vertex Chat while Sonar is off, an unplugged headset), so
+    doesn't have (an unplugged headset), so
     such a track records the default output, or the default input for the
     microphone, until its device is back; the setting itself is kept.
 

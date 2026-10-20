@@ -75,7 +75,7 @@ def run(background: bool = False) -> int:
         window.show()
 
     # Ctrl+C in the terminal, and SIGTERM from a session ending, quit cleanly:
-    # the recorder is stopped and Sonar gives the system its defaults back.
+    # the recorder is stopped.
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_args: window.quit())
     ticker = QTimer()

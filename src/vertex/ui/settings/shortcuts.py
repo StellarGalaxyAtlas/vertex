@@ -1,16 +1,13 @@
 """Settings › Shortcuts: the `vertex` commands worth binding to a key, ready
-to copy, where to get the Stream Deck plugin, and how to use them from a
-terminal."""
+to copy, and how to use them from a terminal."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QFontDatabase, QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QWidget
 
 from vertex.ui.widgets import Section, button, label, setting_row
-
-PLUGIN_URL = "https://github.com/StellarGalaxyAtlas/vertex-streamcontroller"
 
 # (group, [(command, what it does, more)]). Every command must parse with the
 # `vertex` command's own parser; a test checks.
@@ -21,17 +18,6 @@ COMMANDS = (
          "Or 10, 60, 300, 600 or 1800"),
         ("vertex replay toggle", "Start or stop the replay buffer",
          "Also: vertex replay start, vertex replay stop."),
-    ]),
-    ("Sonar", [
-        ("vertex volume game up", "Game volume up",
-         "Also down, or a level like 40. Works for chat, media and mic"),
-        ("vertex mute mic", "Mute microphone", "Press again to unmute"),
-        ("vertex device next", "Next output device",
-         "In list order, until a device is plugged in. Also: vertex device previous."),
-        ("vertex device next mic", "Next microphone",
-         "In list order, until a mic is plugged in."),
-        ("vertex sonar up", "Turn Sonar on", ""),
-        ("vertex sonar down", "Turn Sonar off", "Restores your default devices"),
     ]),
     ("Vertex", [
         ("vertex show", "Show Vertex", ""),
@@ -67,27 +53,16 @@ class ShortcutsPage:
             "Keyboard shortcuts",
             "Add these commands as custom shortcuts in your desktop's keyboard settings. "
             "They work in games too, while Vertex is running.")
-        deck = Section(
-            "Stream Deck",
-            "Got a Stream Deck? Use the Vertex plugin for StreamController to control "
-            "Vertex from it.")
-        get = QWidget()
-        row = QHBoxLayout(get)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(button("Get the plugin", "primary",
-                             on_click=lambda: QDesktopServices.openUrl(QUrl(PLUGIN_URL))))
-        row.addStretch(1)
-        deck.add(get)
-        # The first entry is the page's top row: side by side on a wide page.
-        self.sections = [(intro, deck)]
+        # The first entry is the page's top row.
+        self.sections = [intro]
         for group, commands in COMMANDS:
             section = Section(group)
             for command, title, more in commands:
                 section.add(setting_row(title, command_field(command), more))
             self.sections.append(section)
         terminal = Section("In a terminal")
-        for text in ("<code>vertex state</code> says what is running, with every volume and "
-                     "device; <code>vertex watch</code> follows changes as they happen.",
+        for text in ("<code>vertex state</code> says what is running; "
+                     "<code>vertex watch</code> follows changes as they happen.",
                      "<code>vertex doctor</code> checks that everything Vertex needs is "
                      "installed.",
                      "<code>vertex --help</code> lists every command."):

@@ -197,12 +197,12 @@ class ReplayPill(QFrame):
 class TopBar(QFrame):
     """The logo, the pages, search and the replay buffer, in one row."""
 
-    navigate = Signal(str)        # "home" | "library" | "sonar" | "settings"
+    navigate = Signal(str)        # "home" | "library" | "settings"
 
     LOGO_HEIGHT = 30
     NAME_SIZE = 14            # pt
     PAGES = (("home", "Home", "home"), ("library", "Library", "library"),
-             ("sonar", "Sonar", "sonar"), ("settings", "Settings", "settings"))
+             ("settings", "Settings", "settings"))
 
     def __init__(self, context, state, parent=None):
         super().__init__(parent)

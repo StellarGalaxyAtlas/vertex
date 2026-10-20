@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import desktop, logs, paths
-from vertex.audio import channels
 from vertex.config import (
     AUDIO_CODECS,
     BITRATE_MODES,
@@ -37,6 +36,7 @@ from vertex.config import (
     Config,
 )
 from vertex.core import storage
+from vertex.media import roles
 from vertex.recorder import gsr
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
@@ -65,7 +65,7 @@ from vertex.ui.widgets import (
 APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                  "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
                  "notify_over_games")
-RECORDER_AT_ONCE = ("autostart", "tag_from_game_channel")
+RECORDER_AT_ONCE = ("autostart",)
 
 LABELS = {
     "very_high": "Very high", "qp": "Constant quality (QP)", "vbr": "Variable bitrate",
@@ -185,7 +185,7 @@ class SettingsView(QWidget):
             field.committed.connect(lambda _v: self.apply_now())
         for switch in (self.keep_logs, self.close_to_tray, self.autostart,
                        self.notifications.over_games, *self.notifications.switches.values(),
-                       self.rec_autostart, self.tag_from_game):
+                       self.rec_autostart):
             switch.toggled.connect(lambda _on: self.apply_now())
         self.schemes.picked.connect(lambda _s: self.apply_now())
         self.output_dir.changed.connect(lambda _v: self._show_pending())
@@ -235,7 +235,7 @@ class SettingsView(QWidget):
         behaviour = Section("Behavior")
         self.close_to_tray = Toggle()
         behaviour.add_row("Close to tray", self.close_to_tray,
-                          "Sonar and the replay buffer keep running")
+                          "The replay buffer keeps running")
         self.autostart = Toggle()
         behaviour.add_row("Start with your computer", self.autostart,
                           "Starts minimized to the tray")
@@ -273,9 +273,6 @@ class SettingsView(QWidget):
         self.resolution, self.fps = self.choices.resolution, self.choices.fps
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
-        self.tag_from_game = Toggle()
-        clips.add_row("Auto-tag clips with the game", self.tag_from_game,
-                      "Uses the app on Sonar's Game channel")
         self.game_audio = QComboBox()
         self.chat_audio = QComboBox()
         self.mic_audio = QComboBox()
@@ -441,7 +438,6 @@ class SettingsView(QWidget):
         rec = config.recorder
         self.command.setText(rec.command)
         self.rec_autostart.setChecked(rec.autostart)
-        self.tag_from_game.setChecked(rec.tag_from_game_channel)
         self.choices.capture = rec.capture
         self.choices.show_capture()
         _set_combo(self.framerate_mode, rec.framerate_mode)
@@ -479,7 +475,6 @@ class SettingsView(QWidget):
         rec = config.recorder
         rec.command = self.command.text().strip() or "gpu-screen-recorder"
         rec.autostart = self.rec_autostart.isChecked()
-        rec.tag_from_game_channel = self.tag_from_game.isChecked()
         self.choices.apply(rec)
         rec.framerate_mode = self.framerate_mode.currentData()
         rec.video_codec = self.video_codec.currentData()
@@ -670,40 +665,26 @@ class SettingsView(QWidget):
         self._show_audio_choices(rec)
 
     def _show_audio_choices(self, rec) -> None:
-        """Each track's devices: none, the default, Sonar's channels (always:
-        Sonar may just be off), then the real devices GSR can record. One
-        missing now says what records in its place."""
-        known = {name for name, _d in self._audio_devices}
+        """Each track's devices: none, the default, then the real devices GSR
+        can record. One missing now says what records in its place."""
         outputs, inputs = [], []
         for name, description in self._audio_devices:
-            if name.startswith("default_") or name.startswith(channels.NODE_PREFIX):
+            if name.startswith("default_"):
                 continue
             if name.endswith(".monitor"):
                 outputs.append((f"device:{name}", description.removeprefix("Monitor of ")))
             else:
                 inputs.append((f"device:{name}", description))
 
-        def options(role, default_text, own, real):
+        for widget, setting, role, default_text, real in (
+                (self.game_audio, "game_audio", roles.GAME.id, "Default output", outputs),
+                (self.chat_audio, "chat_audio", roles.CHAT.id, "Default output", outputs),
+                (self.mic_audio, "mic_audio", roles.MIC.id, "Default microphone", inputs)):
             fallback = gsr.fallback_source(role)
             instead = "default output" if fallback == "default_output" else "default microphone"
-            items = [("", "None"), (fallback, default_text)]
-            for channel in own:
-                text = channel.description
-                if known and channel.record_source not in known:
-                    text += f" (Sonar off: {instead})"
-                items.append((f"device:{channel.record_source}", text))
-            return items + real, (lambda value: f"{value.removeprefix('device:')} "
+            fill(widget, [("", "None"), (fallback, default_text), *real], getattr(rec, setting),
+                 lambda value, instead=instead: f"{value.removeprefix('device:')} "
                                                 f"(not available: {instead})")
-
-        for widget, setting, role, default_text, own, real in (
-                (self.game_audio, "game_audio", channels.GAME.id, "Default output",
-                 channels.OUTPUTS, outputs),
-                (self.chat_audio, "chat_audio", channels.CHAT.id, "Default output",
-                 channels.OUTPUTS, outputs),
-                (self.mic_audio, "mic_audio", channels.MIC.id, "Default microphone",
-                 (channels.MIC,), inputs)):
-            items, describe = options(role, default_text, own, real)
-            fill(widget, items, getattr(rec, setting), describe)
 
     def _show_estimate(self) -> None:
         size = self.clip_estimate.estimate(self.collect(), self._as_recorded)
@@ -771,8 +752,8 @@ def _log_changes(old: Config, new: Config) -> None:
     """One line per setting saved with a new value, as the config file names it."""
     before, after = _flat(old.to_dict()), _flat(new.to_dict())
     for key, value in after.items():
-        if key.startswith("sonar.") or before.get(key) == value:
-            continue      # Sonar's settings are its page's, and log there
+        if before.get(key) == value:
+            continue
         logs.APP.info("Setting %s: %s → %s", key, _shown(before.get(key)), _shown(value))
 
 

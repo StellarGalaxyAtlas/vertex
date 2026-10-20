@@ -1,6 +1,6 @@
-"""The application context: config, library, thumbnails, Sonar and the recorder.
+"""The application context: config, library, thumbnails and the recorder.
 
-Views never call pactl, ffmpeg or the recorder themselves. They call these
+Views never call ffmpeg or the recorder themselves. They call these
 controllers, which run the blocking work on worker threads and report back
 through Qt signals on the UI thread.
 """
@@ -8,7 +8,6 @@ through Qt signals on the UI thread.
 from __future__ import annotations
 
 import logging
-import os
 import shlex
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -16,11 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from vertex import fmt, logs, notifications
-from vertex.audio import channels, devices, levels
-from vertex.audio.pulse import AudioError, Pactl
-from vertex.audio.sonar import Sonar, SonarStatus
 from vertex.config import Config
-from vertex.core.naming import game_from_app
 from vertex.library import Library
 from vertex.media import probe
 from vertex.media.thumbnails import ThumbnailCache
@@ -93,396 +88,6 @@ class ThumbnailService(QObject):
         self._pool.shutdown(wait=False, cancel_futures=True)
 
 
-class SonarController(QObject):
-    """Sonar on a single worker thread, so pactl calls happen in order."""
-
-    status_changed = Signal(object)      # SonarStatus
-    streams_changed = Signal(list)       # [AppStream]
-    recorders_changed = Signal(list)     # [AppCapture]
-    devices_changed = Signal(list, list)  # outputs, inputs
-    busy_changed = Signal(bool)
-
-    def __init__(self, context: Context):
-        super().__init__(context)
-        self.context = context
-        self.pactl = Pactl()
-        self.sonar = Sonar(context.config.sonar, self._state_file(), self.pactl)
-        self.status = SonarStatus()
-        self._executor = workers.serial_executor("sonar")
-        self._watcher = None
-        self._busy = 0
-        self._closed = False
-        self._pending_volume: dict[str, float] = {}
-        # The real devices connected, as last seen.
-        self.outputs: list = []
-        self.inputs: list = []
-
-        self._reconcile_timer = QTimer(self, singleShot=True, interval=700)
-        self._reconcile_timer.timeout.connect(self._reconcile)
-        self._streams_timer = QTimer(self, singleShot=True, interval=250)
-        self._streams_timer.timeout.connect(self.refresh_streams)
-        # Volumes are logged once they settle, not for every step of a drag.
-        self._volumes_to_log: dict[str, float] = {}
-        self._volume_log_timer = QTimer(self, singleShot=True, interval=1500)
-        self._volume_log_timer.timeout.connect(self._log_volumes)
-        self._last_failure = ""
-
-    def _state_file(self) -> str:
-        return os.path.join(self.context.config.resolved_state_dir(), "sonar.json")
-
-    @property
-    def enabled(self) -> bool:
-        return self.context.config.sonar.enabled
-
-    def _job(self, fn, on_done=None, quiet=False):
-        if self._closed:
-            return None          # a callback arriving after shutdown
-        self._busy += 1
-        self.busy_changed.emit(True)
-
-        def finish(value):
-            self._busy -= 1
-            if not self._busy:
-                self.busy_changed.emit(False)
-            if on_done is not None:
-                on_done(value)
-
-        def failed(exc):
-            finish(None)
-            if not quiet:
-                self.context.notify("sonar_problem", "Sonar", str(exc))
-            elif str(exc) != self._last_failure:
-                # Background refreshes fail in a row while the server is away:
-                # once in the log is enough.
-                logs.SONAR.warning("%s", exc)
-            self._last_failure = str(exc)
-
-        return workers.run(fn, finish, failed, executor=self._executor)
-
-    # --- Lifecycle ----------------------------------------------------------
-
-    def start(self) -> None:
-        """Bring Sonar up if it is enabled, and start watching the server."""
-        self.refresh()
-        self.refresh_devices()
-        if self.enabled:
-            self.set_enabled(True)
-        self._watch()
-
-    def _watch(self) -> None:
-        if self._watcher is not None and self._watcher.running:
-            return
-        try:
-            self._watcher = self.pactl.watch(
-                lambda event: workers.post(self._on_event, event),
-                lambda reason: workers.post(self._on_watch_lost, reason))
-        except AudioError:
-            self._watcher = None
-
-    def _on_watch_lost(self, reason: str) -> None:
-        # The audio server restarted; watch again shortly, then repair.
-        logs.SONAR.warning("Lost the audio server (%s); connecting again",
-                           reason or "no reason given")
-        QTimer.singleShot(2000, self._watch)
-        self._reconcile_timer.start()
-
-    def _on_event(self, event) -> None:
-        if event.facility == "sink-input":
-            if event.kind == "new" and self.enabled:
-                self._job(lambda: self.sonar.apply_rules(event.index), quiet=True)
-            self._streams_timer.start()
-            return
-        if event.facility == "source-output":
-            self._streams_timer.start()
-            return
-        if self.sonar.handle(event) == "reconcile":
-            self._reconcile_timer.start()
-            QTimer.singleShot(400, self.refresh_devices)
-        elif event.facility in ("sink", "source") and event.kind == "change":
-            # Volume or mute changed — by us or by the system mixer.
-            self._streams_timer.start()
-            QTimer.singleShot(150, self.refresh)
-
-    def _reconcile(self) -> None:
-        if not self.enabled:
-            return
-        self._job(self.sonar.reconcile, self._after_change, quiet=True)
-
-    def set_enabled(self, enabled: bool, then=None) -> None:
-        """Bring Sonar up or down; `then()` runs once it has."""
-        self.context.config.sonar.enabled = enabled
-        self.context.save_config()
-
-        def work():
-            if enabled:
-                return self.sonar.up()
-            self.sonar.down()
-            return []
-
-        def done(warnings):
-            self.context.notify("sonar_switched", "Sonar is on" if enabled else "Sonar is off")
-            for text in warnings or []:
-                self.context.notify("sonar_problem", "Sonar", text)
-            self._after_change(None)
-            self.context.recorder.restart_if_running()
-            if then is not None:
-                then()
-
-        self._job(work, done)
-
-    def ensure_up(self, then) -> None:
-        """Run `then()` once Sonar is up (bringing it up first if needed)."""
-        if not self.enabled:
-            then()
-            return
-        self._job(self.sonar.up, lambda _w: (self._after_change(None), then()))
-
-    def _after_change(self, _value) -> None:
-        self.refresh()
-        self.refresh_streams()
-
-    def refresh(self) -> None:
-        self._job(self.sonar.status, self._got_status, quiet=True)
-
-    def _got_status(self, status: SonarStatus | None) -> None:
-        if status is None:
-            return
-        before, self.status = self.status, status
-        if before.active and status.active:
-            names = self.context.config.sonar.device_names
-            for kind, title, old, new in (
-                    ("output_changed", "Sonar plays through", before.output, status.output),
-                    ("mic_changed", "Vertex Mic records", before.mic, status.mic)):
-                if old and new and old != new:
-                    self.context.notify(kind, title, names.get(new, new))
-        self.status_changed.emit(status)
-
-    def refresh_streams(self) -> None:
-        """Who is playing where, and who is recording — one job, two signals."""
-        def done(result):
-            if result is None:
-                return
-            playing, recording = result
-            self.streams_changed.emit(playing)
-            self.recorders_changed.emit(recording)
-
-        def work():
-            # Every refresh also retries streams that refused to move: an
-            # app with several streams could otherwise be left half on its
-            # old channel, and show up on both.
-            if self.enabled:
-                self.sonar.apply_rules()
-            return self.sonar.streams(), self.sonar.recorders()
-
-        self._job(work, done, quiet=True)
-
-    def refresh_devices(self) -> None:
-        self._job(lambda: (self.sonar.outputs(), self.sonar.inputs()), self._got_devices,
-                  quiet=True)
-
-    def _got_devices(self, pair) -> None:
-        if not pair:
-            return
-        outputs, inputs = pair
-        for kind, before, now in (("output", self.outputs, outputs),
-                                  ("microphone", self.inputs, inputs)):
-            if not before:
-                continue      # the first look: nothing came or went
-            seen = {device.name for device in before}
-            names = {device.name for device in now}
-            for device in now:
-                if device.name not in seen:
-                    logs.SONAR.info("Connected %s: %s", kind, device.label)
-            for device in before:
-                if device.name not in names:
-                    logs.SONAR.info("Disconnected %s: %s", kind, device.label)
-        self.outputs, self.inputs = list(outputs), list(inputs)
-        # New devices join the device manager's lists, at the bottom.
-        if self.sonar.learn_devices(outputs, inputs):
-            self.context.save_config()
-        self.devices_changed.emit(outputs, inputs)
-
-    # --- Device manager ---------------------------------------------------------
-
-    def set_device_order(self, kind: str, priority: list[str], excluded: list[str]) -> None:
-        """The order devices are picked in (kind "output" or "mic")."""
-        sonar = self.context.config.sonar
-        setattr(sonar, f"{kind}_priority", list(priority))
-        setattr(sonar, f"{kind}_excluded", list(excluded))
-        names = sonar.device_names
-        logs.SONAR.info("New %s order: %s%s", "output" if kind == "output" else "microphone",
-                        ", ".join(names.get(name, name) for name in priority) or "none",
-                        f" (never picked: {', '.join(names.get(n, n) for n in excluded)})"
-                        if excluded else "")
-        self._device_settings_changed()
-
-    def set_show_disconnected(self, shown: bool) -> None:
-        self.context.config.sonar.show_disconnected = shown
-        self.context.save_config()
-
-    def set_device_volume(self, kind: str, name: str, volume: float) -> None:
-        self._log_volume(self.context.config.sonar.device_names.get(name, name), volume)
-        self._job(lambda: self.sonar.set_device_volume(kind, name, volume), quiet=True)
-        QTimer.singleShot(200, self.refresh_devices)
-
-    def _device_settings_changed(self) -> None:
-        # A new order can mean another device.
-        self.context.save_config()
-        if self.enabled:
-            self._job(self.sonar.reconcile, self._after_change, quiet=True)
-
-    # --- Mixing and routing ---------------------------------------------------
-
-    def set_volume(self, channel_id: str, volume: float) -> None:
-        """Coalesced: a dragged slider queues one pactl call, not hundreds."""
-        first = channel_id not in self._pending_volume
-        self._pending_volume[channel_id] = volume
-        self.context.config.sonar.channel(channel_id).volume = volume
-        self._log_volume(channels.BY_ID[channel_id].label, volume)
-        if first:
-            def work():
-                value = self._pending_volume.pop(channel_id)
-                self.sonar.set_volume(channel_id, value)
-            self._job(work, quiet=True)
-        self.context.save_config_later()
-
-    def _log_volume(self, what: str, volume: float) -> None:
-        self._volumes_to_log[what] = volume
-        self._volume_log_timer.start()
-
-    def _log_volumes(self) -> None:
-        for what, volume in self._volumes_to_log.items():
-            logs.SONAR.info("%s volume %d%%", what, round(volume * 100))
-        self._volumes_to_log.clear()
-
-    def set_muted(self, channel_id: str, muted: bool) -> None:
-        logs.SONAR.info("%s %s", channels.BY_ID[channel_id].label, "muted" if muted else "unmuted")
-        self._job(lambda: self.sonar.set_muted(channel_id, muted), quiet=True)
-        self.context.save_config_later()
-
-    def set_channel_output(self, channel_id: str, device: str, lasting: bool = False) -> None:
-        """Play a channel through `device`: every output channel while linked,
-        for now; `lasting` (setup) puts it on top of the device manager's list."""
-        self._job(lambda: self.sonar.set_channel_output(channel_id, device, lasting),
-                  self._devices_changed)
-
-    def set_linked(self, linked: bool, channel_id: str) -> None:
-        """One device for every output channel (`channel_id`'s), or one each."""
-        self._job(lambda: self.sonar.set_linked(linked, channel_id), self._devices_changed)
-
-    def set_second_output(self, device: str) -> None:
-        self._job(lambda: self.sonar.set_second_output(device), self._devices_changed)
-
-    def set_also_second(self, channel_id: str, also: bool) -> None:
-        self._job(lambda: self.sonar.set_also_second(channel_id, also), self._devices_changed)
-
-    def cycle_device(self, step: int, channel_id: str = "") -> list[tuple[str, str]]:
-        """Switch to the next (1) or previous (-1) connected device in the
-        device manager's list, skipping excluded ones, for now: the list keeps
-        its order. With no channel, every output channel moves; unlinked,
-        `channel_id` moves alone. Returns (channel id or "outputs", device)
-        for each switch."""
-        sonar, status = self.context.config.sonar, self.status
-        if channel_id == channels.MIC.id:
-            following = devices.cycle(sonar.mic_priority, sonar.mic_excluded,
-                                      [d.name for d in self.inputs], status.mic, step)
-            if not following:
-                return []
-            self.set_mic(following)
-            return [(channel_id, following)]
-        connected = [d.name for d in self.outputs]
-        if sonar.linked:
-            following = devices.cycle(sonar.output_priority, sonar.output_excluded,
-                                      connected, status.output, step)
-            if not following:
-                return []
-            self.set_channel_output(channels.GAME.id, following)
-            return [("outputs", following)]
-        moved = []
-        for channel in channels.OUTPUTS:
-            if channel_id and channel.id != channel_id:
-                continue
-            entry = status.channels.get(channel.id)
-            current = (entry.output if entry is not None else "") or status.output
-            following = devices.cycle(sonar.output_priority, sonar.output_excluded,
-                                      connected, current, step)
-            if following:
-                self.set_channel_output(channel.id, following)
-                moved.append((channel.id, following))
-        return moved
-
-    def pick_device(self, device: str, channel_id: str = "") -> list[tuple[str, str]]:
-        """Switch to `device`, for now, the way `cycle_device` moves: returns
-        the same pairs, or [] when it isn't plugged in."""
-        if channel_id == channels.MIC.id:
-            if device not in [d.name for d in self.inputs]:
-                return []
-            self.set_mic(device)
-            return [(channel_id, device)]
-        if device not in [d.name for d in self.outputs]:
-            return []
-        if self.context.config.sonar.linked:
-            self.set_channel_output(channels.GAME.id, device)
-            return [("outputs", device)]
-        moved = [channel.id for channel in channels.OUTPUTS
-                 if not channel_id or channel.id == channel_id]
-        for target in moved:
-            self.set_channel_output(target, device)
-        return [(target, device) for target in moved]
-
-    def _devices_changed(self, warnings) -> None:
-        for text in warnings or []:
-            self.context.notify("sonar_problem", "Sonar", text)
-        self.context.save_config()
-        self._after_change(None)
-
-    def set_mic(self, device: str, lasting: bool = False) -> None:
-        """Feed Vertex Mic from `device`, for now; `lasting` as above."""
-        self._job(lambda: self.sonar.set_mic(device, lasting), self._devices_changed)
-
-    def set_default_channel(self, channel_id: str) -> None:
-        self.context.config.sonar.default_channel = channel_id
-        logs.SONAR.info("Default output channel: %s", channels.BY_ID[channel_id].label)
-        self.context.save_config()
-        if self.enabled:
-            self._job(lambda: self.sonar.up(take_defaults=True), self._after_change)
-
-    def route(self, app_key: str, channel_id: str | None) -> None:
-        if channel_id is None:
-            logs.SONAR.info("%s goes back to the default channel", app_key)
-        else:
-            logs.SONAR.info("%s plays on %s from now on", app_key, channels.BY_ID[channel_id].label)
-
-        def work():
-            return self.sonar.route(app_key, channel_id)
-        self._job(work, lambda _n: (self.context.save_config(), self.refresh_streams()))
-
-    def forget_rule(self, app_key: str) -> None:
-        if self.context.config.sonar.app_rules.pop(app_key, None):
-            logs.SONAR.info("Forgot where %s plays", app_key)
-        self.context.save_config()
-        self.refresh_streams()
-
-    def game_apps(self) -> list[str]:
-        """Blocking — call from a worker."""
-        return self.sonar.game_apps()
-
-    def shutdown(self, take_down: bool = True) -> None:
-        self._closed = True
-        if self._volume_log_timer.isActive():
-            self._log_volumes()
-        self._reconcile_timer.stop()
-        self._streams_timer.stop()
-        if self._watcher is not None:
-            self._watcher.stop()
-        if take_down and self.enabled:
-            try:
-                self._executor.submit(self.sonar.down).result(timeout=10)
-            except Exception:       # quitting regardless
-                pass
-        self._executor.shutdown(wait=False, cancel_futures=True)
-
-
 class RecorderController(QObject):
     # GPU Screen Recorder dying while it records is started again once; dying
     # again this soon after that restart is left stopped (and said so).
@@ -501,21 +106,17 @@ class RecorderController(QObject):
         self.recorder = ReplayRecorder(
             on_state=lambda state, error: workers.post(self._on_state, (state, error)),
             on_saved=lambda path: workers.post(self._on_saved, path))
-        self._game_hint: tuple[float, str] = (0.0, "")
         self._restart_pending = False
         self._restarting = False
-        # False once stopped, so a start still finding GSR or Sonar doesn't
-        # launch after all.
+        # False once stopped, so a start still finding GSR doesn't launch
+        # after all.
         self._wanted = False
-        # Whether Sonar's devices were all there when last seen.
-        self._sonar_active: bool | None = None
         # The state last passed on, so a stop isn't announced twice.
         self._reported = State.STOPPED
         # When GSR was last started again after dying, and whether that is
         # the restart underway.
         self._recovered_at = float("-inf")
         self._recovering = False
-        context.sonar.status_changed.connect(self._sonar_status)
         # What GSR said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
 
@@ -592,7 +193,7 @@ class RecorderController(QObject):
             if problems:
                 self._on_state((State.FAILED, problems[0]))
                 return
-            self.context.sonar.ensure_up(self._launch)
+            self._launch()
 
         # Asked every time: monitors come and go between starts.
         self.detect(go)
@@ -600,7 +201,7 @@ class RecorderController(QObject):
     def _launch(self) -> None:
         if self.running or not self._wanted:
             return
-        # Asked now, with Sonar up: its channels are only devices while it runs.
+        # Asked every time: devices come and go between starts.
         command = self.context.config.recorder.command
         workers.run(lambda: [name for name, _d in gsr.list_audio_devices(command)],
                     self._launch_with, lambda _exc: self._launch_with([]))
@@ -612,8 +213,6 @@ class RecorderController(QObject):
         tracks, stood_in = gsr.available_tracks(gsr.audio_tracks(config), devices)
         for track, instead in stood_in:
             device = track.source.removeprefix("device:")
-            if instead and channels.BY_NODE.get(device.removesuffix(".monitor")):
-                continue     # Sonar is off: its channels standing in is the plan
             role = track.title.removeprefix("Vertex ")
             what = {"default_output": "the default output",
                     "default_input": "the default microphone"}.get(instead)
@@ -640,22 +239,6 @@ class RecorderController(QObject):
         if self.running or self._restarting:
             self.stop()
         else:
-            self.start()
-
-    def _sonar_status(self, status: SonarStatus) -> None:
-        """Sonar's devices came or went (turned off, crashed, back): tracks
-        recording one switch between it and its stand-in, which takes a
-        restart. A buffer that died with them starts again."""
-        was, self._sonar_active = self._sonar_active, status.active
-        if was is None or was == status.active:
-            return
-        nodes = {channel.node for channel in channels.ALL}
-        if not any(track.source.removeprefix("device:").removesuffix(".monitor") in nodes
-                   for track in gsr.audio_tracks(self.context.config)):
-            return
-        if self.running:
-            self.restart_if_running()
-        elif self._wanted and self.state == State.FAILED:
             self.start()
 
     def restart_if_running(self) -> None:
@@ -692,16 +275,8 @@ class RecorderController(QObject):
         workers.run(lambda: self.recorder.save(seconds), None,
                     lambda exc: self.context.notify("clip_not_saved", "Clip not saved",
                                                     str(exc)))
-        if self.context.config.recorder.tag_from_game_channel and self.context.sonar.enabled:
-            workers.run(self.context.sonar.game_apps, self._got_game_apps,
-                        lambda _exc: None)
         span = f"the last {fmt.duration(seconds)}" if seconds else "the replay buffer"
         return f"Saving {span}…"
-
-    def _got_game_apps(self, names: list[str]) -> None:
-        games = {game_from_app(name) for name in names or []} - {""}
-        # Only a single, unambiguous game is worth writing down.
-        self._game_hint = (time.monotonic(), games.pop() if len(games) == 1 else "")
 
     def _recover(self, error: str) -> bool:
         """GSR died while recording: start it again, once. False when it
@@ -749,14 +324,7 @@ class RecorderController(QObject):
         self.state_changed.emit(state.value, error or "")
 
     def _on_saved(self, path: str) -> None:
-        when, game = self._game_hint
-        library = self.context.library
         logs.RECORDER.info("Saved %s", path)
-        if game and time.monotonic() - when < 60 and library is not None and \
-                library.tag_if_untagged(os.path.basename(path), game):
-            logs.CLIPS.info("Tagged %s with %s (playing on the Game channel)",
-                            os.path.basename(path), game)
-        self._game_hint = (0.0, "")
         self.saved.emit(path)
 
     def shutdown(self) -> None:
@@ -767,62 +335,9 @@ class RecorderController(QObject):
 
 
 # Every notice goes in the log of the part it is about, as serious as it looks.
-_NOTICE_LOGS = {"clips": logs.RECORDER, "sonar": logs.SONAR, "vertex": logs.APP}
+_NOTICE_LOGS = {"clips": logs.RECORDER, "vertex": logs.APP}
 _NOTICE_LEVELS = {"info": logging.INFO, "ok": logging.INFO, "warn": logging.WARNING,
                   "error": logging.ERROR}
-
-
-class LevelFeed(QObject):
-    """The channels' live levels, for the meters by their faders.
-    Read only while a page with meters is on screen and Sonar is on."""
-
-    levels = Signal(dict)                # channel id → how far up its meter goes
-
-    def __init__(self, context: Context):
-        super().__init__(context)
-        self.context = context
-        self._levels = levels.Levels()
-        self._wanted: set[str] = set()
-        self._running = False
-        # Starting and stopping in turn, never side by side.
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="levels")
-        self._timer = QTimer(self, interval=1000 // 25)
-        self._timer.timeout.connect(self._tick)
-        context.sonar.status_changed.connect(lambda _s: self._update())
-
-    def want(self, page: str, shown: bool) -> None:
-        """A page with meters came on screen, or left it."""
-        if shown:
-            self._wanted.add(page)
-        else:
-            self._wanted.discard(page)
-        self._update()
-
-    def _update(self) -> None:
-        run = bool(self._wanted) and self.context.config.sonar.enabled and \
-            self.context.sonar.status.active
-        if run == self._running:
-            return
-        self._running = run
-        if run:
-            sources = {channel.id: channel.record_source for channel in channels.ALL}
-            workers.run(lambda: self._levels.start(sources), None, lambda _exc: None,
-                        executor=self._executor)
-            self._timer.start()
-        else:
-            self._timer.stop()
-            workers.run(self._levels.stop, None, lambda _exc: None, executor=self._executor)
-            self.levels.emit({})
-
-    def _tick(self) -> None:
-        self.levels.emit({key: levels.meter_fraction(peak)
-                          for key, peak in self._levels.take().items()})
-
-    def shutdown(self) -> None:
-        self._timer.stop()
-        self._running = False
-        self._executor.shutdown(wait=True)
-        self._levels.stop()
 
 
 class Context(QObject):
@@ -838,9 +353,7 @@ class Context(QObject):
         self.config = config
         self.library: Library | None = None
         self.thumbs: ThumbnailService | None = None
-        self.sonar = SonarController(self)
         self.recorder = RecorderController(self)
-        self.levels = LevelFeed(self)
         self._save_timer = QTimer(self, singleShot=True, interval=1000)
         self._save_timer.timeout.connect(self.save_config)
 
@@ -887,8 +400,6 @@ class Context(QObject):
         if self._save_timer.isActive():
             self.save_config()
         self.recorder.shutdown()
-        self.levels.shutdown()
-        self.sonar.shutdown(take_down=True)
         if self.thumbs is not None:
             self.thumbs.shutdown()
         if self.library is not None:

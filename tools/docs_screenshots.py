@@ -3,14 +3,12 @@
 usage: xvfb-run -a python tools/docs_screenshots.py OUT_DIR [WIDTH HEIGHT]
 
 Loads vertex from this checkout's src/. Builds a throwaway HOME with a demo
-library (generated test-pattern clips with four audio tracks, made-up games
-and people), a fake audio server, a stand-in GPU Screen Recorder and three
-fake monitors, then saves one PNG per page into OUT_DIR. The window is
-1440×900 unless a size is given. Never touches your real config, library or
-audio devices.
+library (generated test-pattern clips with three audio tracks, made-up games
+and people), a stand-in GPU Screen Recorder and three fake monitors, then
+saves one PNG per page into OUT_DIR. The window is 1440×900 unless a size is
+given. Never touches your real config or library.
 """
 
-import dataclasses
 import json
 import os
 import stat
@@ -58,16 +56,6 @@ signal.signal(signal.SIGINT, lambda *a: sys.exit(0))
 while True:
     time.sleep(0.2)
 '''
-
-HEADSET_OUT = "alsa_output.usb-SteelSeries_Arctis_Nova_Pro"
-HEADSET_IN = "alsa_input.usb-Elgato_Wave_3"
-OUTPUTS = ((HEADSET_OUT, "Arctis Nova Pro Wireless"),
-           ("alsa_output.pci-0000_00_1f.3.analog-stereo", "Built-in Audio"),
-           ("alsa_output.pci-0000_01_00.1.hdmi-stereo", "HDMI Audio"))
-INPUTS = ((HEADSET_IN, "Elgato Wave:3"),
-          ("alsa_input.usb-SteelSeries_Arctis_Nova_Pro", "Arctis Nova Pro Wireless"),
-          ("alsa_input.usb-046d_HD_Pro_Webcam_C920", "HD Pro Webcam C920"))
-
 
 # Color sets for the made-up footage: two for the backdrop, three for shapes.
 PALETTES = (
@@ -141,10 +129,6 @@ def isolate() -> str:
     config = {
         "clip_path": clips,
         "export_path": f"{home}/Videos/Exports",
-        "sonar": {"enabled": True, "output_device": HEADSET_OUT, "mic_device": HEADSET_IN,
-                  "app_rules": {"spotify": "media", "discord": "chat", "firefox": "media"},
-                  "channels": {"game": {"volume": 0.85}, "chat": {"volume": 0.7},
-                               "media": {"volume": 0.4}, "mic": {"volume": 0.9}}},
         "recorder": {"command": gsr, "capture": "DP-1", "autostart": True},
     }
     with open(f"{home}/.config/vertex/config.json", "w") as file:
@@ -182,17 +166,6 @@ def fakes():
     from vertex.recorder import gsr, monitors
     from vertex.ui import screens
 
-    from fake_pactl import FakePactl
-
-    fake = FakePactl(sinks=(), sources=())
-    for name, description in OUTPUTS:
-        fake.add_sink(name, props={"device.description": description})
-    for name, description in INPUTS:
-        source = fake.add_source(name)
-        fake.sources_[fake.sources_.index(source)] = dataclasses.replace(
-            source, description=description)
-    fake.default_sink_ = HEADSET_OUT
-    fake.default_source_ = HEADSET_IN
     gsr.list_capture_options = lambda command: gsr.parse_capture_options(CAPTURE_OPTIONS)
     screens.desktop_screens = lambda: [
         monitors.Screen("HDMI-A-1", -1920, 360, 1920, 1080, "LG ULTRAGEAR", (1920, 1080)),
@@ -200,7 +173,6 @@ def fakes():
                         primary=True),
         monitors.Screen("DP-2", 2560, 0, 1080, 1920, "AOC 24G2W1G4", (1080, 1920)),
     ]
-    return fake
 
 
 def main(out: str, size: tuple[int, int]) -> int:
@@ -210,13 +182,11 @@ def main(out: str, size: tuple[int, int]) -> int:
     import vertex
     assert vertex.__file__.startswith(os.path.join(REPO, "src")), vertex.__file__
     build_library(home)
-    fake = fakes()
-    import vertex.ui.services as services
-    services.Pactl = lambda: fake
-
+    fakes()
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication, QDialog
 
+    import vertex.ui.services as services
     from vertex.config import Config
     from vertex.ui import app as app_mod
     from vertex.ui.main_window import MainWindow
@@ -228,15 +198,6 @@ def main(out: str, size: tuple[int, int]) -> int:
     window.resize(*size)
     window.show()
     settings = window.settings_view
-
-    def play():
-        fake.play("Starfall Arena", binary="starfall.exe")
-        fake.play("Spotify")
-        fake.play("Discord", binary="Discord")
-        fake.play("Firefox")
-        fake.record("Discord", "vertex_mic", binary="Discord")
-        context.sonar.refresh_streams()
-        context.sonar.refresh_devices()
 
     def save(name, widget=None):
         window.banner.clear()
@@ -266,12 +227,10 @@ def main(out: str, size: tuple[int, int]) -> int:
         return go
 
     steps = [
-        (play, None),
         (lambda: window.navigate("home"), "home"),
         (lambda: window.navigate("library"), "library"),
         (editor, "editor"),
         (export, None),
-        (lambda: window.navigate("sonar"), "sonar"),
         (settings_page("general"), "settings-general"),
         (settings_page("recording"), "settings-recording"),
         (settings_page("notifications"), "settings-notifications"),

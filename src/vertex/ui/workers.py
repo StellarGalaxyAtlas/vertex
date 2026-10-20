@@ -80,7 +80,7 @@ def _reraise(error: BaseException) -> None:
 
 
 def serial_executor(name: str) -> ThreadPoolExecutor:
-    """One worker thread, so jobs on it run in order — for pactl and the like."""
+    """One worker thread, so jobs on it run in order — for the recorder and the like."""
     return ThreadPoolExecutor(max_workers=1, thread_name_prefix=name)
 
 

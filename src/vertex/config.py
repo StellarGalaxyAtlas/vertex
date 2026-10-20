@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from vertex import APP_NAME, notifications, paths
-from vertex.audio import channels
 
 # Subfolder of the user's videos dir that clips are recorded into by default.
 CLIP_SUBDIR = "Game Recordings"
@@ -77,60 +76,13 @@ class RecorderConfig:
     restore_portal_session: bool = True
     output_dir: str = ""             # "" = the clip folder
     # The clip's audio tracks, as GSR's -a takes them ("default_output",
-    # "default_input", "device:<node>"); "" = no such track. Sonar's channels
-    # are devices like any other: while one is missing (Sonar off), its track
-    # records the default output or input instead (gsr.available_tracks).
-    game_audio: str = f"device:{channels.GAME.record_source}"
-    chat_audio: str = f"device:{channels.CHAT.record_source}"
-    mic_audio: str = f"device:{channels.MIC.record_source}"
+    # "default_input", "device:<node>", "app:<name>"); "" = no such track.
+    # While a device is missing, its track records the default output or
+    # input instead (gsr.available_tracks).
+    game_audio: str = "default_output"
+    chat_audio: str = ""
+    mic_audio: str = "default_input"
     extra_args: str = ""
-    # Tag a new clip with the app playing on the Game channel when it is saved.
-    tag_from_game_channel: bool = True
-
-
-# --- Sonar ------------------------------------------------------------------
-
-@dataclass
-class ChannelSettings:
-    volume: float = 1.0      # 0..1, applied to the virtual device
-    muted: bool = False
-    output_device: str = ""  # an output channel's own device, while not linked; "" = shared
-    also_second: bool = True  # an output channel also plays through SonarConfig.second_output
-
-
-def _default_channels() -> dict[str, ChannelSettings]:
-    return {c.id: ChannelSettings() for c in channels.ALL}
-
-
-@dataclass
-class SonarConfig:
-    """The virtual audio devices and where they are routed."""
-
-    enabled: bool = False
-    output_device: str = ""          # the output chosen in setup, until the list has one
-    linked: bool = True              # every output channel plays through output_device
-    second_output: str = ""          # a device the output channels also play through; "" = none
-    mic_device: str = ""             # the microphone chosen in setup, until the list has one
-    default_channel: str = "game"    # becomes the system default output while Sonar runs
-    set_default_mic: bool = True     # make Vertex Mic the system default input
-    latency_ms: int = 20             # loopback latency between channel and output device
-    channels: dict[str, ChannelSettings] = field(default_factory=_default_channels)
-    app_rules: dict[str, str] = field(default_factory=dict)   # app key → channel id
-    # The device manager (audio.devices): the order real devices are picked
-    # in, and the ones never picked automatically.
-    output_priority: list[str] = field(default_factory=list)
-    output_excluded: list[str] = field(default_factory=list)
-    mic_priority: list[str] = field(default_factory=list)
-    mic_excluded: list[str] = field(default_factory=list)
-    device_names: dict[str, str] = field(default_factory=dict)   # device → its description
-    show_disconnected: bool = False
-
-    def channel(self, channel_id: str) -> ChannelSettings:
-        settings = self.channels.get(channel_id)
-        if settings is None:
-            settings = ChannelSettings()
-            self.channels[channel_id] = settings
-        return settings
 
 
 # --- The whole file ---------------------------------------------------------
@@ -156,7 +108,6 @@ class Config:
     notify_over_games: bool = True
 
     recorder: RecorderConfig = field(default_factory=RecorderConfig)
-    sonar: SonarConfig = field(default_factory=SonarConfig)
 
     # --- Paths ---------------------------------------------------------------
 
@@ -229,12 +180,11 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
-        config = _fill(cls(), data, skip=("recorder", "sonar"))
+        config = _fill(cls(), data, skip=("recorder",))
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
         config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
-        config.sonar = _load_sonar(data.get("sonar"))
         return config
 
     @classmethod
@@ -299,28 +249,6 @@ def _fill(instance, data: Any, skip: tuple[str, ...] = ()):
         elif isinstance(current, dict) and isinstance(value, dict):
             setattr(instance, item.name, dict(value))
     return instance
-
-
-def _load_sonar(data: Any) -> SonarConfig:
-    sonar = _fill(SonarConfig(), data, skip=("channels", "app_rules"))
-    if not isinstance(data, dict):
-        return sonar
-    for channel_id, raw in (data.get("channels") or {}).items():
-        if channels.get(channel_id) is not None:
-            sonar.channels[channel_id] = _fill(sonar.channel(channel_id), raw)
-    names = data.get("device_names")
-    sonar.device_names = {str(key): value for key, value in names.items()
-                          if isinstance(value, str)} if isinstance(names, dict) else {}
-    rules = data.get("app_rules") or {}
-    if isinstance(rules, dict):
-        sonar.app_rules = {
-            str(app): str(target) for app, target in rules.items()
-            if isinstance(target, str) and channels.get(target) is not None
-        }
-    if channels.get(sonar.default_channel) is None or not channels.BY_ID[
-            sonar.default_channel].is_output:
-        sonar.default_channel = channels.GAME.id
-    return sonar
 
 
 def default_config() -> Config:

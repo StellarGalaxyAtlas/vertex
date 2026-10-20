@@ -77,9 +77,6 @@ def main(prefix: str, widths: list[int]) -> int:
 
     import vertex.ui.services as services
 
-    from fake_pactl import FakePactl
-    fake = FakePactl(sinks=("hw_headset",), sources=("hw_mic",))
-    services.Pactl = lambda: fake
     fake_recorder_and_monitors()
 
     from PySide6.QtCore import QTimer

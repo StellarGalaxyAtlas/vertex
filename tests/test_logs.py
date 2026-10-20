@@ -18,14 +18,12 @@ def _read(folder, name):
 def test_each_part_writes_its_own_file(tmp_path):
     folder = str(tmp_path / "logs")
     assert logs.setup(folder) == folder
-    logs.SONAR.info("Connected output: Arctis Nova")
     logs.RECORDER.warning("GPU Screen Recorder: not found")
     logs.CLIPS.error("Couldn't delete a.mp4: busy")
     logs.APP.info("Command save-clip: Saving the replay buffer…")
-    assert sorted(os.listdir(folder)) == ["clips.log", "recorder.log", "sonar.log",
-                                          "vertex.log"]
-    sonar = _read(folder, "sonar.log")
-    assert "Connected output: Arctis Nova" in sonar and "Couldn't delete" not in sonar
+    assert sorted(os.listdir(folder)) == ["clips.log", "recorder.log", "vertex.log"]
+    recorder = _read(folder, "recorder.log")
+    assert "not found" in recorder and "Couldn't delete" not in recorder
     for name in logs.FILES.values():
         for line in _read(folder, name).splitlines():
             assert LINE.match(line), line
@@ -48,8 +46,8 @@ def test_switched_off_nothing_is_written(tmp_path):
     logs.apply(True, folder)
     logs.apply(False, folder)
     assert logs.folder() == ""
-    logs.SONAR.info("Not written")
-    assert "Not written" not in _read(folder, "sonar.log")
+    logs.CLIPS.info("Not written")
+    assert "Not written" not in _read(folder, "clips.log")
     assert "Logging turned off" in _read(folder, "vertex.log")
     logs.apply(True, folder)
     assert "Logging turned on" in _read(folder, "vertex.log")
@@ -87,12 +85,11 @@ def test_commands_asked_all_the_time_stay_out(tmp_path):
     logs.setup(folder)
     _log_command("state", {}, {"ok": True, "message": ""})
     _log_command("replay", {"action": "status"}, {"ok": True, "message": "running"})
-    _log_command("volume", {"channel": "game", "action": "up"}, {"ok": True, "message": "50%"})
-    _log_command("mute", {"channel": "mic", "action": "toggle"},
-                 {"ok": True, "message": "Mic muted."})
-    _log_command("volume", {"channel": "game", "action": "up"},
-                 {"ok": False, "error": "sonar_off", "message": "Sonar is off."})
+    _log_command("replay", {"action": "toggle"},
+                 {"ok": True, "message": "Starting the replay buffer."})
+    _log_command("save-clip", {"seconds": 30},
+                 {"ok": False, "error": "replay_off", "message": "The replay buffer is off."})
     text = _read(folder, "vertex.log")
-    assert "state" not in text and "status" not in text and "50%" not in text
-    assert "Command mute channel=mic action=toggle: Mic muted." in text
-    assert "WARNING" in text and "Sonar is off." in text
+    assert "state" not in text and "status" not in text and "running" not in text
+    assert "Command replay action=toggle: Starting the replay buffer." in text
+    assert "WARNING" in text and "The replay buffer is off." in text

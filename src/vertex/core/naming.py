@@ -73,7 +73,7 @@ def game_from_filename(name: str) -> str:
 
     "THE-FINALS__2024-06-16__19-45-23.mp4" → "THE FINALS". GPU Screen
     Recorder's fixed "Replay_…" naming carries no game at all, so those clips
-    are left for the library (or the Sonar game channel) to tag instead.
+    are left for the library to tag instead.
     """
     stem = os.path.splitext(name)[0]
     match = MOMENTS_FILENAME.match(stem)

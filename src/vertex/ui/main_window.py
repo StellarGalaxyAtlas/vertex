@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 )
 
 from vertex import APP_NAME, desktop, kwin, logs, notifications, reset
-from vertex.audio import channels
 from vertex.config import Config
 from vertex.media import export
 from vertex.media.thumbnails import ThumbnailCache
@@ -31,7 +30,6 @@ from vertex.ui.home import HomeView
 from vertex.ui.library.state import LibraryState
 from vertex.ui.library.view import LibraryView
 from vertex.ui.settings.view import SettingsView
-from vertex.ui.sonar_view import SonarView
 from vertex.ui.topbar import TopBar
 from vertex.ui.widgets import Banner, ChoiceDialog, GlowArea
 
@@ -76,7 +74,6 @@ class MainWindow(QMainWindow):
         self.library_view = LibraryView(context, self.state)
         self.library_view.open_clip.connect(self.open_clip)
         self.library_view.import_requested.connect(self._open_import)
-        self.sonar_view = SonarView(context)
         self.settings_view = SettingsView(context)
         self.settings_view.saved.connect(self._settings_saved)
         self.settings_view.imported.connect(self.state.reload)
@@ -86,7 +83,7 @@ class MainWindow(QMainWindow):
         self.home_view = HomeView(context, self.state, self.library_view)
         self.home_view.navigate.connect(self.navigate)
         self.home_view.open_clip.connect(self.open_clip)
-        for page in (self.home_view, self.library_view, self.sonar_view, self.settings_view):
+        for page in (self.home_view, self.library_view, self.settings_view):
             self.stack.addWidget(page)
         self.editor: EditorView | None = None
         self._editor_from = "library"
@@ -111,8 +108,7 @@ class MainWindow(QMainWindow):
 
         for keys, handler in (("Ctrl+F", self._focus_search), ("F5", self.state.reload),
                               ("Ctrl+Q", self.quit), ("Ctrl+,", lambda: self.navigate("settings")),
-                              ("Ctrl+1", lambda: self.navigate("library")),
-                              ("Ctrl+2", lambda: self.navigate("sonar"))):
+                              ("Ctrl+1", lambda: self.navigate("library"))):
             QShortcut(QKeySequence(keys), self, handler)
 
     # --- Pages ---------------------------------------------------------------
@@ -126,7 +122,7 @@ class MainWindow(QMainWindow):
         self._close_editor()
         self.topbar.show()
         target = {"home": self.home_view, "library": self.library_view,
-                  "sonar": self.sonar_view, "settings": self.settings_view}[page]
+                  "settings": self.settings_view}[page]
         if page == "settings":
             self.settings_view.load()
         self.stack.setCurrentWidget(target)
@@ -198,9 +194,6 @@ class MainWindow(QMainWindow):
         for key in ("clip_path", "export_path", "data_path", "state_path", "cache_path"):
             setattr(context.config, key, getattr(config, key))
         context.config.recorder = config.recorder
-        if not self._services_started:
-            context.config.sonar.output_device = config.sonar.output_device
-            context.config.sonar.mic_device = config.sonar.mic_device
         failed = context.config.ensure_dirs()
         context.save_config()
         if failed:
@@ -209,12 +202,11 @@ class MainWindow(QMainWindow):
         self._remove_page(page)
         self.settings_view.load()
         if self._services_started:
-            self._apply_setup_again(before, config, result.enable_sonar, result.start_recorder)
+            self._apply_setup_again(before, result.start_recorder)
             if self._write_setup_tags(result.games, result.dates):
                 self.state.reload()
         else:
-            self.start_services(enable_sonar=result.enable_sonar,
-                                start_recorder=result.start_recorder,
+            self.start_services(start_recorder=result.start_recorder,
                                 tags=(result.games, result.dates))
         self.navigate("home")
 
@@ -230,28 +222,13 @@ class MainWindow(QMainWindow):
             return False
         return True
 
-    def _apply_setup_again(self, before: Config, config: Config, enable_sonar: bool,
-                           start_recorder: bool) -> None:
+    def _apply_setup_again(self, before: Config, start_recorder: bool) -> None:
         """Setup ran again on a running Vertex: change what it changed, the way
-        Settings and the Sonar page do, rather than starting anything twice."""
+        Settings does, rather than starting anything twice."""
         context = self.context
         self._settings_saved(any(getattr(before, key) != getattr(context.config, key)
                                  for key in ("clip_path", "data_path", "cache_path",
                                              "state_path")))
-        if enable_sonar != before.sonar.enabled:
-            context.config.sonar.output_device = config.sonar.output_device
-            context.config.sonar.mic_device = config.sonar.mic_device
-            context.sonar.set_enabled(enable_sonar)
-        elif enable_sonar:
-            status = context.sonar.status
-            output, mic = config.sonar.output_device, config.sonar.mic_device
-            if output and output != status.output:
-                # Linked, one channel's device is every channel's.
-                for channel in (channels.OUTPUTS[:1] if context.config.sonar.linked
-                                else channels.OUTPUTS):
-                    context.sonar.set_channel_output(channel.id, output, lasting=True)
-            if mic and mic != status.mic:
-                context.sonar.set_mic(mic, lasting=True)
         if context.config.recorder != before.recorder:
             context.recorder.detect()
             context.recorder.restart_if_running()
@@ -267,30 +244,22 @@ class MainWindow(QMainWindow):
          "cache": self.clear_cache}[what]()
 
     def reset_settings(self) -> None:
-        """Stop the buffer and take Sonar down (giving back the system's default
-        devices), put the settings file away, then first-run setup."""
+        """Stop the buffer, put the settings file away, then first-run setup."""
         context = self.context
         self._close_editor()
         context.recorder.stop()
-
-        def sonar_down(_value=None):
-            try:
-                where = reset.discard_settings()
-            except OSError as exc:
-                context.notify("vertex_problem", "Couldn't reset settings", str(exc))
-                return
-            logs.APP.info("Settings reset%s", f"; the old ones are in {where}" if where else "")
-            # In place: Sonar and the recorder hold on to the settings' parts.
-            reset.reset_in_place(context.config, Config())
-            self.settings_view.load()
-            self.show_setup()
-            self.banner.show_message(f"Settings reset. {_kept(where, 'old ones are')}", "ok",
-                                     10000)
-
-        if context.sonar.enabled:
-            context.sonar.set_enabled(False, then=sonar_down)
-        else:
-            sonar_down()
+        try:
+            where = reset.discard_settings()
+        except OSError as exc:
+            context.notify("vertex_problem", "Couldn't reset settings", str(exc))
+            return
+        logs.APP.info("Settings reset%s", f"; the old ones are in {where}" if where else "")
+        # In place: the recorder holds on to the settings' parts.
+        reset.reset_in_place(context.config, Config())
+        self.settings_view.load()
+        self.show_setup()
+        self.banner.show_message(f"Settings reset. {_kept(where, 'old ones are')}", "ok",
+                                 10000)
 
     def reset_library(self) -> None:
         context = self.context
@@ -320,10 +289,9 @@ class MainWindow(QMainWindow):
         self.state.reload()
         self.settings_view.banner.show_message("Cache cleared", "ok")
 
-    def start_services(self, enable_sonar: bool | None = None,
-                       start_recorder: bool | None = None,
+    def start_services(self, start_recorder: bool | None = None,
                        tags: tuple[dict, dict] | None = None) -> None:
-        """Open the library and start Sonar and the recorder. `tags` are the
+        """Open the library and start the recorder. `tags` are the
         games and dates setup confirmed, written before the first scan so it
         doesn't tag those clips its own way first."""
         self._services_started = True
@@ -337,9 +305,6 @@ class MainWindow(QMainWindow):
         if context.thumbs is not None:
             QTimer.singleShot(5000, lambda: context.thumbs.prune(
                 [clip.path for clip in self.state.all_clips]))
-        context.sonar.start()
-        if enable_sonar:
-            context.sonar.set_enabled(True)
         context.recorder.detect()
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:
             context.recorder.start()

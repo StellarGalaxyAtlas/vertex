@@ -48,7 +48,7 @@ def discard_library(data_dir: str) -> str:
 
 def reset_in_place(target, fresh) -> None:
     """Make dataclass `target` equal `fresh`, keeping the objects it is made of:
-    the rest of the app holds on to them (Sonar to the Sonar settings, say)."""
+    the rest of the app holds on to them (the recorder to its settings, say)."""
     for item in dataclasses.fields(target):
         value, new = getattr(target, item.name), getattr(fresh, item.name)
         if dataclasses.is_dataclass(value) and type(value) is type(new):

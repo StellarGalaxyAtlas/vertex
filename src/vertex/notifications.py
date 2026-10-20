@@ -49,7 +49,6 @@ class Notice:
 
 CATEGORIES = (
     Category("clips", "Clips", ""),
-    Category("sonar", "Sonar", ""),
     Category("vertex", "Vertex", ""),
 )
 
@@ -67,11 +66,6 @@ KINDS = (
          "After a settings change or a crash", default=False,
          level="ok", icon="replay"),
     Kind("track_missing", "clips", "Audio device missing", "", level="warn"),
-    Kind("sonar_switched", "sonar", "Sonar turned on or off", "",
-         default=False),
-    Kind("output_changed", "sonar", "Output device changed", ""),
-    Kind("mic_changed", "sonar", "Microphone changed", ""),
-    Kind("sonar_problem", "sonar", "Sonar errors", "", level="warn"),
     Kind("in_tray", "vertex", "Still running in the tray",
          "Once per session"),
     Kind("vertex_problem", "vertex", "App errors", "", level="error"),

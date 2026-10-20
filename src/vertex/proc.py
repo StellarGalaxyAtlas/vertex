@@ -1,4 +1,4 @@
-"""Small subprocess helpers shared by the ffmpeg, pactl and recorder wrappers."""
+"""Small subprocess helpers shared by the ffmpeg and recorder wrappers."""
 
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ _PR_SET_PDEATHSIG = 1
 def die_with_parent() -> None:
     """preexec_fn: have the kernel SIGTERM the child if Vertex itself dies.
 
-    A replay buffer or a pactl event stream outliving the app that started it
-    keeps recording or holding devices with nobody left to stop it.
+    A replay buffer outliving the app that started it keeps recording or
+    holding devices with nobody left to stop it.
     """
     try:
         libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)

@@ -18,7 +18,6 @@ def test_unknown_keys_are_ignored_and_dropped(tmp_path):
     loaded = config.Config.load(path)
     assert loaded.clip_path == data["clip_path"]
     assert loaded.export_path == data["export_path"]
-    assert loaded.sonar.enabled is False
     assert loaded.recorder.replay_seconds == 60
     loaded.save(path)
     saved = json.loads(path.read_text())
@@ -27,9 +26,6 @@ def test_unknown_keys_are_ignored_and_dropped(tmp_path):
 
 def test_round_trip_with_new_sections(tmp_path):
     cfg = config.default_config()
-    cfg.sonar.enabled = True
-    cfg.sonar.channel("media").volume = 0.5
-    cfg.sonar.app_rules["spotify"] = "media"
     cfg.recorder.chat_audio = ""
     cfg.recorder.mic_audio = "device:alsa_input.usb-mic"
     cfg.colour_scheme = "spooky"
@@ -46,11 +42,6 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
         "colour_scheme": 5,
         "card_width": 5000,
         "recorder": {"fps": "sixty", "cursor": "yes", "replay_seconds": 30},
-        "sonar": {
-            "default_channel": "mic",
-            "app_rules": {"spotify": "media", "bad": "nowhere"},
-            "channels": {"game": {"volume": 0.5}, "bogus": {"volume": 1}},
-        },
     }))
     loaded = config.Config.load(path)
     assert loaded.clip_path == ""
@@ -58,10 +49,6 @@ def test_bad_values_fall_back_to_defaults(tmp_path):
     assert loaded.card_width == config.CARD_WIDTH_RANGE[1]
     assert loaded.recorder.fps == 60 and loaded.recorder.cursor is True
     assert loaded.recorder.replay_seconds == 30
-    assert loaded.sonar.default_channel == "game"     # mic is not an output
-    assert loaded.sonar.app_rules == {"spotify": "media"}
-    assert loaded.sonar.channels["game"].volume == 0.5
-    assert "bogus" not in loaded.sonar.channels
 
 
 def test_needs_setup(tmp_path):

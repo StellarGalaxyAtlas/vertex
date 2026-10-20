@@ -103,40 +103,13 @@ def test_subscribers_get_the_state_then_events(tmp_path):
         control.stop()
 
 
-def test_cli_sonar_commands(server, capsys):
-    _control, received = server
-    assert cli.main(["volume", "chat", "up"]) == 0
-    assert cli.main(["volume", "game", "down", "--step", "10"]) == 0
-    assert cli.main(["volume", "media", "40"]) == 0
-    assert cli.main(["mute", "mic"]) == 0
-    assert cli.main(["device", "next"]) == 0
-    assert cli.main(["device", "previous", "chat"]) == 0
-    assert received == [
-        ("volume", {"channel": "chat", "action": "up", "step": 5}),
-        ("volume", {"channel": "game", "action": "down", "step": 10}),
-        ("volume", {"channel": "media", "action": "set", "value": 40}),
-        ("mute", {"channel": "mic", "action": "toggle"}),
-        ("device", {"action": "next", "channel": ""}),
-        ("device", {"action": "previous", "channel": "chat"}),
-    ]
-    assert cli.main(["volume", "chat", "loud"]) == 2
-    assert "0 to 100" in capsys.readouterr().err
-
-
 def test_cli_state(tmp_path, monkeypatch, capsys):
     import json
 
     from vertex import control
-    from vertex.audio import channels
-    from vertex.audio.sonar import ChannelStatus, SonarStatus
     from vertex.config import Config
 
-    config = Config()
-    config.sonar.enabled = True
-    config.sonar.device_names = {"hw": "Headset"}
-    status = SonarStatus(active=True, output="hw", channels={
-        "chat": ChannelStatus(channels.CHAT, present=True, volume=0.55, muted=True)})
-    state = control.state(config, status, "running")
+    state = control.state(Config(), "running")
     sock = tmp_path / "control.sock"
     monkeypatch.setattr(paths, "control_socket", lambda: sock)
     server = ipc.ControlServer(lambda command, args: control.ok("", **state), sock)
@@ -145,8 +118,6 @@ def test_cli_state(tmp_path, monkeypatch, capsys):
         assert cli.main(["state"]) == 0
         out = capsys.readouterr().out
         assert "Replay buffer  running (last 60 s)" in out
-        assert "playing through Headset" in out
-        assert "Chat     55%  muted" in out
         assert cli.main(["state", "--json"]) == 0
         assert json.loads(capsys.readouterr().out) == state
     finally:

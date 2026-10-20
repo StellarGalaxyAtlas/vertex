@@ -1,5 +1,5 @@
-"""First-run setup: the clips folder, Vertex Sonar, Vertex Moments, and the
-clips someone already has."""
+"""First-run setup: the clips folder, Vertex Moments, and the clips someone
+already has."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -27,16 +26,14 @@ from vertex.config import Config, default_config
 from vertex.core import importing
 from vertex.library.database import DB_NAME, Library
 from vertex.recorder import gsr, notifier
-from vertex.ui import icons, theme, workers
+from vertex.ui import theme, workers
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
-from vertex.ui.sonar_view import DeviceField
 from vertex.ui.widgets import (
     ChoiceCard,
     PathField,
     Section,
     Toggle,
     button,
-    hline,
     label,
 )
 
@@ -47,8 +44,6 @@ STEPS = {
     "folders": ("Welcome to Vertex",
                 "A few quick choices and you're ready to go. You can change any of them "
                 "later in Settings."),
-    "sonar": ("Vertex Sonar",
-              "Separate volumes for game, chat and media, plus a shared Vertex Mic."),
     "moments": ("Vertex Moments",
                 "Records in the background so you can save what just happened."),
     "library": ("Clips you already have",
@@ -61,7 +56,6 @@ STEPS = {
 @dataclass
 class SetupResult:
     config: Config
-    enable_sonar: bool
     start_recorder: bool
     # Tags for clips brought along, written into the library once it is open.
     games: dict[str, str] = field(default_factory=dict)      # file name → game
@@ -148,7 +142,7 @@ class FirstRunView(QWidget):
         column.addWidget(self.stack, 1)
         self.pages: dict[str, QWidget] = {}
         for key, build in (("folders", lambda: self._folders(missing)),
-                           ("sonar", self._sonar), ("moments", self._moments),
+                           ("moments", self._moments),
                            ("library", self._library), ("tags", self._tags)):
             self.pages[key] = self._page(build())
             self.stack.addWidget(self.pages[key])
@@ -229,60 +223,7 @@ class FirstRunView(QWidget):
         if not self._moving_exports:
             self._exports_follow = False
 
-    # --- Step 2: Vertex Sonar -----------------------------------------------------
-
-    def _sonar(self) -> QWidget:
-        section = Section()
-        self.sonar_enabled = Toggle(self.config.sonar.enabled if self.again else True)
-        section.add_row("Use Vertex Sonar", self.sonar_enabled)
-        section.add(hline())
-        self.output = QComboBox()
-        self.mic = QComboBox()
-        for combo in (self.output, self.mic):
-            combo.addItem("System default", "")
-        output = DeviceField("Output device", "Headset or speakers", self.output)
-        output.set_colour("headphones", "TEXT_MUTED")
-        mic = DeviceField("Input device", "In chat apps, pick Vertex Mic", self.mic)
-        mic.set_colour(icons.channel_icon_name("mic"), "MIC")
-        row = QHBoxLayout()
-        row.setSpacing(16)
-        for device_field in (output, mic):
-            # Descriptions wrap to different heights; the drop-downs stay level.
-            fields = device_field.layout()
-            fields.insertStretch(fields.count() - 1, 1)
-            row.addWidget(device_field, 1)
-        section.body.addLayout(row)
-        self.sonar_enabled.toggled.connect(self.output.setEnabled)
-        self.sonar_enabled.toggled.connect(self.mic.setEnabled)
-        self.sonar_note = label("", wrap=True)
-        theme.style(self.sonar_note, lambda: f"color: {theme.WARN};")
-        self.sonar_note.hide()
-        section.add(self.sonar_note)
-        clips = label("Game, chat and mic are saved as separate tracks in clips.", "Dim",
-                      wrap=True)
-        sonar = self.context.sonar.sonar
-        workers.run(lambda: (sonar.outputs(), sonar.inputs()), self._got_devices,
-                    lambda exc: self._no_audio(str(exc)))
-        return self._column(section, clips)
-
-    def _got_devices(self, pair) -> None:
-        outputs, inputs = pair
-        status = self.context.sonar.status
-        for combo, devices, current in (
-                (self.output, outputs, status.output or self.config.sonar.output_device),
-                (self.mic, inputs, status.mic or self.config.sonar.mic_device)):
-            for device in devices:
-                combo.addItem(device.label, device.name)
-            if self.again and combo.findData(current) > 0:
-                combo.setCurrentIndex(combo.findData(current))
-
-    def _no_audio(self, error: str) -> None:
-        self.sonar_enabled.setChecked(False)
-        self.sonar_enabled.setEnabled(False)
-        self.sonar_note.setText(f"No audio server found ({error}).")
-        self.sonar_note.show()
-
-    # --- Step 3: Vertex Moments -------------------------------------------------
+    # --- Step 2: Vertex Moments -------------------------------------------------
 
     def _moments(self) -> QWidget:
         self.install = Section()
@@ -425,7 +366,7 @@ class FirstRunView(QWidget):
         self.moments_error.setVisible(bool(problems))
         return not problems
 
-    # --- Step 4: clips someone already has ------------------------------------------
+    # --- Step 3: clips someone already has ------------------------------------------
 
     def _library(self) -> QWidget:
         choose = Section()
@@ -620,7 +561,7 @@ class FirstRunView(QWidget):
             return self.source.value()
         return self.clip_path.value()
 
-    # --- Step 5: tags -------------------------------------------------------------
+    # --- Step 4: tags -------------------------------------------------------------
 
     def _tags(self) -> QWidget:
         self.tags_note = label("", "Muted", wrap=True)
@@ -730,7 +671,7 @@ class FirstRunView(QWidget):
     @property
     def steps(self) -> list[str]:
         """The steps, in order: the last one only when clips are brought along."""
-        order = ["folders", "sonar", "moments", "library"]
+        order = ["folders", "moments", "library"]
         if self._bringing_clips():
             order.append("tags")
         return order
@@ -807,8 +748,5 @@ class FirstRunView(QWidget):
                 setattr(config, key, getattr(defaults, key))
         self.choices.apply(config.recorder)
         config.recorder.autostart = self.rec_autostart.isChecked()
-        config.sonar.output_device = self.output.currentData() or ""
-        config.sonar.mic_device = self.mic.currentData() or ""
         games, dates = self._confirmed_tags() if self._bringing_clips() else ({}, {})
-        self.finished.emit(SetupResult(config, self.sonar_enabled.isChecked(),
-                                       self.rec_autostart.isChecked(), games, dates))
+        self.finished.emit(SetupResult(config, self.rec_autostart.isChecked(), games, dates))

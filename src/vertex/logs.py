@@ -1,12 +1,11 @@
 """What Vertex did, written down in plain-text files in the log folder.
 
-One file per part of the app, so a problem with the audio isn't buried under
-clip saves:
+One file per part of the app, so a problem with the recorder isn't buried
+under clip saves:
 
     vertex.log      the app itself: starting, quitting, settings, commands
-                    from shortcuts and the Stream Deck, errors
-    recorder.log    the replay buffer and GPU Screen Recorder's own output
-    sonar.log       the virtual devices, real devices, volumes and routing
+                    from shortcuts and scripts, errors
+    recorder.log    the replay buffer and the recorder's own output
     clips.log       the library: clips saved, tagged, trimmed, exported, deleted
 
 Every line starts with the time and how serious it is, so the files read in
@@ -14,7 +13,7 @@ any text editor, `less` or `tail -f`. A file that reaches MAX_BYTES starts
 over, keeping the previous BACKUPS as `.1` and `.2`: no part of Vertex ever
 holds more than about 6 MB of logs.
 
-Modules log to the logger of their part (`logs.SONAR.info(...)`). Nothing is
+Modules log to the logger of their part (`logs.CLIPS.info(...)`). Nothing is
 written anywhere until `setup` names a folder, which only the running app
 does, and only while Keep logs is on in Settings: a `vertex save-clip` from a
 hotkey leaves the files alone.
@@ -40,13 +39,11 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 FILES = {
     "vertex.app": "vertex.log",
     "vertex.recorder": "recorder.log",
-    "vertex.sonar": "sonar.log",
     "vertex.clips": "clips.log",
 }
 
 APP = logging.getLogger("vertex.app")
 RECORDER = logging.getLogger("vertex.recorder")
-SONAR = logging.getLogger("vertex.sonar")
 CLIPS = logging.getLogger("vertex.clips")
 
 _root = logging.getLogger("vertex")

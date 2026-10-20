@@ -17,7 +17,7 @@ class AudioTrack:
     index: int              # 0-based position among the clip's audio streams
     name: str               # the recorder's name for it, from the stream tags
     label: str = ""         # what the mixer shows; see media.tracks
-    channel: str = ""       # Sonar channel id when recognised ("game", "mic", …)
+    channel: str = ""       # the part it holds, when recognised ("game", "mic", …)
     volume: float = 1.0     # linear gain, 0..1.5
     muted: bool = False
     has_name: bool = True   # False when `name` is our "Audio N" placeholder

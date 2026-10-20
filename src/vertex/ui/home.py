@@ -1,5 +1,5 @@
-"""Home: the newest clips, a quick mixer, the games, the disk and the people,
-on one screen. Vertex opens on it."""
+"""Home: the newest clips, the games, the disk and the people, on one screen.
+Vertex opens on it."""
 
 from __future__ import annotations
 
@@ -23,13 +23,11 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
 from vertex import fmt
-from vertex.audio import channels
 from vertex.core import clips as clips_mod
 from vertex.ui import icons, theme
 from vertex.ui.library.delegate import INFO_H, PAD, ClipDelegate
@@ -37,12 +35,11 @@ from vertex.ui.library.filters import FilterChip
 from vertex.ui.library.model import ClipModel
 from vertex.ui.library.state import Facet, LibraryState
 from vertex.ui.library.view import ClipGrid
-from vertex.ui.widgets import ElidedLabel, IconButton, LevelMeter, button, label
+from vertex.ui.widgets import button, label
 
 ROWS = 2                  # rows of newest clips (one, while one row holds them all)
 COLUMNS = (4, 6)          # how many to a row, at the least and the most
 CARD_MIN = 220            # a newest-clip card is at least this wide
-FADERS_FROM = 300         # the mixer turns into faders once it has this much height
 SPACING = 12
 
 
@@ -153,245 +150,6 @@ class LatestGrid(ClipGrid):
         super().resizeEvent(event)
         self._fit()
         self.resized.emit()
-
-
-class MixerRow(QWidget):
-    """One channel in the quick mixer, as a row: its badge and name, what
-    plays on it, its volume and mute, and a slider in its colour under them."""
-
-    ORIENTATION = Qt.Orientation.Horizontal
-    BADGE = 20
-    MUTE = (24, 16)       # the mute button and its icon
-
-    def __init__(self, controller, channel: channels.Channel, parent=None):
-        super().__init__(parent)
-        self.controller = controller
-        self.channel = channel
-        self.twin: MixerRow | None = None      # the same channel in the other layout
-        self._quiet = False
-        self.badge = QLabel()
-        self.badge.setFixedSize(self.BADGE, self.BADGE)
-        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        size, radius = self.BADGE * 13 // 20, self.BADGE * 6 // 20
-        theme.themed(self.badge, lambda: self.badge.setPixmap(
-            icons.pixmap(icons.channel_icon_name(channel.id), "ON_CHANNEL", size)), "icon")
-        theme.style(self.badge, lambda: f"background: {self.colour}; "
-                                        f"border-radius: {radius}px;")
-        self.name = label(channel.label)
-        self.name.setStyleSheet("font-weight: 600;")
-        self.apps = ElidedLabel("")
-        self.apps.setObjectName("Dim")
-        self.value = label("100%")
-        box, glyph = self.MUTE
-        self.mute = IconButton("volume", "Mute", glyph, "TEXT_MUTED")
-        self.mute.setCheckable(True)
-        self.mute.setFixedSize(box, box)
-        self.mute.toggled.connect(self._on_mute)
-        self.slider = QSlider(self.ORIENTATION)
-        self.slider.setRange(0, 100)
-        self.slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.slider.setAccessibleName(f"{channel.label} volume")
-        theme.style(self.slider, self._slider_style)
-        self.slider.valueChanged.connect(self._on_slider)
-        self.meter = LevelMeter(lambda: self.colour, self.ORIENTATION)
-        self._arrange()
-        settings = controller.context.config.sonar.channel(channel.id)
-        self.show_status(settings.volume, settings.muted)
-
-    def _arrange(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        top = QHBoxLayout()
-        top.setSpacing(8)
-        top.addWidget(self.badge)
-        top.addWidget(self.name)
-        top.addWidget(self.apps, 1)
-        self.value.setStyleSheet("font-weight: 600;")
-        self.value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.value.setMinimumWidth(QFontMetrics(self.value.font()).horizontalAdvance("100%") + 4)
-        top.addWidget(self.value)
-        top.addWidget(self.mute)
-        layout.addLayout(top)
-        layout.addWidget(self.slider)
-        layout.addWidget(self.meter)
-
-    def _slider_style(self) -> str:
-        return f"QSlider::sub-page:horizontal {{ background: {self.colour}; border-radius: 2px; }}"
-
-    @property
-    def colour(self) -> str:
-        return theme.channel_colour(self.channel.id)
-
-    def show_status(self, volume: float, muted: bool) -> None:
-        """Follow the channel: the Sonar page and the system mixer change it too."""
-        if self.slider.isSliderDown():
-            return
-        self._quiet = True
-        self.slider.setValue(round(volume * 100))
-        self.mute.setChecked(muted)
-        self._quiet = False
-        self._paint_mute()
-
-    def set_apps(self, text: str) -> None:
-        self.apps.setText(text)
-
-    def _on_slider(self, value: int) -> None:
-        self.value.setText(f"{value}%")
-        if not self._quiet:
-            self.controller.set_volume(self.channel.id, value / 100)
-            if self.twin is not None:
-                self.twin.show_status(value / 100, self.mute.isChecked())
-
-    def _on_mute(self, muted: bool) -> None:
-        self._paint_mute()
-        if not self._quiet:
-            self.controller.context.config.sonar.channel(self.channel.id).muted = muted
-            self.controller.set_muted(self.channel.id, muted)
-            if self.twin is not None:
-                self.twin.show_status(self.slider.value() / 100, muted)
-
-    def _paint_mute(self) -> None:
-        muted = self.mute.isChecked()
-        self.mute.set_icon("mute" if muted else "volume", "DANGER" if muted else "TEXT_MUTED")
-        self.mute.setToolTip(f"Unmute {self.channel.label}" if muted else
-                             f"Mute {self.channel.label}")
-
-
-class MixerFader(MixerRow):
-    """The same channel as a fader, for a tile with the height for it: a card
-    lit by the channel's colour, as on the Sonar page, with its badge and
-    name, what plays on it, the volume in the colour, a tall fader that glows
-    and widens with the card, and mute at its foot. Muted or off, the light
-    dims."""
-
-    ORIENTATION = Qt.Orientation.Vertical
-    BADGE = 28
-    MUTE = (34, 18)
-    GROOVE = (8, 22)      # the fader's width, at the least and the most
-    CAP = 16              # the handle's height
-    _groove = 8
-
-    def _arrange(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 16, 12, 10)
-        layout.setSpacing(6)
-        top = QHBoxLayout()
-        top.setSpacing(8)
-        top.addWidget(self.badge)
-        top.addWidget(self.name, 1)
-        layout.addLayout(top)
-        self.apps.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(self.apps)
-        # Large text, so the channel's colour (3:1 or better) reads.
-        theme.style(self.value, lambda: f"color: {self.colour}; font-size: 18pt; "
-                                        f"font-weight: 700;")
-        layout.addWidget(self.value)
-        self.slider.setFixedWidth(self._groove + 12)
-        fader = QHBoxLayout()
-        fader.setSpacing(6)
-        fader.addStretch(1)
-        fader.addWidget(self.slider)
-        fader.addWidget(self.meter)
-        fader.addStretch(1)
-        layout.addLayout(fader, 1)
-        self.mute.setProperty("kind", "")
-        theme.style(self.mute, lambda: f"QToolButton {{ background: {theme.CONTROL_BG}; "
-                                       f"border: 1px solid {theme.LINE}; border-radius: 10px; "
-                                       f"padding: 0; }}"
-                                       f"QToolButton:hover {{ background: {theme.CARD_HOVER}; }}")
-        layout.addWidget(self.mute, 0, Qt.AlignmentFlag.AlignHCenter)
-        self.slider.valueChanged.connect(self.update)
-
-    def _slider_style(self) -> str:
-        groove, cap = self._groove, self.CAP
-        round_ = groove // 2
-        return (f"QSlider::groove:vertical {{ width: {groove}px; background: {theme.SEAM}; "
-                f"border-radius: {round_}px; }}"
-                f"QSlider::add-page:vertical {{ background: {self.colour}; "
-                f"border-radius: {round_}px; }}"
-                f"QSlider::sub-page:vertical {{ background: {theme.SEAM}; "
-                f"border-radius: {round_}px; }}"
-                f"QSlider::handle:vertical {{ {theme.handle()} width: {groove + 12}px; "
-                f"height: {cap}px; margin: 0 -6px; border-radius: {cap // 2}px; }}")
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        least, most = self.GROOVE
-        groove = max(least, min(most, round(self.width() * 0.1)))
-        if groove != self._groove:
-            self._groove = groove
-            self.slider.setFixedWidth(groove + 12)
-            theme.style(self.slider, self._slider_style)
-
-    def _paint_mute(self) -> None:
-        super()._paint_mute()
-        self.update()
-
-    def paintEvent(self, _event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        shape = QPainterPath()
-        shape.addRoundedRect(rect, 14, 14)
-        p.fillPath(shape, _alpha(theme.CARD_BG, 0.55))
-        lit = 1.0 if self.isEnabled() and not self.mute.isChecked() else 0.45
-        # Lit by its colour from the top, as the Sonar page's channels.
-        glow = QRadialGradient(QPointF(rect.center().x(), rect.top()), rect.height() * 0.6)
-        glow.setColorAt(0, _alpha(self.colour, 0.16 * lit))
-        glow.setColorAt(1, _alpha(self.colour, 0))
-        p.fillPath(shape, QBrush(glow))
-        p.save()
-        p.setClipPath(shape)
-        p.setPen(Qt.PenStyle.NoPen)
-        edge = QRectF(rect.left() + 16, rect.top() - 1, rect.width() - 32, 4)
-        for grow, alpha in ((6, 0.12), (3, 0.25)):
-            p.setBrush(_alpha(self.colour, alpha * lit))
-            p.drawRoundedRect(edge.adjusted(-grow, 0, grow, grow), 3 + grow, 3 + grow)
-        p.setBrush(_alpha(self.colour, lit))
-        p.drawRoundedRect(edge, 2, 2)
-        # A glow along the fader's fill, from the handle down.
-        if self.slider.isVisible():
-            box = QRectF(self.slider.geometry())
-            span = box.height() - self.CAP
-            top = box.top() + self.CAP / 2 + span * (1 - self.slider.value() / 100)
-            fill = QRectF(box.center().x() - self._groove / 2, top,
-                          self._groove, box.bottom() - top)
-            for grow, alpha in ((12, 0.05), (7, 0.08), (3, 0.14)):
-                p.setBrush(_alpha(self.colour, alpha * lit))
-                radius = self._groove / 2 + grow
-                p.drawRoundedRect(fill.adjusted(-grow, -grow, grow, grow), radius, radius)
-        p.restore()
-        p.setPen(QPen(QColor(theme.LINE), 1))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(shape)
-
-
-class MixerArea(QWidget):
-    """The quick mixer: rows while the tile is short, faders once it is tall
-    enough for them. It asks only for the rows' room, so which one shows
-    never changes how tall the tile is."""
-
-    def __init__(self, rows: QWidget, faders: QWidget, parent=None):
-        super().__init__(parent)
-        self.rows, self.faders = rows, faders
-        for part in (rows, faders):
-            part.setParent(self)
-        self.faders.hide()
-
-    def sizeHint(self):
-        return self.rows.sizeHint()
-
-    def minimumSizeHint(self):
-        return self.rows.minimumSizeHint()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        tall = self.height() >= FADERS_FROM
-        for part in (self.rows, self.faders):
-            part.setGeometry(self.rect())
-        self.rows.setVisible(not tall)
-        self.faders.setVisible(tall)
 
 
 class RankList(QWidget):
@@ -716,8 +474,8 @@ class StorageArea(QWidget):
 
 
 class HomeView(QWidget):
-    """The tiles: the newest clips across the top, then Sonar, the games, and
-    the disk with the people. `navigate` asks for a page; the library's
+    """The tiles: the newest clips across the top, then the games, and the
+    disk with the people. `navigate` asks for a page; the library's
     filters are set first when a tile leads there."""
 
     navigate = Signal(str)
@@ -728,7 +486,6 @@ class HomeView(QWidget):
         self.context = context
         self.state = state
         self.library_view = library_view
-        self.controller = context.sonar
         self.latest: list = []
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -753,8 +510,6 @@ class HomeView(QWidget):
         layout.addWidget(self.latest_tile)
         self.bottom = bottom = QHBoxLayout()
         bottom.setSpacing(SPACING)
-        self.sonar_tile = self._build_sonar()
-        bottom.addWidget(self.sonar_tile, 1)
         self.games_tile = self._build_games()
         bottom.addWidget(self.games_tile, 1)
         self.column = QVBoxLayout()
@@ -843,88 +598,6 @@ class HomeView(QWidget):
         super().resizeEvent(event)
         self._fit_timer.start()
 
-    # --- Sonar ------------------------------------------------------------------
-
-    def _build_sonar(self) -> Tile:
-        tile = Tile("Sonar", "sonar")
-        self.sonar_dot = QLabel()
-        self.sonar_dot.setFixedSize(8, 8)
-        tile.header.addWidget(self.sonar_dot)
-        self.sonar_state = label("", "Muted")
-        tile.header.addWidget(self.sonar_state)
-        self.sonar_on = button("Turn on", on_click=lambda: self.controller.set_enabled(True))
-        self.sonar_on.setStyleSheet("QPushButton { padding: 3px 10px; }")
-        tile.header.addWidget(self.sonar_on)
-        tile.add_link("Open", lambda: self.navigate.emit("sonar"))
-        rows_host, faders_host = QWidget(), QWidget()
-        rows = QVBoxLayout(rows_host)
-        rows.setContentsMargins(0, 0, 0, 0)
-        rows.setSpacing(4)
-        faders = QHBoxLayout(faders_host)
-        faders.setContentsMargins(0, 4, 0, 0)
-        faders.setSpacing(10)
-        self.channels: dict[str, MixerRow] = {}
-        self.faders: dict[str, MixerFader] = {}
-        for index, channel in enumerate(channels.ALL):
-            if index:
-                rows.addStretch(1)
-            row = self.channels[channel.id] = MixerRow(self.controller, channel)
-            fader = self.faders[channel.id] = MixerFader(self.controller, channel)
-            row.twin, fader.twin = fader, row
-            rows.addWidget(row)
-            faders.addWidget(fader, 1)
-        self.mixer = MixerArea(rows_host, faders_host)
-        tile.body.addWidget(self.mixer, 1)
-        self.controller.status_changed.connect(self._show_sonar)
-        self.context.levels.levels.connect(self._show_levels)
-        self.controller.streams_changed.connect(self._show_streams)
-        self.controller.recorders_changed.connect(self._show_recorders)
-        self._show_sonar(self.controller.status)
-        self._show_streams([])
-        self._show_recorders([])
-        return tile
-
-    def _show_sonar(self, status) -> None:
-        enabled = self.context.config.sonar.enabled
-        running = enabled and status.active
-        if not status.available and status.error:
-            text, colour = "No audio server", "WARN"
-        elif running:
-            text, colour = "Running", "SECOND"
-        elif enabled:
-            text, colour = "Starting…", "WARN"
-        else:
-            text, colour = "Off", "TEXT_DIM"
-        self.sonar_state.setText(text)
-        theme.style(self.sonar_dot, lambda: f"background: {theme.colour(colour)}; "
-                                            f"border-radius: 4px;")
-        self.sonar_on.setVisible(not enabled)
-        self.mixer.setEnabled(running)
-        for channel_id, entry in status.channels.items():
-            if entry.present and channel_id in self.channels:
-                self.channels[channel_id].show_status(entry.volume, entry.muted)
-                self.faders[channel_id].show_status(entry.volume, entry.muted)
-
-    def _show_levels(self, levels: dict) -> None:
-        for channel_id, level in ((key, levels.get(key, 0.0)) for key in self.channels):
-            self.channels[channel_id].meter.set_level(level)
-            self.faders[channel_id].meter.set_level(level)
-
-    def _show_streams(self, streams) -> None:
-        names: dict[str, list[str]] = {channel.id: [] for channel in channels.OUTPUTS}
-        for stream in streams:
-            if stream.channel in names and stream.name not in names[stream.channel]:
-                names[stream.channel].append(stream.name)
-        for channel_id, apps in names.items():
-            for mixer in (self.channels, self.faders):
-                mixer[channel_id].set_apps(", ".join(apps) or "Nothing playing")
-
-    def _show_recorders(self, recorders) -> None:
-        apps = list(dict.fromkeys(capture.name for capture in recorders))
-        for mixer in (self.channels, self.faders):
-            mixer[channels.MIC.id].set_apps(
-                f"In use by {', '.join(apps)}" if apps else "Not in use")
-
     # --- Games, the disk, people ---------------------------------------------------
 
     def _build_games(self) -> Tile:
@@ -1006,13 +679,3 @@ class HomeView(QWidget):
     def _all_people(self) -> None:
         self.show_in_library(Facet("all"))
         self.library_view.filters.people.click()
-
-    def hideEvent(self, event):
-        super().hideEvent(event)
-        self.context.levels.want("home", False)
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        self.context.levels.want("home", True)
-        self.controller.refresh()
-        self.controller.refresh_streams()

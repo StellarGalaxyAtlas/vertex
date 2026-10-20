@@ -203,13 +203,6 @@ def _storage(p, c):
     p.drawEllipse(QPointF(16.5, 16.25), 1.1, 1.1)
 
 
-@_register("sonar")
-def _sonar(p, c):
-    _pen(p, c, 2)
-    for x, top in ((6, 8), (10, 4.5), (14, 10), (18, 6.5)):
-        p.drawLine(QPointF(x, top), QPointF(x, 19.5))
-
-
 @_register("settings")
 def _settings(p, c):
     _pen(p, c)

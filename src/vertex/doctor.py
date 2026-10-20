@@ -10,7 +10,6 @@ from dataclasses import dataclass
 
 from vertex import config as config_mod
 from vertex import paths
-from vertex.audio.pulse import AudioError, Pactl
 from vertex.recorder import gsr, notifier, presets
 
 
@@ -41,7 +40,6 @@ def _distro() -> str:
 PACKAGES = {
     "ffmpeg": {"arch": "ffmpeg", "fedora": "ffmpeg", "debian": "ffmpeg"},
     "libmpv": {"arch": "mpv", "fedora": "mpv-libs", "debian": "libmpv2"},
-    "pactl": {"arch": "libpulse", "fedora": "pulseaudio-utils", "debian": "pulseaudio-utils"},
     "gsr": {"arch": "gpu-screen-recorder (AUR)", "fedora": "gpu-screen-recorder (COPR)",
             "debian": "gpu-screen-recorder (Flatpak: com.dec05eba.gpu_screen_recorder)"},
     "gsr-notify": {"arch": "gpu-screen-recorder-notification",
@@ -74,17 +72,6 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
         found = importlib.util.find_spec(module) is not None
         checks.append(Check(label, found, "installed" if found else "missing",
                             f"pip install {label}", required=module != "send2trash"))
-
-    pactl = Pactl()
-    try:
-        info = pactl.info()
-        server = str(info.get("server_name", "audio server"))
-        checks.append(Check("audio server", True, server))
-        checks.append(Check("PipeWire", "pipewire" in server.lower(),
-                            server, "Sonar works best on PipeWire (pipewire-pulse)",
-                            required=False))
-    except AudioError as exc:
-        checks.append(Check("audio server", False, str(exc), _hint("pactl")))
 
     found = gsr.detect(config.recorder.command)
     if not found.available:

@@ -4,11 +4,7 @@
     vertex --background         start in the tray, e.g. at login
     vertex save-clip [--last N] save the replay buffer (bind this to a hotkey)
     vertex replay start|stop|toggle|status
-    vertex sonar up|down|status
-    vertex volume CHANNEL up|down|0-100 [--step N]
-    vertex mute CHANNEL [on|off|toggle]
-    vertex device next|previous [CHANNEL]
-    vertex state [--json]       what is running, volumes, devices
+    vertex state [--json]       what is running
     vertex watch                follow changes and notifications, as JSON lines
     vertex doctor               check dependencies
     vertex install-desktop      add Vertex to the start menu (and autostart)
@@ -21,13 +17,12 @@ import argparse
 import json
 import sys
 
-from vertex import APP_NAME, __version__, control, ipc
-from vertex.audio import channels
+from vertex import APP_NAME, __version__, ipc
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="vertex", description=f"{APP_NAME} — game clips and Sonar audio for Linux.")
+        prog="vertex", description=f"{APP_NAME} — game clips: record, trim, mix and share.")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     parser.add_argument("--background", action="store_true",
                         help="start hidden in the system tray")
@@ -42,25 +37,7 @@ def _parser() -> argparse.ArgumentParser:
     replay = commands.add_parser("replay", help="control the replay buffer")
     replay.add_argument("action", choices=("start", "stop", "toggle", "status"))
 
-    sonar = commands.add_parser("sonar", help="control the virtual audio devices")
-    sonar.add_argument("action", choices=("up", "down", "status"))
-
-    names = [channel.id for channel in channels.ALL]
-    volume = commands.add_parser("volume", help="turn a Sonar channel up or down")
-    volume.add_argument("channel", choices=names)
-    volume.add_argument("level", metavar="up|down|0-100",
-                        help="a step up or down, or a volume in percent")
-    volume.add_argument("--step", type=int, default=control.VOLUME_STEP, metavar="PERCENT",
-                        help=f"how far up or down (default {control.VOLUME_STEP})")
-    mute = commands.add_parser("mute", help="mute or unmute a Sonar channel (mic: Vertex Mic)")
-    mute.add_argument("channel", choices=names)
-    mute.add_argument("action", nargs="?", default="toggle", choices=("on", "off", "toggle"))
-    device = commands.add_parser("device", help="switch to the next or previous device")
-    device.add_argument("action", choices=("next", "previous"))
-    device.add_argument("channel", nargs="?", choices=names,
-                        help="mic for microphones; an output channel while unlinked")
-
-    state = commands.add_parser("state", help="what is running, the volumes and devices")
+    state = commands.add_parser("state", help="what is running")
     state.add_argument("--json", action="store_true", help="the state as JSON")
     commands.add_parser("watch", help="print changes and notifications as JSON lines")
 
@@ -88,19 +65,6 @@ def _forward(command: str, **args) -> int:
     return 0 if reply.get("ok") else 1
 
 
-def _volume(args) -> int:
-    if args.level in ("up", "down"):
-        return _forward("volume", channel=args.channel, action=args.level, step=args.step)
-    try:
-        value = int(args.level)
-    except ValueError:
-        value = -1
-    if not 0 <= value <= 100:
-        print("The level is up, down or a volume from 0 to 100.", file=sys.stderr)
-        return 2
-    return _forward("volume", channel=args.channel, action="set", value=value)
-
-
 def _state(as_json: bool) -> int:
     try:
         reply = ipc.send("state")
@@ -112,24 +76,9 @@ def _state(as_json: bool) -> int:
         print(json.dumps(state, indent=2))
         return 0 if reply.get("ok") else 1
 
-    def device(entry):
-        return entry["description"] if entry else "nothing"
-    replay, sonar = state.get("replay", {}), state.get("sonar", {})
+    replay = state.get("replay", {})
     keeping = f" (last {replay.get('seconds')} s)" if replay.get("running") else ""
     print(f"Replay buffer  {replay.get('state', '?')}{keeping}")
-    if not sonar.get("enabled"):
-        print("Sonar          off")
-        return 0
-    for_now = " (picked for now)" if sonar.get("output_picked") else ""
-    print(f"Sonar          {'on' if sonar.get('active') else 'starting'}, playing through "
-          f"{device(sonar.get('output'))}{for_now}")
-    for channel_id, entry in sonar.get("channels", {}).items():
-        where = f"  {device(entry['device'])}" if channel_id == "mic" or \
-            not sonar.get("linked") else ""
-        if channel_id == "mic" and sonar.get("mic_picked"):
-            where += " (picked for now)"
-        print(f"  {entry['name']:<7} {entry['volume']:>3}%{'  muted' if entry['muted'] else ''}"
-              f"{where}")
     return 0
 
 
@@ -142,51 +91,6 @@ def _watch() -> int:
         return 1
     except KeyboardInterrupt:
         pass
-    return 0
-
-
-def _sonar(action: str) -> int:
-    """Through the running app if there is one; directly otherwise."""
-    if ipc.is_running():
-        return _forward("sonar", action=action)
-
-    from vertex import paths
-    from vertex.audio.pulse import AudioError
-    from vertex.audio.sonar import Sonar
-    from vertex.config import Config
-
-    config = Config.load_or_default()
-    sonar = Sonar(config.sonar, f"{config.resolved_state_dir()}/sonar.json")
-    try:
-        if action == "up":
-            config.sonar.enabled = True
-            for warning in sonar.up():
-                print(f"warning: {warning}", file=sys.stderr)
-            if paths.config_path().exists():
-                config.save()
-            print("Sonar is up. Note: without Vertex running, apps are not routed "
-                  "automatically.")
-        elif action == "down":
-            sonar.down()
-            config.sonar.enabled = False
-            if paths.config_path().exists():
-                config.save()
-            print("Sonar is down; your previous default devices are restored.")
-        else:
-            status = sonar.status()
-            if not status.available:
-                print(status.error, file=sys.stderr)
-                return 1
-            print(f"Sonar is {'up' if status.active else 'down'}.")
-            for entry in status.channels.values():
-                state = ("missing" if not entry.present else
-                         f"{round(entry.volume * 100)}%{' muted' if entry.muted else ''}")
-                print(f"  {entry.channel.description:<14} {state}")
-            if status.output:
-                print(f"  output → {status.output}")
-    except AudioError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
     return 0
 
 
@@ -207,14 +111,6 @@ def main(argv: list[str] | None = None) -> int:
         return _forward("save-clip", seconds=args.last)
     if args.command == "replay":
         return _forward("replay", action=args.action)
-    if args.command == "sonar":
-        return _sonar(args.action)
-    if args.command == "volume":
-        return _volume(args)
-    if args.command == "mute":
-        return _forward("mute", channel=args.channel, action=args.action)
-    if args.command == "device":
-        return _forward("device", action=args.action, channel=args.channel or "")
     if args.command == "state":
         return _state(args.json)
     if args.command == "watch":

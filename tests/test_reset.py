@@ -55,14 +55,12 @@ def test_discard_settings_and_library(tmp_path, monkeypatch):
 
 def test_reset_in_place_keeps_the_objects(tmp_path):
     config = Config(clip_path="/somewhere")
-    config.sonar.enabled = True
-    config.sonar.app_rules["spotify"] = "media"
     config.recorder.replay_seconds = 120
     config.notifications = {"replay_started": True}
-    sonar, recorder = config.sonar, config.recorder
+    recorder = config.recorder
     reset.reset_in_place(config, Config())
     assert config == Config()
-    assert config.sonar is sonar and config.recorder is recorder
+    assert config.recorder is recorder
 
 
 def test_thumbnail_cache_clears_only_its_own_folders(tmp_path):
