@@ -83,6 +83,7 @@ class RecorderConfig:
     # records the default output or input instead (gsr.available_tracks).
     game_audio: str = f"device:{channels.GAME.record_source}"
     chat_audio: str = f"device:{channels.CHAT.record_source}"
+    media_audio: str = f"device:{channels.MEDIA.record_source}"
     mic_audio: str = f"device:{channels.MIC.record_source}"
     extra_args: str = ""
     # Tag a new clip with the app playing on the Game channel when it is saved.

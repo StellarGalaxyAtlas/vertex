@@ -177,7 +177,7 @@ class Track:
 
 # A clip's audio tracks: the lane each becomes, and the setting naming its device.
 AUDIO_ROLES = ((channels.GAME.id, "game_audio"), (channels.CHAT.id, "chat_audio"),
-               (channels.MIC.id, "mic_audio"))
+               (channels.MEDIA.id, "media_audio"), (channels.MIC.id, "mic_audio"))
 
 
 def audio_tracks(config: Config) -> list[Track]:
