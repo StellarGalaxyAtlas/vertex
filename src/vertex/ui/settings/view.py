@@ -43,16 +43,17 @@ from vertex.recorder import gsr
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog, TagImportDialog
 from vertex.ui.name_teacher import NameSources
-from vertex.ui.settings.clip_choices import ClipChoices, ClipSize, fill
+from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
+from vertex.ui.settings.tracks import NOTE as TRACKS_NOTE
+from vertex.ui.settings.tracks import TrackTable
 from vertex.ui.widgets import (
     Banner,
     Columns,
     Disclosure,
-    FieldGrid,
     PathField,
     Section,
     SideNav,
@@ -282,15 +283,12 @@ class SettingsView(QWidget):
         self.tag_from_game = Toggle()
         clips.add_row("Auto-tag clips with the game", self.tag_from_game,
                       "Uses the app on Sonar's Game channel")
-        self.game_audio = QComboBox()
-        self.chat_audio = QComboBox()
-        self.mic_audio = QComboBox()
-        tracks = FieldGrid(field_width=190)
-        for title, widget in (("Game audio", self.game_audio), ("Chat audio", self.chat_audio),
-                              ("Microphone", self.mic_audio)):
-            tracks.add(title, widget)
-        clips.add(tracks)
-        clips.add(label("Each is saved as a separate audio track", "Dim", wrap=True))
+        self.tracks = TrackTable()
+        devices = self.tracks.devices
+        self.game_audio, self.chat_audio = devices[channels.GAME.id], devices[channels.CHAT.id]
+        self.media_audio, self.mic_audio = devices[channels.MEDIA.id], devices[channels.MIC.id]
+        clips.add(self.tracks)
+        clips.add(label(TRACKS_NOTE, "Dim", wrap=True))
         clips.add(self._build_estimate())
 
         self.recording_advanced = advanced = Disclosure("Advanced",
@@ -365,8 +363,7 @@ class SettingsView(QWidget):
             widget.currentIndexChanged.connect(self._clip_settings_changed)
         for widget in (self.bitrate, self.audio_bitrate):
             widget.valueChanged.connect(self._clip_settings_changed)
-        for widget in (self.game_audio, self.chat_audio, self.mic_audio):
-            widget.currentIndexChanged.connect(self._clip_settings_changed)
+        self.tracks.changed.connect(self._clip_settings_changed)
         for widget in (self.command, self.extra_args):
             widget.textChanged.connect(self._update_preview)
         self.keyint.valueChanged.connect(self._update_preview)
@@ -509,10 +506,7 @@ class SettingsView(QWidget):
         rec.output_dir = self.output_dir.value()
         rec.audio_codec = self.audio_codec.currentData()
         rec.audio_bitrate = self.audio_bitrate.value()
-        for widget, name in ((self.game_audio, "game_audio"), (self.chat_audio, "chat_audio"),
-                             (self.mic_audio, "mic_audio")):
-            if widget.currentData() is not None:
-                setattr(rec, name, widget.currentData())
+        self.tracks.apply(rec)
         rec.extra_args = self.extra_args.text().strip()
         return config
 
@@ -685,40 +679,7 @@ class SettingsView(QWidget):
         self._show_audio_choices(rec)
 
     def _show_audio_choices(self, rec) -> None:
-        """Each track's devices: none, the default, Sonar's channels (always:
-        Sonar may just be off), then the real devices GSR can record. One
-        missing now says what records in its place."""
-        known = {name for name, _d in self._audio_devices}
-        outputs, inputs = [], []
-        for name, description in self._audio_devices:
-            if name.startswith("default_") or name.startswith(channels.NODE_PREFIX):
-                continue
-            if name.endswith(".monitor"):
-                outputs.append((f"device:{name}", description.removeprefix("Monitor of ")))
-            else:
-                inputs.append((f"device:{name}", description))
-
-        def options(role, default_text, own, real):
-            fallback = gsr.fallback_source(role)
-            instead = "default output" if fallback == "default_output" else "default microphone"
-            items = [("", "None"), (fallback, default_text)]
-            for channel in own:
-                text = channel.description
-                if known and channel.record_source not in known:
-                    text += f" (Sonar off: {instead})"
-                items.append((f"device:{channel.record_source}", text))
-            return items + real, (lambda value: f"{value.removeprefix('device:')} "
-                                                f"(not available: {instead})")
-
-        for widget, setting, role, default_text, own, real in (
-                (self.game_audio, "game_audio", channels.GAME.id, "Default output",
-                 channels.OUTPUTS, outputs),
-                (self.chat_audio, "chat_audio", channels.CHAT.id, "Default output",
-                 channels.OUTPUTS, outputs),
-                (self.mic_audio, "mic_audio", channels.MIC.id, "Default microphone",
-                 (channels.MIC,), inputs)):
-            items, describe = options(role, default_text, own, real)
-            fill(widget, items, getattr(rec, setting), describe)
+        self.tracks.show_devices(self._audio_devices, rec)
 
     def _show_estimate(self) -> None:
         size = self.clip_estimate.estimate(self.collect(), self._as_recorded)

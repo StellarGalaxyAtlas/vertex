@@ -79,10 +79,10 @@ class TestArgv:
         assert "-restore-portal-session" not in argv and "-ab" not in argv
 
     def test_tracks_are_named_on_new_recorders(self):
-        # Sonar's Game, Chat and Mic by default, Sonar on or not.
+        # Sonar's Game, Chat, Media and Mic by default, Sonar on or not.
         config = Config()
         tracks = gsr.audio_tracks(config)
-        assert [t.channel for t in tracks] == ["game", "chat", "mic"]
+        assert [t.channel for t in tracks] == ["game", "chat", "media", "mic"]
         new = gsr.GsrInfo("gsr", True, (5, 15, 1))
         old = gsr.GsrInfo("gsr", True, (5, 10, 2))
         argv = gsr.build_argv(config.recorder, tracks, "/c", new)
@@ -96,6 +96,7 @@ class TestArgv:
         config = Config()
         config.recorder.game_audio = "default_output"
         config.recorder.chat_audio = " "
+        config.recorder.media_audio = ""
         config.recorder.mic_audio = "device:alsa_input.usb-mic"
         assert [(t.source, t.title, t.channel) for t in gsr.audio_tracks(config)] == [
             ("default_output", "Vertex Game", "game"),
@@ -108,15 +109,17 @@ class TestArgv:
         usable, stood_in = gsr.available_tracks(tracks, devices)
         assert [(t.source, t.title) for t in usable] == [
             ("default_output", "Vertex Game"), ("default_output", "Vertex Chat"),
-            ("default_input", "Vertex Mic")]
+            ("default_output", "Vertex Media"), ("default_input", "Vertex Mic")]
         assert [(t.channel, instead) for t, instead in stood_in] == [
-            ("game", "default_output"), ("chat", "default_output"), ("mic", "default_input")]
+            ("game", "default_output"), ("chat", "default_output"),
+            ("media", "default_output"), ("mic", "default_input")]
         # Sonar on: the devices chosen, untouched.
-        devices += ["vertex_game.monitor", "vertex_chat.monitor", "vertex_mic"]
+        devices += ["vertex_game.monitor", "vertex_chat.monitor", "vertex_media.monitor",
+                    "vertex_mic"]
         assert gsr.available_tracks(tracks, devices) == (tracks, [])
         # Not even a default input: that track is left out.
         usable, stood_in = gsr.available_tracks(tracks, ["default_output"])
-        assert [t.channel for t in usable] == ["game", "chat"]
+        assert [t.channel for t in usable] == ["game", "chat", "media"]
         assert stood_in[-1][1] == ""
         # Nothing known about the devices: everything as chosen.
         assert gsr.available_tracks(tracks, []) == (tracks, [])

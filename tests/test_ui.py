@@ -580,8 +580,8 @@ def test_clip_settings_follow_the_recorded_monitor(qapp, window, monkeypatch):
     settings.resolution.setCurrentIndex(settings.resolution.findData("720p"))
     assert "-s 720x1280" in settings.preview.toPlainText()
     assert settings.video_quality.currentText() == "High · 11 Mbps"
-    # 11 Mbps of video and three AAC tracks, for a minute.
-    assert settings.clip_size.text() == "About 82 MB per clip"
+    # 11 Mbps of video and four AAC tracks, for a minute.
+    assert settings.clip_size.text() == "About 83 MB per clip"
     assert wait_until(qapp, lambda: "more clips" in settings.disk_room.text())
 
     # A bitrate set by hand shows as Custom; picking a level drops it.
