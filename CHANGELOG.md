@@ -43,7 +43,9 @@ Vertex on Windows 10 and 11, without Sonar.
   Game Bar, OBS, AMD Adrenalin and GPU Screen Recorder, or a name marked up
   by hand, with a preview of what Vertex reads from your clips. Several
   apps can be listed, tried in turn, each with how many clips it reads; the
-  next one is taught from the clips none reads yet.
+  next one is taught from the clips none reads yet. A game ending in a
+  number keeps it when the date follows straight on (Medal's
+  "Helldivers2" + "20260817…" is Helldivers 2, not Helldivers).
 - Importing clips reads the folders inside the chosen one too (Moments and
   Medal keep a folder per game), with a list to leave folders out.
 - Hotkeys on Windows, set in Settings › Shortcuts by pressing them: save a
