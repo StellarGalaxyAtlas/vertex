@@ -72,7 +72,10 @@ class ClipModel(QAbstractListModel):
         if role == ClipRole:
             return clip
         if role == Qt.ItemDataRole.ToolTipRole:
-            return clip.name
+            people = self.state.tags_of(clip)[1]
+            lines = [clip.name, *(["With " + ", ".join(people)] if people else []),
+                     clip.size_human]
+            return "\n".join(lines)
         return None
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):

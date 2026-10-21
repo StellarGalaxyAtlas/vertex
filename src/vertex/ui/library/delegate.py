@@ -144,8 +144,9 @@ class ClipDelegate(QStyledItemDelegate):
                          metrics.elidedText(self.state.title_of(clip),
                                             Qt.TextElideMode.ElideRight, int(title.width())))
 
-        # One line under it: game (with its colour) · people · age · size. An
-        # untagged clip says so, and offers to tag it while hovered.
+        # One line under it: game (with its colour), or its people without
+        # one, and age. People and size are in the tooltip. An untagged clip
+        # says so, and offers to tag it while hovered.
         game, people = self.state.tags_of(clip)
         line = tags_rect(cell)
         painter.setFont(theme.font(8.5))
@@ -156,8 +157,8 @@ class ClipDelegate(QStyledItemDelegate):
             painter.setBrush(QColor(theme.game_colour(game)))
             painter.drawEllipse(QPointF(x + 4, line.center().y()), 4, 4)
             x += 13
-        parts = [part for part in (game, ", ".join(people)) if part]
-        text = "  ·  ".join([*parts, clip.age_human, clip.size_human])
+        parts = [game or ", ".join(people)] if game or people else []
+        text = "  ·  ".join([*parts, clip.age_human])
         if not parts:
             lead = "Add tags" if hovered else "Untagged"
             painter.setPen(QColor(theme.SELECT if hovered else theme.TEXT_DIM))

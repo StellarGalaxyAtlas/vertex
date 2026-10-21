@@ -17,7 +17,7 @@ pytest.importorskip("PySide6")
 if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEvent, QObject, QPoint
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt
 from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton
 
 from vertex.config import Config
@@ -108,6 +108,9 @@ def test_library_lists_and_tags_clips(qapp, window):
     clip = state.find("Replay_2026-01-02_03-04-05.mp4")
     state.set_tags(clip, "The Finals", ["Anna"])
     assert state.tags_of(clip) == ("The Finals", ["Anna"])
+    model = window.library_view.model
+    tip = model.index(state.visible.index(clip)).data(Qt.ItemDataRole.ToolTipRole)
+    assert tip == f"{clip.name}\nWith Anna\n{clip.size_human}"
     assert state.toggle_favorite(clip)
     assert state.favorite_count() == 1
 
