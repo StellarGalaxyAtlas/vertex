@@ -15,7 +15,7 @@ class NotificationsPage:
     def __init__(self, send_test=None):
         self.switches: dict[str, Toggle] = {}
         pop_ups = Section(
-            "Desktop notifications", "Shown when Vertex isn't in front")
+            "Desktop notifications", "Pop-ups while you're in a game or another app")
         self.over_games = Toggle()
         self._over_games_on = False      # the saved choice, kept while it can't be used
         # A sample over whatever is on screen, to see how it looks in a game.

@@ -17,11 +17,10 @@ from vertex.ui.widgets import label
 
 # (role, the row's name): one track each, in the clip's order.
 TRACKS = ((roles.GAME, "Game"), (roles.CHAT, "Chat"), (roles.MEDIA, "Media"),
-          (roles.MIC, "Microphone"))
+          (roles.MIC, "Mic"))
 
 
-NOTE = ("Each is saved as a separate audio track; one set to None isn't recorded. "
-        "The volume is what the track is recorded at, so clips play back right at 100%.")
+NOTE = "Each source becomes its own audio track. Choose None to leave it out."
 
 
 class TrackTable(QWidget):

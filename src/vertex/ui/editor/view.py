@@ -246,8 +246,7 @@ class EditorView(QWidget):
         self.volume.setValue(self.context.config.playback_volume)
         self.volume.setFixedWidth(120)
         self.volume.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.volume.setToolTip("Playback volume, here only: the clip and its exports stay "
-                               "as they are. Double-click for 100%.")
+        self.volume.setToolTip("Preview volume, doesn't change the clip. Double-click: 100%")
         self.volume.mouseDoubleClickEvent = lambda _e: self.volume.setValue(100)
         # Not the accent: that never sits on an audio control.
         theme.style(self.volume, lambda: f"QSlider::sub-page:horizontal {{ background: "
@@ -614,14 +613,11 @@ class EditorView(QWidget):
         if not self._has_trim():
             self.status.setText("Set a start and end first.")
             return
-        span = (f"{fmt.duration(self.trim_start)} – {fmt.duration(self.trim_end)} "
-                f"({fmt.duration(self.selection)})")
+        span = f"{fmt.duration(self.trim_start)}–{fmt.duration(self.trim_end)}"
         choice = ChoiceDialog.ask(
-            self, "Trim clip", "Trim this clip to the selection?",
-            f"{span}\n\nThe trimmed file keeps the original quality and every audio track, "
-            "so it can be edited again. It starts at the nearest keyframe before the In "
-            "marker.\n\nReplacing keeps the clip's name, tags and mix and moves the "
-            "original to your Trash.",
+            self, "Trim clip", f"Trim to {span}?",
+            "Full quality, every audio track kept. Replace Original moves the old file "
+            "to the Trash.",
             [("Save as Copy", "copy", ""), ("Replace Original", "replace", "primary")])
         if choice is not None:
             self._start_trim(choice)

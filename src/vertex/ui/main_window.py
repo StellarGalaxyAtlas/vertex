@@ -184,8 +184,8 @@ class MainWindow(QMainWindow):
             return
         answer = ChoiceDialog.ask(
             self, "Run setup again", "Run setup again?",
-            "Setup opens with your current settings. Finishing it replaces them; cancel "
-            "at any step to keep them. Your clips, tags and edits aren't touched.",
+            "Setup starts with your current settings. Your clips, tags and edits stay as "
+            "they are.",
             [("Run setup", "run", "primary")])
         if answer == "run":
             self.show_setup(copy.deepcopy(self.context.config), again=True)

@@ -331,8 +331,7 @@ class NameTeacher(QWidget):
         pattern = self.pattern()
         preset = next((p for p in PRESETS if p.app == self._app), None)
         if preset is not None and not preset.checked:
-            self._say(f"Not yet checked against a real clip from {preset.app}: check below "
-                      f"that Vertex reads yours right.", "WARN")
+            self._say("Check the preview below matches your clips", "WARN")
         elif self._app == OWN and self._marks and pattern is None:
             self._say("Those marks don't fit together. Start over and mark the parts again.",
                       "WARN")
@@ -423,8 +422,7 @@ class NameSources(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
-        self.hint = label("Tried top to bottom: a name the first can't read goes to the "
-                          "next.", "Muted", wrap=True)
+        self.hint = label("Tried in this order", "Muted", wrap=True)
         layout.addWidget(self.hint)
         self.rows_host = QWidget()
         self.rows = QVBoxLayout(self.rows_host)
@@ -438,8 +436,7 @@ class NameSources(QWidget):
             f"border-radius: {theme.RADIUS_SMALL}px; }}"))
         always = QHBoxLayout(self.always)
         always.setContentsMargins(12, 8, 12, 8)
-        always.addWidget(label("SteelSeries Moments and GPU Screen Recorder names, always",
-                               "Muted"), 1)
+        always.addWidget(label("Built in: SteelSeries Moments, GPU Screen Recorder", "Muted"), 1)
         self.always_count = label("", "Muted")
         always.addWidget(self.always_count)
         layout.addWidget(self.always)
@@ -603,11 +600,13 @@ class NameSources(QWidget):
 
     def _refresh(self) -> None:
         readers = [naming.reader_of(name, self._patterns) for name in self._names]
+        # A row's count only says something while the clips are shared out:
+        # one row reading them all is what the line under the list says.
+        def count_of(count: int) -> str:
+            return f"reads {fmt.plural(count, 'clip')}" if 0 < count < len(self._names) else ""
         for index, row in enumerate(self._rows):
-            count = readers.count(index)
-            row.count.setText(f"reads {fmt.plural(count, 'clip')}" if self._names else "")
-        always = readers.count(naming.BUILT_IN)
-        self.always_count.setText(f"reads {fmt.plural(always, 'clip')}" if always else "")
+            row.count.setText(count_of(readers.count(index)))
+        self.always_count.setText(count_of(readers.count(naming.BUILT_IN)))
         unread = readers.count(None)
         if not self._names:
             self.status.setText("")

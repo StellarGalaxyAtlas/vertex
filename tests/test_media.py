@@ -80,11 +80,11 @@ class TestTrackLabels:
             "Vertex Mic", "Devices: Monitor of Vertex Game", "device:vertex_chat.monitor",
             "Vertex Media"))
         assert [(t.label, t.channel) for t in labelled] == [
-            ("Game", "game"), ("Chat", "chat"), ("Media", "media"), ("Microphone", "mic")]
+            ("Game", "game"), ("Chat", "chat"), ("Media", "media"), ("Mic", "mic")]
 
     def test_a_media_track_is_its_own_lane(self):
         labelled = tracks.label_tracks(_tracks("Vertex Game", "Vertex Mic", "Vertex Media"))
-        assert [t.label for t in labelled] == ["Game", "Media", "Microphone"]
+        assert [t.label for t in labelled] == ["Game", "Media", "Mic"]
         assert tracks.guess_source("Spotify music") == "media"
 
     def test_aux_tracks_are_numbered_not_called_the_mic(self):
@@ -94,7 +94,7 @@ class TestTrackLabels:
     def test_merged_outputs_are_desktop(self):
         labelled = tracks.label_tracks(_tracks(
             "Devices: Monitor of Vertex Game, Monitor of Vertex Chat", "Vertex Mic"))
-        assert [t.label for t in labelled] == ["Desktop", "Microphone"]
+        assert [t.label for t in labelled] == ["Desktop", "Mic"]
 
     def test_merged_with_mic_is_unlabelled(self):
         labelled = tracks.label_tracks(_tracks("device:a.monitor|device:my_mic", "Vertex Game"))
@@ -103,11 +103,11 @@ class TestTrackLabels:
     def test_devices_named_by_what_they_carry(self):
         labelled = tracks.label_tracks(_tracks(
             "device:alsa_input.usb-Blue_Yeti", "device:Virtual_Game_Sink.monitor"))
-        assert [t.label for t in labelled] == ["Game", "Microphone"]
+        assert [t.label for t in labelled] == ["Game", "Mic"]
 
     def test_moments_handlers(self):
         labelled = tracks.label_tracks(_tracks("Mic", "Game", "Chat"))
-        assert [t.label for t in labelled] == ["Game", "Chat", "Microphone"]
+        assert [t.label for t in labelled] == ["Game", "Chat", "Mic"]
 
     def test_duplicates_fall_back_to_numbers(self):
         labelled = tracks.label_tracks(_tracks("Game A", "Game B"))
@@ -157,7 +157,7 @@ class TestWithFfmpeg:
         assert (info.width, info.height) == (320, 180)
         assert abs(info.duration - 4) < 0.2
         labelled = tracks.label_tracks(info.tracks)
-        assert [t.label for t in labelled] == ["Game", "Chat", "Microphone"]
+        assert [t.label for t in labelled] == ["Game", "Chat", "Mic"]
 
     def test_waveform(self, sample_clip):
         levels = waveform.peaks(sample_clip, 0, 4.0, buckets=50)

@@ -29,18 +29,19 @@ COMMANDS = (
     ("Clips", [
         ("vertex save-clip", "Save a clip", ""),
         ("vertex save-clip --last 30", "Save the last 30 seconds",
-         "Or 10, 60, 300, 600 or 1800"),
+         "Or 10, 60, 300, 600 or 1800 seconds"),
         ("vertex replay toggle", "Start or stop the replay buffer",
          "Also: vertex replay start, vertex replay stop."),
     ]),
     *((("Sonar", [
         ("vertex volume game up", "Game volume up",
-         "Also down, or a level like 40. Works for chat, media and mic"),
+         "Also: vertex volume game down, or a level such as 40. Use chat, media or mic "
+         "instead of game."),
         ("vertex mute mic", "Mute microphone", "Press again to unmute"),
         ("vertex device next", "Next output device",
-         "In list order, until a device is plugged in. Also: vertex device previous."),
+         "Switches to the next device in your list. Also: vertex device previous."),
         ("vertex device next mic", "Next microphone",
-         "In list order, until a mic is plugged in."),
+         "Switches to the next mic in your list."),
         ("vertex sonar up", "Turn Sonar on", ""),
         ("vertex sonar down", "Turn Sonar off", "Restores your default devices"),
     ]),) if platform.SONAR else ()),
@@ -487,8 +488,8 @@ class ShortcutsPage:
         if hotkeys.AVAILABLE:
             self.hotkeys = HotkeysPage(context)
             other = Section("From other software",
-                            "For mouse or keyboard software, a Stream Deck or a script: the "
-                            "same actions as commands.")
+                            "Run these commands from mouse or keyboard software, a Stream "
+                            "Deck or a script.")
             commands = QWidget()
             commands_layout = QVBoxLayout(commands)
             commands_layout.setContentsMargins(0, 0, 0, 0)

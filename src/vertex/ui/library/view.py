@@ -518,8 +518,8 @@ class LibraryView(QWidget):
             copy_file_to_clipboard(result.path)
             over = f", over {size}" if result.over_limit else ""
             folder_of = os.path.dirname(result.path)
-            tell(f"Exported {what}: {fmt.size(result.size)}{over}. It's copied, ready to "
-                 "paste into Discord or a browser. Click to open the folder.",
+            tell(f"Copied {what} ({fmt.size(result.size)}{over}), ready to paste. Click to "
+                 "open its folder.",
                  "warn" if result.over_limit else "ok", 12000,
                  lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(folder_of)))
 

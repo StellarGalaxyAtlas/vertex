@@ -505,8 +505,8 @@ class DevicePanel(QWidget):
         column.addWidget(card)
         # A device picked by hand (on a channel, or with a shortcut) is used
         # for now; said here, as the list says otherwise.
-        self.picked_note = label(f"Picked for now, until a {device} is plugged in.", "Dim",
-                                 wrap=True)
+        self.picked_note = label(f"Chosen by hand: used until another {device} is plugged "
+                                 f"in.", "Dim", wrap=True)
         self.picked_note.hide()
         column.addWidget(self.picked_note)
 
@@ -782,7 +782,7 @@ class ChannelColumn(QFrame):
         area = QVBoxLayout(self.apps_area)
         area.setContentsMargins(0, 0, 0, 0)
         area.setSpacing(10)
-        area.addWidget(label("RECORDING FROM IT" if not channel.is_output else "APPS",
+        area.addWidget(label("APPS USING IT" if not channel.is_output else "APPS",
                              "Group"))
         self.apps_host = QWidget()
         self.apps = FlowLayout(self.apps_host, spacing=6)

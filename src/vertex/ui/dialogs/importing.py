@@ -130,8 +130,8 @@ class CopyClipsDialog(QDialog):
         layout.setSpacing(12)
         layout.addWidget(label("Import clips", "Subheading"))
         layout.addWidget(label(
-            f"Copies videos from a folder and the folders in it into {paths.tilde(target)}. "
-            f"Existing files are skipped.",
+            f"Copies videos from a folder and its subfolders into {paths.tilde(target)}. "
+            f"Files already there are skipped.",
             "Muted", wrap=True))
         row = QHBoxLayout()
         self.source = QLineEdit(paths.tilde(source) if source else "")

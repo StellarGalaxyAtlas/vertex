@@ -110,8 +110,7 @@ class ClipChoices(QObject):
             tip = "Recording this monitor by default"
         else:
             text, warn = f"{self.capture} isn't connected · recording {recorded}", True
-            tip = (f"{self.capture} isn't connected, so Vertex records {recorded} until it "
-                   f"is back. Click a monitor to record that one instead.")
+            tip = f"Recording {recorded} until {self.capture} is back"
         self.capture_note.setText(text)
         self.capture_note.setToolTip(tip)
         theme.style(self.capture_note, lambda: f"color: {theme.WARN};" if warn else "")

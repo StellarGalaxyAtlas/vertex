@@ -192,15 +192,15 @@ class ExportDialog(QDialog):
         if self.limit is None:
             text = self.info.summary or "Source quality"
             if original:
-                text += f" · ≈{fmt.size(original, 0)}"
-            text += " — the video is copied untouched, cut on a keyframe."
+                text += f" · about {fmt.size(original, 0)}"
+            text += " · full quality"
         else:
             try:
                 plan = export.plan(selection, self.info.width, self.info.height, self.info.fps,
                                    ffmpeg_graph(self.tracks) is not None, self.limit)
-                text = f"{plan.summary} · ≈{fmt.size(plan.estimate(selection), 0)}"
+                text = f"{plan.summary} · about {fmt.size(plan.estimate(selection), 0)}"
                 if original and original <= self.limit:
-                    text += " — Original already fits, without re-encoding."
+                    text += " · Original fits too, at full quality"
             except MediaError as exc:
                 text, possible = str(exc), False
         self.detail.setText(text)
@@ -209,8 +209,7 @@ class ExportDialog(QDialog):
             self.export_button.setEnabled(possible)
 
     def _show_where(self) -> None:
-        self.where.setText("Copies the file, ready to paste. Vertex deletes it when it "
-                           "next starts." if self.share
+        self.where.setText("Copied to the clipboard, ready to paste into a chat" if self.share
                            else f"Saves to {paths.tilde(self.folder)}")
 
     def _choose_folder(self) -> None:
@@ -281,13 +280,13 @@ class ExportDialog(QDialog):
                  " (over the size limit)" if result.over_limit else "")
         self.progress.setValue(1000)
         self._release()
-        over = "  —  over the size limit" if result.over_limit else ""
-        done = "Copied" if self.share else "Saved"
+        over = ", over the size limit" if result.over_limit else ""
         if self.share:
             copy_file_to_clipboard(result.path)
-        self.status.setText(f"{done} {os.path.basename(result.path)} · "
-                            f"{fmt.size(result.size)}{over}. Paste it into a chat, "
-                            "or drag the picture there.")
+        done = (f"Copied {os.path.basename(result.path)} ({fmt.size(result.size)}{over}), "
+                "ready to paste into a chat" if self.share
+                else f"Saved {os.path.basename(result.path)} ({fmt.size(result.size)}{over})")
+        self.status.setText(done)
         theme.style(self.status, lambda: f"color: {theme.WARN if over else theme.OK};")
         self.preview.set_path(result.path)
         self.copy_button.show()

@@ -226,11 +226,11 @@ class SettingsView(QWidget):
         self.log_path = PathField(placeholder=str(paths.default_log_dir()))
         self.keep_logs.toggled.connect(self.log_path.setEnabled)
         # Vertex's own folders: set up once, and best left alone.
-        self.folders_advanced = Disclosure("Advanced", "Library, state, cache and log folders")
+        self.folders_advanced = Disclosure("Advanced", "Where Vertex keeps its own data")
         self.folders_advanced.body_layout.setSpacing(12)
         for title, field, hint in (
                 ("Library", self.data_path, "Tags, titles, trims and mixes"),
-                ("State", self.state_path, ""),
+                ("State", self.state_path, "What Vertex remembers between runs"),
                 ("Cache", self.cache_path, "Thumbnails")):
             self.folders_advanced.add(setting_row(title, field, hint))
         self.folders_advanced.add(setting_row(
@@ -285,13 +285,12 @@ class SettingsView(QWidget):
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
         self.tag_from_game = Toggle()
-        tag_row = clips.add_row("Auto-tag clips with the game", self.tag_from_game,
-                                "Uses the app on Sonar's Game channel, and names the clip "
-                                "after it")
+        tag_row = clips.add_row("Tag clips with the game you're playing", self.tag_from_game,
+                                "From the app on Sonar's Game channel")
         tag_row.setVisible(platform.SONAR)
         self.tag_from_screen = Toggle()
-        tag_row = clips.add_row("Tag clips with the game", self.tag_from_screen,
-                                "The app filling the screen when a clip is saved, else Desktop")
+        tag_row = clips.add_row("Tag clips with the game you're playing", self.tag_from_screen,
+                                "From the full-screen app, or Desktop")
         tag_row.setVisible(platform.FULLSCREEN_GAME)
         self.tracks = TrackTable()
         devices = self.tracks.devices
@@ -428,8 +427,8 @@ class SettingsView(QWidget):
         copy_section.add(button("Import clips…", on_click=self._copy_clips))
         setup = Section("Run setup again", "Starts with your current settings")
         setup.add(button("Run setup again…", on_click=self.setup_requested.emit))
-        names = Section("Clip file names", "The apps your clips come from, so Vertex can "
-                                           "read the game and the date from their names")
+        names = Section("Clip file names", "Vertex reads the game and date from file names. "
+                                           "Add the app that recorded your clips.")
         self.sources = NameSources()
         self.sources.changed.connect(self._save_names)
         self.sources.added.connect(lambda: self.banner.show_message(
@@ -584,8 +583,8 @@ class SettingsView(QWidget):
         if applied.to_dict() == old.to_dict() and autostart == desktop.autostart_enabled():
             return True
         if not applied.is_complete():
-            self.banner.show_message("Set the clips, exports, library, state and cache "
-                                     "folders (blank uses the defaults).", "error", 10000)
+            self.banner.show_message("A folder is missing. Leave a field blank to use the "
+                                     "default.", "error", 10000)
             self.folders_advanced.set_expanded(True)
             return False
         folders_changed = any(getattr(applied, key) != getattr(old, key) for key in
@@ -663,7 +662,7 @@ class SettingsView(QWidget):
         working = info.available and not info.too_old
         if working:
             note = "" if info.supports_track_names or backend.is_obs() else \
-                " — update to 5.15+ so clip tracks are named Game, Chat and Microphone"
+                " — update to 5.15+ so clip tracks are named Game, Chat and Mic"
             self.gsr_status.setText(f"Found {backend.name()} {info.version_text}{note}.")
             theme.style(self.gsr_status, lambda: f"color: {theme.OK if not note else theme.WARN};")
         else:

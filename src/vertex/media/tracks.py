@@ -25,7 +25,7 @@ LABELS = {
     DESKTOP: "Desktop",
     roles.CHAT.id: "Chat",
     roles.MEDIA.id: "Media",
-    roles.MIC.id: "Microphone",
+    roles.MIC.id: "Mic",
 }
 # The order lanes appear in, whatever order the streams have in the file.
 ORDER = (roles.GAME.id, DESKTOP, roles.CHAT.id, roles.MEDIA.id, roles.MIC.id)

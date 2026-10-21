@@ -167,8 +167,9 @@ class RenameGameDialog(QDialog):
         layout.setContentsMargins(24, 22, 24, 20)
         layout.setSpacing(10)
         layout.addWidget(label(f"Rename “{game}”", "Subheading", wrap=True))
-        layout.addWidget(label(f"Its {fmt.plural(clips, 'clip')} are retagged. A name you "
-                               f"already have merges them.", "Muted", wrap=True))
+        whose = "Its clip gets" if clips == 1 else f"All {clips} clips get"
+        layout.addWidget(label(f"{whose} the new name. Pick a game you already have to merge "
+                               f"them.", "Muted", wrap=True))
         layout.addSpacing(4)
         self.name = QLineEdit(game)
         self.name.selectAll()
@@ -200,7 +201,7 @@ class RenameGameDialog(QDialog):
 
     def _changed(self, text: str) -> None:
         match = self._match(text)
-        self.hint.setText(f"Merges with “{match}”, {fmt.plural(self._games[match], 'clip')}"
+        self.hint.setText(f"Merges with {match} ({fmt.plural(self._games[match], 'clip')})"
                           if match else "")
         self.hint.setVisible(bool(match))
         self.rename.setEnabled(bool(clean_tag(text)) and clean_tag(text) != self._game)

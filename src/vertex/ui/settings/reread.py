@@ -28,12 +28,12 @@ def summary(groups: list[RereadGroup]) -> str:
     games = sum(len(group.changes) for group in groups if group.game)
     dates = sum(len(group.changes) for group in groups if not group.game)
     if games:
-        text = f"{games} clips' names say another game than their tag" if games > 1 else \
-            "1 clip's name says another game than its tag"
-        return text + (f", {fmt.plural(dates, 'clip')} another date" if dates else "")
+        text = f"{games} clips are tagged differently from their file names" if games > 1 \
+            else "1 clip is tagged differently from its file name"
+        return text + (f", {fmt.plural(dates, 'clip')} dated differently" if dates else "")
     if dates:
-        return f"{dates} clips' names give another recording date" if dates > 1 else \
-            "1 clip's name gives another recording date"
+        return f"{dates} clips are dated differently from their file names" if dates > 1 \
+            else "1 clip is dated differently from its file name"
     return ""
 
 
@@ -72,8 +72,8 @@ def _question(group: RereadGroup) -> tuple[str, str, str]:
     game, was = html.escape(group.game), html.escape(group.game_was)
     them = "them" if many else "it"
     if not group.game:
-        text = (f"{count} {'have names that give' if many else 'has a name that gives'} "
-                f"another recording date than Vertex has.")
+        text = (f"{count} {'are' if many else 'is'} dated differently from "
+                f"{'their file names' if many else 'its file name'}.")
         return text, "Use the dates", "Keep the dates"
     if group.game_was:
         text = f"{count} {'are' if many else 'is'} tagged <b>{was}</b>, and {names} <b>{game}</b>."
@@ -145,8 +145,8 @@ class RereadDialog(TextDialog):
         layout.setContentsMargins(24, 22, 24, 20)
         layout.setSpacing(10)
         layout.addWidget(label("Tags from file names", "Subheading"))
-        self.hint = label("Pick what each group of clips is tagged. Keeping a tag "
-                          "is remembered.", "Muted", wrap=True)
+        self.hint = label("Pick a tag for each group. Vertex won't ask again about tags "
+                          "you keep.", "Muted", wrap=True)
         layout.addWidget(self.hint)
         host = QWidget()
         self.rows = QVBoxLayout(host)

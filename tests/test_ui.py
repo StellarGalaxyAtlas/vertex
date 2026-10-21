@@ -243,7 +243,7 @@ def test_quick_export_uses_the_saved_trim_and_copies_the_file(qapp, window, tmp_
     view.quick_export(clip)
     assert wait_until(qapp, lambda: notices and notices[-1][1] != "info", 60), notices
     text, level, click = notices[-1]
-    assert level == "ok" and "copied" in text and callable(click)
+    assert level == "ok" and text.startswith("Copied") and callable(click)
     exported = [url.toLocalFile() for url in QGuiApplication.clipboard().mimeData().urls()]
     assert len(exported) == 1 and exported[0].startswith(str(tmp_path / "exports"))
     assert abs(probe.probe(exported[0]).duration - 2.0) < 0.6
@@ -1788,7 +1788,7 @@ def test_editor_plays_mixes_and_trims(qapp, window):
     clip = next(c for c in window.state.visible if c.name.startswith("Apex"))
     window.open_clip(clip)
     editor = window.editor
-    assert [t.label for t in editor.tracks] == ["Game", "Chat", "Microphone"]
+    assert [t.label for t in editor.tracks] == ["Game", "Chat", "Mic"]
     assert wait_until(qapp, lambda: editor.position > 0.2, timeout=15)
     assert wait_until(qapp, lambda: len(editor.timeline.waves) == 3, timeout=15)
     editor.rows[-1].slider.setValue(40)
@@ -1976,7 +1976,7 @@ def test_first_run_copies_clips_from_folders_inside_but_not_the_left_out_ones(qa
     view.source.set_value(str(source))
     assert wait_until(qapp, lambda: view.copy_plan is not None)
     # Where they are, the ones in folders inside wouldn't show.
-    assert "2 of them are in folders inside it" in view.source_summary.text()
+    assert "2 of them are in subfolders" in view.source_summary.text()
     assert view.folders.isHidden()
     view.copy_in.choose()
     assert view.source_summary.text() == "Found 3 clips."
@@ -2182,7 +2182,7 @@ def test_renaming_a_game_retags_its_clips_and_new_ones(qapp, window):
     QTimer.singleShot(0, rename)
     QTest.keyClick(menu.find, Qt.Key.Key_F2)
     assert seen == {"typed": "Heroes of the Storm(Retail)",
-                    "hint": "Merges with “Apex Legends”, 1 clip"}
+                    "hint": "Merges with Apex Legends (1 clip)"}
     assert state.tags_of(state.find(clip.name))[0] == "Heroes of the Storm"
     assert state.facet == Facet("game", "Heroes of the Storm")
     assert context.config.game_names == {"Heroes of the Storm(Retail)": "Heroes of the Storm"}
@@ -2273,7 +2273,7 @@ def test_settings_review_tags_from_file_names(qapp, window, library_dir, sample_
     line = settings.reread
     assert wait_until(qapp, lambda: any(g.game == "Valorant" for g in line.groups))
     assert line.isVisibleTo(settings)
-    assert line.text.text().startswith("2 clips' names say another game than their tag")
+    assert line.text.text().startswith("2 clips are tagged differently from their file names")
 
     def answer():
         dialog = next(w for w in qapp.topLevelWidgets()

@@ -572,9 +572,8 @@ class FirstRunView(QWidget):
         inside = plan.found - sum(f.clips for f in plan.folders if not f.path)
         if inside and self.in_place.isChecked():
             # The library shows the clips folder itself, not the folders in it.
-            self._say(self.source_summary, f"{text} {inside} of them are in folders inside "
-                                           f"it, which Vertex doesn't show: copy them to "
-                                           f"bring those in.", "WARN")
+            self._say(self.source_summary, f"{text} {inside} of them are in subfolders: copy "
+                                           f"them to include those.", "WARN")
             return
         self._say(self.source_summary, text, "OK")
 
@@ -680,8 +679,8 @@ class FirstRunView(QWidget):
         self.tags_note = label("", "Muted", wrap=True)
         self.tags_note.hide()
         self.tags_status = label("", "Muted", wrap=True)
-        self.names = Section("Teach Vertex your file names",
-                             "For clips whose names Vertex doesn't read yet.")
+        self.names = Section("Clip file names",
+                             "Add the app that recorded your clips if a game is missing below.")
         self._names_shown: list[str] = []
         self.sources = NameSources()
         self.sources.set_patterns(self.config.patterns())
