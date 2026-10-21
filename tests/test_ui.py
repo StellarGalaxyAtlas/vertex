@@ -2542,3 +2542,25 @@ def test_the_commands_open_while_there_is_room_beside_the_hotkeys(qapp, monkeypa
     qapp.processEvents()
     assert page.commands.isHidden()
     columns.close()
+
+
+@pytest.mark.skipif(not ctypes.util.find_library("mpv"), reason="libmpv not installed")
+def test_the_editor_steps_through_the_clips_in_the_librarys_order(qapp, window):
+    if not _has_gl_display():
+        pytest.skip("the editor needs an OpenGL display (run under xvfb-run)")
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    first, second = window.state.visible[:2]
+    window.open_clip(first)
+    editor = window.editor
+    assert not editor.previous_button.isEnabled() and editor.next_button.isEnabled()
+    QTest.keyClick(editor, Qt.Key.Key_PageDown)
+    assert window.editor is not editor and window.editor.clip.name == second.name
+    assert window.editor.previous_button.isEnabled()
+    assert not window.editor.next_button.isEnabled()
+    window.editor.previous_button.click()
+    assert window.editor.clip.name == first.name
+    # Back still goes where the first clip was opened from.
+    window.editor.back.emit()
+    assert window.editor is None and window.stack.currentWidget() is window.library_view

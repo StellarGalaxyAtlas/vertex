@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from vertex import APP_NAME, desktop, logs, notifications, platform, reset
 from vertex.audio import channels
 from vertex.config import Config
+from vertex.core import clips as clips_mod
 from vertex.media import export
 from vertex.media.thumbnails import ThumbnailCache
 from vertex.recorder import notifier
@@ -390,17 +391,21 @@ class MainWindow(QMainWindow):
 
     # --- Editor ----------------------------------------------------------------
 
-    def open_clip(self, clip) -> None:
+    def open_clip(self, clip, opened_from: str = "") -> None:
         if not clip.path or not os.path.exists(clip.path):
             self.banner.show_message(f"{clip.name} is gone from the clips folder.", "warn")
             self.state.reload()
             return
         self._close_editor()
         # Back, and out after a delete or trim, goes where the clip was opened from.
-        self._editor_from = "home" if self.stack.currentWidget() is self.home_view \
-            else "library"
+        self._editor_from = opened_from or (
+            "home" if self.stack.currentWidget() is self.home_view else "library")
         self.editor = EditorView(self.context, self.state, clip)
         self.editor.back.connect(lambda: self.navigate(self._editor_from))
+        self.editor.step.connect(self._step_clip)
+        names = [each.name for each in self._editor_order()]
+        here = names.index(clip.name) if clip.name in names else -1
+        self.editor.set_neighbours(here > 0, 0 <= here < len(names) - 1)
         self.editor.delete_requested.connect(self._delete_from_editor)
         self.editor.trimmed.connect(self._clip_trimmed)
         self.stack.addWidget(self.editor)
@@ -415,6 +420,23 @@ class MainWindow(QMainWindow):
             return
         editor.close_editor()
         self._remove_page(editor)
+
+    def _editor_order(self) -> list:
+        """The clips the editor steps through: the library's, as it shows
+        them, or from Home every clip, newest first."""
+        if self._editor_from == "home":
+            return clips_mod.sort_clips(self.state.all_clips, "date", True)
+        return list(self.state.visible)
+
+    def _step_clip(self, delta: int) -> None:
+        if self.editor is None:
+            return
+        order = self._editor_order()
+        names = [clip.name for clip in order]
+        if self.editor.clip.name in names:
+            index = names.index(self.editor.clip.name) + delta
+            if 0 <= index < len(order):
+                self.open_clip(order[index], self._editor_from)
 
     def _delete_from_editor(self, clip) -> None:
         if not self.library_view.confirm_delete(clip):

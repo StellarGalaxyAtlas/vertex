@@ -32,7 +32,14 @@ from vertex.ui.dialogs.export import ExportDialog
 from vertex.ui.dialogs.tags import TagDialog
 from vertex.ui.editor.mixer import PANEL_W, TrackRow
 from vertex.ui.editor.timeline import LANE_GAP, LANE_H, RULER_H, Timeline
-from vertex.ui.widgets import ChoiceDialog, EditableLabel, IconButton, button, label
+from vertex.ui.widgets import (
+    ChoiceDialog,
+    EditableLabel,
+    ElidedLabel,
+    IconButton,
+    button,
+    label,
+)
 
 SEEK_STEP = 5.0
 SAVE_DELAY_MS = 800
@@ -50,6 +57,7 @@ def editor_scale(width: int, height: int) -> float:
 
 class EditorView(QWidget):
     back = Signal()
+    step = Signal(int)                           # -1 the clip before, 1 the one after
     delete_requested = Signal(object)            # clip
     trimmed = Signal(object, str, str)           # clip, mode ("copy"|"replace"), path
 
@@ -125,6 +133,13 @@ class EditorView(QWidget):
         header.setSpacing(10)
         self.back_button = back = button("Back", "ghost", "back", self.back.emit, "Back (Esc)")
         header.addWidget(back)
+        self.previous_button = IconButton("chevron-left", "Previous clip (Page Up)", 20)
+        self.previous_button.clicked.connect(lambda: self.step.emit(-1))
+        self.next_button = IconButton("chevron-right", "Next clip (Page Down)", 20)
+        self.next_button.clicked.connect(lambda: self.step.emit(1))
+        for neighbour in (self.previous_button, self.next_button):
+            neighbour.setEnabled(False)
+            header.addWidget(neighbour)
         self.title = EditableLabel(self.state.title_of(self.clip), self.clip.name)
         self.title.display.setObjectName("Subheading")
         self.title.committed.connect(self._rename)
@@ -172,9 +187,11 @@ class EditorView(QWidget):
         transport.addWidget(self.time_label)
         transport.addSpacing(8)
         self._build_playback_volume(transport)
-        transport.addStretch(1)
-        self.status = label("", "Muted")
-        transport.addWidget(self.status)
+        # The room left over; on a narrow window the line is cut from its end.
+        self.status = ElidedLabel()
+        self.status.setObjectName("Muted")
+        self.status.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        transport.addWidget(self.status, 1)
         transport.addSpacing(8)
         self.trim_button = button("Trim", icon="scissors", on_click=self.confirm_trim,
                                   tooltip="Trim to selection")
@@ -301,7 +318,8 @@ class EditorView(QWidget):
         way the top bar grows its tabs."""
         self.scale = scale
         for widget, size in ((self.in_button, 20), (self.out_button, 20),
-                             (self.play_button, 22), (self.reset_button, 18)):
+                             (self.play_button, 22), (self.reset_button, 18),
+                             (self.previous_button, 20), (self.next_button, 20)):
             widget.set_size(round(size * scale))
         theme.style(self.play_button, self._play_style)
         text = f"font-size: {10 * scale:.1f}pt;"
@@ -539,14 +557,14 @@ class EditorView(QWidget):
             self.status.setText("The selection is empty.")
             return
         parts = [fmt.duration(self.selection)]
-        if self.info.summary:
-            parts.append(self.info.summary)
         estimate = copy_estimate(self.info, self.selection)
         if estimate:
             parts.append(f"≈{fmt.size(estimate, 0)}")
-        self.status.setText("  ·  ".join(parts))
+        if self.info.summary:
+            parts.append(self.info.summary)
         theme.style(self.status, lambda: f"color: {theme.TEXT_MUTED}; "
                                          f"font-size: {10 * self.scale:.1f}pt;")
+        self.status.setText("  ·  ".join(parts))
 
     # --- Waveforms -------------------------------------------------------------
 
@@ -691,6 +709,12 @@ class EditorView(QWidget):
             self.set_in()
         elif key == Qt.Key.Key_O:
             self.set_out()
+        elif key == Qt.Key.Key_PageUp:
+            if self.previous_button.isEnabled():
+                self.step.emit(-1)
+        elif key == Qt.Key.Key_PageDown:
+            if self.next_button.isEnabled():
+                self.step.emit(1)
         elif key == Qt.Key.Key_Home:
             self.seek(self.trim_start)
         elif key == Qt.Key.Key_End:
@@ -704,6 +728,11 @@ class EditorView(QWidget):
             super().keyPressEvent(event)
             return
         event.accept()
+
+    def set_neighbours(self, previous: bool, following: bool) -> None:
+        """Whether there is a clip before and after this one to step to."""
+        self.previous_button.setEnabled(previous)
+        self.next_button.setEnabled(following)
 
     # --- Teardown ---------------------------------------------------------------
 

@@ -293,6 +293,13 @@ def _chevron_right(p, c):
     p.drawLine(QPointF(15, 12), QPointF(10, 17))
 
 
+@_register("chevron-left")
+def _chevron_left(p, c):
+    _pen(p, c, 2)
+    p.drawLine(QPointF(14, 7), QPointF(9, 12))
+    p.drawLine(QPointF(9, 12), QPointF(14, 17))
+
+
 @_register("chevron-down")
 def _chevron_down(p, c):
     _pen(p, c, 2)
