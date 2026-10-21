@@ -188,6 +188,10 @@ class FirstRunView(QWidget):
         scroll.setWidget(page)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # The window's own ground shows through, so the room under a short
+        # step isn't a dark box.
+        scroll.viewport().setAutoFillBackground(False)
+        page.setAutoFillBackground(False)
         return scroll
 
     @staticmethod
