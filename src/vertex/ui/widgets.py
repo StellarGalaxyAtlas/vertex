@@ -396,6 +396,7 @@ class Columns(QWidget):
     before that. Each keeps its own height."""
 
     WIDE = 1300          # px this row needs before its sections go side by side
+    turned = Signal(bool)    # side by side
 
     def __init__(self, *sections: QWidget, parent=None):
         super().__init__(parent)
@@ -415,6 +416,7 @@ class Columns(QWidget):
         if wide != self.side_by_side:
             self._layout.setDirection(QBoxLayout.Direction.LeftToRight if wide
                                       else QBoxLayout.Direction.TopToBottom)
+            self.turned.emit(wide)
 
 
 class Segmented(QWidget):

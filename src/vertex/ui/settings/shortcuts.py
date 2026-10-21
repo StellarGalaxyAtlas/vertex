@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
 from vertex import hotkeys, logs, platform
 from vertex.control import SAVE_LENGTHS
 from vertex.hotkeys import Hotkey
-from vertex.ui import theme
-from vertex.ui.widgets import Section, button, label, setting_row
+from vertex.ui import icons, theme
+from vertex.ui.widgets import Columns, Section, button, label, setting_row
 
 # (group, [(command, what it does, more)]). Every command must parse with the
 # `vertex` command's own parser; a test checks.
@@ -497,11 +497,17 @@ class ShortcutsPage:
             _command_rows(commands_layout.addWidget)
             commands.hide()
             toggle = button("Show the commands", icon="chevron-right")
+            touched = []
+
+            def show(on: bool) -> None:
+                commands.setVisible(on)
+                toggle.setText("Hide the commands" if on else "Show the commands")
+                chevron = "chevron-down" if on else "chevron-right"
+                theme.themed(toggle, lambda: toggle.setIcon(icons.icon(chevron)), "icon")
 
             def flip():
-                commands.setVisible(not commands.isVisible())
-                toggle.setText("Hide the commands" if commands.isVisible() else
-                               "Show the commands")
+                touched.append(True)
+                show(not commands.isVisible())
             toggle.clicked.connect(flip)
             top = QHBoxLayout()
             top.addWidget(toggle)
@@ -516,7 +522,10 @@ class ShortcutsPage:
             side_layout.setSpacing(16)
             side_layout.addWidget(other)
             side_layout.addWidget(_terminal())
-            self.sections = [(self.hotkeys.section, side)]
+            # Open while there is room beside the hotkeys, unless shown or hidden by hand.
+            self.columns = Columns(self.hotkeys.section, side)
+            self.columns.turned.connect(lambda wide: touched or show(wide))
+            self.sections = [self.columns]
             return
         intro = Section(
             "Keyboard shortcuts",

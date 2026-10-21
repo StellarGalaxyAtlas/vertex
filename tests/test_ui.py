@@ -2403,7 +2403,9 @@ def _hotkeys_page(monkeypatch):
 
     monkeypatch.setattr(hotkeys, "AVAILABLE", True)
     context = Context(Config())
-    return context, ShortcutsPage(context).hotkeys
+    page = ShortcutsPage(context)
+    page.hotkeys.owner = page        # its widgets live as long as the page
+    return context, page.hotkeys
 
 
 def test_a_hotkey_is_recorded_with_the_keys_held_shown_live(qapp, monkeypatch):
@@ -2521,3 +2523,22 @@ def test_a_saved_clip_is_tagged_with_the_fullscreen_game(qapp, window, monkeypat
     assert not games.get("c.mp4")
     assert context.config.game_names == {"HeroesOfTheStorm_x64": "Heroes of the Storm"}
 
+
+
+def test_the_commands_open_while_there_is_room_beside_the_hotkeys(qapp, monkeypatch):
+    from vertex import hotkeys
+    from vertex.config import Config
+    from vertex.ui.services import Context
+    from vertex.ui.settings.shortcuts import ShortcutsPage
+
+    monkeypatch.setattr(hotkeys, "AVAILABLE", True)
+    page = ShortcutsPage(Context(Config()))
+    columns = page.columns
+    columns.resize(columns.WIDE + 100, 600)
+    columns.show()
+    qapp.processEvents()
+    assert not page.commands.isHidden()
+    columns.resize(columns.WIDE - 100, 600)
+    qapp.processEvents()
+    assert page.commands.isHidden()
+    columns.close()
