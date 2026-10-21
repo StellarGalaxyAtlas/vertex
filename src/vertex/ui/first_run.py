@@ -455,11 +455,10 @@ class FirstRunView(QWidget):
     def _library(self) -> QWidget:
         choose = Section()
         if self.again:
-            self.fresh = ChoiceCard("Nothing to bring in", "Your library stays as it is.")
+            self.fresh = ChoiceCard("Nothing to import", "Your library stays as it is")
         else:
-            self.fresh = ChoiceCard("Start fresh", "Begin with an empty library")
-        self.existing = ChoiceCard("I already have clips",
-                                   "From SteelSeries Moments or anywhere else")
+            self.fresh = ChoiceCard("Nothing to import", "Just use the clips folder you picked")
+        self.existing = ChoiceCard("Import clips", "From SteelSeries Moments or another folder")
         ChoiceCard.join(self.fresh, self.existing)
         self.fresh.setChecked(True)
         pair = QHBoxLayout()
