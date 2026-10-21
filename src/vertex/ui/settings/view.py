@@ -35,7 +35,7 @@ from vertex.config import (
     Config,
     default_config,
 )
-from vertex.core import importing, storage
+from vertex.core import importing, naming, storage
 from vertex.core.clips import is_clip
 from vertex.media import roles
 from vertex.recorder import backend, gsr, obs
@@ -53,6 +53,7 @@ from vertex.ui.settings.tracks import NOTE as TRACKS_NOTE
 from vertex.ui.settings.tracks import TrackTable
 from vertex.ui.widgets import (
     Banner,
+    ChoiceDialog,
     Columns,
     Disclosure,
     PathField,
@@ -431,14 +432,14 @@ class SettingsView(QWidget):
                                            "Add the app that recorded your clips.")
         self.sources = NameSources()
         self.sources.changed.connect(self._save_names)
-        self.sources.added.connect(lambda: self.banner.show_message(
-            "Saved.", "ok"))
+        self.sources.added.connect(self._app_added)
         names.add(self.sources)
         self.reread = RereadLine()
         self.reread.review.connect(self._review_reread)
         names.add(self.reread)
         self._clip_names: list[str] = []
         self._reread_token = 0
+        self._asking: int | None = None    # the app just added, asked about next
         renames = Section("Game names", "Games you renamed in the library: new clips are "
                                         "tagged with the new name too")
         self.game_names = GameNames()
@@ -801,6 +802,7 @@ class SettingsView(QWidget):
         self._reread_token += 1
         token = self._reread_token
         if library is None or not self._clip_names:
+            self._asking = None
             self.reread.set_groups([])
             return
         # The library is read here, on the thread that opened it.
@@ -813,10 +815,51 @@ class SettingsView(QWidget):
         def done(groups) -> None:
             if token == self._reread_token:
                 self.reread.set_groups(groups)
+                self._ask_to_tag(groups, patterns)
 
         workers.run(lambda: importing.plan_reread(names, tags, dates, patterns, game_names,
                                                   kept),
                     done, lambda exc: logs.APP.error("Couldn't read the names again: %s", exc))
+
+    def _app_added(self) -> None:
+        self.banner.show_message("Saved.", "ok")
+        self._asking = len(self.context.config.patterns()) - 1
+        self._reread()
+
+    def _ask_to_tag(self, groups, patterns) -> None:
+        """Right after an app joins the list: offer to tag the clips with no
+        game that it reads one from."""
+        index, self._asking = self._asking, None
+        if index is None or not 0 <= index < len(patterns):
+            return
+        changes = [change for group in groups if group.game and not group.game_was
+                   for change in group.changes
+                   if naming.reader_of(change.filename, patterns) == index]
+        if not changes:
+            return
+        counts: dict[str, int] = {}
+        for change in changes:
+            counts[change.game] = counts.get(change.game, 0) + 1
+        games = [f"{game} ({count})" if len(counts) > 1 else game
+                 for game, count in sorted(counts.items(), key=lambda kv: -kv[1])]
+        if len(games) > 4:
+            games = [*games[:3], f"{len(games) - 3} more games"]
+        one = len(changes) == 1
+        answer = ChoiceDialog.ask(
+            self, "Tag clips",
+            f"Tag {fmt.plural(len(changes), 'clip')} with the game in "
+            f"{'its name' if one else 'their names'}?",
+            f"{patterns[index].app} reads {'it' if one else 'them'}: {_listed(games)}. "
+            f"{'It has' if one else 'They have'} no game yet.",
+            [("Review…", "review", ""), ("Tag them" if not one else "Tag it", "tag", "primary")],
+            cancel="Not now")
+        if answer == "tag":
+            self._apply_reread({change.filename: change.game for change in changes},
+                               {change.filename: change.when for change in changes
+                                if change.when})
+            self._reread()
+        elif answer == "review":
+            self._review_reread()
 
     def _review_reread(self) -> None:
         dialog = RereadDialog(self, self.reread.groups)
@@ -839,6 +882,11 @@ class SettingsView(QWidget):
         if pair not in self.context.config.kept_tags:
             self.context.config.kept_tags.append(pair)
             self.context.save_config()
+
+
+def _listed(items: list[str]) -> str:
+    """"a", "a and b", "a, b and c"."""
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 def _pairs(sections: list) -> list:

@@ -2344,6 +2344,48 @@ def test_settings_review_tags_from_file_names(qapp, window, library_dir, sample_
     # Kept is remembered: Valorant isn't asked about again.
     assert wait_until(qapp, lambda: not any(g.game for g in line.groups))
 
+def test_settings_asks_to_tag_clips_after_an_app_is_added(qapp, window, library_dir,
+                                                         sample_clip, monkeypatch):
+    from vertex.core.importing import Reread, RereadGroup
+    from vertex.ui.settings import reread
+    from vertex.ui.widgets import ChoiceDialog
+
+    medal = ["MedalTVApexLegends20260817235610725.mp4", "MedalTVApexLegends20260818101500001.mp4",
+             "MedalTVValorant20260809184502117.mp4", "MedalTVHelldivers220260810101500001.mp4"]
+    for name in medal:
+        shutil.copy2(sample_clip, library_dir / name)
+    context, settings = window.context, window.settings_view
+    context.library.set_tags(medal[3], "Ranked night", [])    # has a game: not asked about
+    asked = []
+
+    def ask(_cls, _parent, _title, message, detail="", choices=(), cancel=""):
+        asked.append((message, detail, [text for text, _value, _kind in choices], cancel))
+        return "tag"
+    monkeypatch.setattr(ChoiceDialog, "ask", classmethod(ask))
+    window.navigate("settings")
+    settings.show_page("import")
+    sources = settings.sources
+    assert wait_until(qapp, lambda: len(sources.unread()) >= 4)
+    if sources.adding.isHidden():
+        sources.add_button.click()
+    sources.teacher.choose("Medal")
+    sources.add_to_list.click()
+    assert wait_until(qapp, lambda: asked)
+    assert asked == [("Tag 3 clips with the game in their names?",
+                      "Medal reads them: Apex Legends (2) and Valorant (1). They have no "
+                      "game yet.", ["Review…", "Tag them"], "Not now")]
+    assert wait_until(qapp, lambda: context.library.tags()[medal[0]][0] == "Apex Legends")
+    tags = context.library.tags()
+    assert tags[medal[2]][0] == "Valorant" and tags[medal[3]][0] == "Ranked night"
+    assert reread.summary([RereadGroup("", "Valorant", [Reread(medal[2], "", "Valorant")])]) \
+        == "1 clip has no game, but its file name has one"
+    # Settings opened again later: nothing is asked.
+    settings.show_page("general")
+    settings.show_page("import")
+    qapp.processEvents()
+    assert len(asked) == 1
+
+
 def test_each_track_has_a_recording_volume(qapp):
     from vertex.config import RecorderConfig
     from vertex.ui.settings.tracks import TrackTable

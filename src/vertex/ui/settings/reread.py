@@ -27,6 +27,10 @@ def summary(groups: list[RereadGroup]) -> str:
     """The line Settings shows: how many clips' names disagree with Vertex."""
     games = sum(len(group.changes) for group in groups if group.game)
     dates = sum(len(group.changes) for group in groups if not group.game)
+    if games and not any(group.game_was for group in groups if group.game):
+        text = f"{games} clips have no game, but their file names have one" if games > 1 \
+            else "1 clip has no game, but its file name has one"
+        return text + (f", {fmt.plural(dates, 'clip')} dated differently" if dates else "")
     if games:
         text = f"{games} clips are tagged differently from their file names" if games > 1 \
             else "1 clip is tagged differently from its file name"
