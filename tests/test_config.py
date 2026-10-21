@@ -1,7 +1,10 @@
 import json
 import os
+import sys
 
-from vertex import config, paths
+import pytest
+
+from vertex import config, paths, platform
 
 
 def test_unknown_keys_are_ignored_and_dropped(tmp_path):
@@ -16,8 +19,8 @@ def test_unknown_keys_are_ignored_and_dropped(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps(data))
     loaded = config.Config.load(path)
-    assert loaded.clip_path == data["clip_path"]
-    assert loaded.export_path == data["export_path"]
+    assert loaded.clip_path == os.path.normpath(data["clip_path"])
+    assert loaded.export_path == os.path.normpath(data["export_path"])
     assert loaded.sonar.enabled is False
     assert loaded.recorder.replay_seconds == 60
     loaded.save(path)
@@ -27,12 +30,12 @@ def test_unknown_keys_are_ignored_and_dropped(tmp_path):
 
 def test_round_trip_with_new_sections(tmp_path):
     cfg = config.default_config()
-    cfg.sonar.enabled = True
-    cfg.sonar.channel("media").volume = 0.5
-    cfg.sonar.app_rules["spotify"] = "media"
     cfg.recorder.chat_audio = ""
     cfg.recorder.mic_audio = "device:alsa_input.usb-mic"
     cfg.colour_scheme = "spooky"
+    cfg.sonar.enabled = True
+    cfg.sonar.channel("media").volume = 0.5
+    cfg.sonar.app_rules["spotify"] = "media"
     path = tmp_path / "config.json"
     cfg.save(path)
     again = config.Config.load(path)
@@ -81,6 +84,7 @@ def test_missing_dirs_and_ensure(tmp_path):
     assert os.path.isdir(tmp_path / "exports")
 
 
+@pytest.mark.skipif(platform.WINDOWS, reason="the XDG layout is Linux's (see test_windows)")
 def test_xdg_env_is_honoured(isolated_home):
     assert str(paths.config_path()).startswith(str(isolated_home / ".config"))
     assert paths.normalize("~/x/../y/") == os.path.join(str(isolated_home), "y")
@@ -91,3 +95,40 @@ def test_assets_exist():
     for variant in paths.LOGO_VARIANTS:
         assert paths.mark_path(variant).is_file()
         assert paths.wordmark_path(variant).is_file()
+
+
+def test_paths_are_normalised_when_loaded():
+    loaded = config.Config.from_dict({"clip_path": "/clips/a/../b/", "log_path": "/logs//here",
+                                      "recorder": {"output_dir": "/saves/./x/"}})
+    assert loaded.clip_path == os.path.normpath("/clips/b")
+    assert loaded.log_path == os.path.normpath("/logs/here")
+    assert loaded.recorder.output_dir == os.path.normpath("/saves/x")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows' own path separators")
+def test_forward_slashes_become_backslashes_on_windows():
+    loaded = config.Config.from_dict({"clip_path": "C:/Users/me/Videos/"})
+    assert loaded.clip_path == "C:\\Users\\me\\Videos"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need rights there")
+def test_doctor_says_where_a_folder_really_is(tmp_path):
+    from vertex import doctor
+
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    link = tmp_path / "cache"
+    link.symlink_to(real)
+    assert doctor._folder_check("cache", str(real)).ok
+    moved = doctor._folder_check("cache", str(link))
+    assert not moved.ok and str(real) in moved.detail
+    assert "not there" in doctor._folder_check("cache", str(tmp_path / "none")).detail
+
+
+def test_tracks_record_sonar_only_where_there_is_one(monkeypatch):
+    monkeypatch.setattr(platform.here(), "SONAR", True)
+    assert config.RecorderConfig().chat_audio == "device:vertex_chat.monitor"
+    monkeypatch.setattr(platform.here(), "SONAR", False)
+    rec = config.RecorderConfig()
+    assert (rec.game_audio, rec.chat_audio, rec.mic_audio) == ("default_output", "",
+                                                               "default_input")

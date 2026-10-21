@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import ctypes.util
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 
 from vertex import config as config_mod
-from vertex import paths
+from vertex import paths, platform
 from vertex.audio.pulse import AudioError, Pactl
-from vertex.recorder import gsr, notifier, presets
+from vertex.recorder import backend, gsr, notifier, obs, presets
 
 
 @dataclass
@@ -24,69 +25,52 @@ class Check:
     required: bool = True
 
 
-def _distro() -> str:
-    try:
-        with open("/etc/os-release", encoding="utf-8") as handle:
-            text = handle.read().lower()
-    except OSError:
-        return ""
-    for family, markers in (("arch", ("arch", "manjaro", "endeavouros", "cachyos")),
-                            ("fedora", ("fedora", "nobara", "bazzite")),
-                            ("debian", ("debian", "ubuntu", "mint", "pop"))):
-        if any(f"id={m}" in text or f"id_like={m}" in text or f"id_like=\"{m}" in text
-               for m in markers):
-            return family
-    return ""
-
-
-PACKAGES = {
-    "ffmpeg": {"arch": "ffmpeg", "fedora": "ffmpeg", "debian": "ffmpeg"},
-    "libmpv": {"arch": "mpv", "fedora": "mpv-libs", "debian": "libmpv2"},
-    "pactl": {"arch": "libpulse", "fedora": "pulseaudio-utils", "debian": "pulseaudio-utils"},
-    "gsr": {"arch": "gpu-screen-recorder (AUR)", "fedora": "gpu-screen-recorder (COPR)",
-            "debian": "gpu-screen-recorder (Flatpak: com.dec05eba.gpu_screen_recorder)"},
-    "gsr-notify": {"arch": "gpu-screen-recorder-notification",
-                   "fedora": "gpu-screen-recorder-notification (COPR)",
-                   "debian": "gpu-screen-recorder-notification (from source)"},
-}
-
-
 def _hint(what: str) -> str:
-    family = _distro()
-    package = PACKAGES[what].get(family)
-    if package is None:
-        return "install " + " / ".join(sorted(set(PACKAGES[what].values())))
-    return f"install {package}"
+    return platform.install_hint(what)
 
 
-def run_checks(config: config_mod.Config | None = None) -> list[Check]:
-    config = config or config_mod.Config.load_or_default()
-    checks: list[Check] = []
+def _find_libmpv() -> str | None:
+    """Where libmpv is, by the names python-mpv itself looks for."""
+    for name in platform.LIBMPV_NAMES:
+        found = ctypes.util.find_library(name)
+        if found:
+            return found
+    return None
 
-    for tool in ("ffmpeg", "ffprobe"):
-        found = shutil.which(tool)
-        checks.append(Check(tool, bool(found), found or "not found", _hint("ffmpeg")))
 
-    lib = ctypes.util.find_library("mpv")
-    checks.append(Check("libmpv", bool(lib), lib or "not found", _hint("libmpv")))
-
-    for module, label in (("PySide6", "PySide6"), ("mpv", "python-mpv"),
-                          ("send2trash", "Send2Trash")):
-        found = importlib.util.find_spec(module) is not None
-        checks.append(Check(label, found, "installed" if found else "missing",
-                            f"pip install {label}", required=module != "send2trash"))
-
-    pactl = Pactl()
+def _audio_server_checks() -> list[Check]:
+    """What Sonar runs on: PipeWire, through pactl."""
     try:
-        info = pactl.info()
-        server = str(info.get("server_name", "audio server"))
-        checks.append(Check("audio server", True, server))
-        checks.append(Check("PipeWire", "pipewire" in server.lower(),
-                            server, "Sonar works best on PipeWire (pipewire-pulse)",
-                            required=False))
+        info = Pactl().info()
     except AudioError as exc:
-        checks.append(Check("audio server", False, str(exc), _hint("pactl")))
+        return [Check("audio server", False, str(exc), _hint("pactl"))]
+    server = str(info.get("server_name", "audio server"))
+    return [Check("audio server", True, server),
+            Check("PipeWire", "pipewire" in server.lower(), server,
+                  "Sonar works best on PipeWire (pipewire-pulse)", required=False)]
 
+
+def _obs_checks(config: config_mod.Config) -> list[Check]:
+    found = obs.detect(config.recorder.command)
+    detail = found.version_text or ("found" if found.available else "not installed")
+    fix = found.error if found.available else _hint("obs") + " — or set where it is in Settings"
+    checks = [Check(obs.NAME, found.available and not found.too_old, detail, fix,
+                    required=False)]
+    if found.available:
+        websocket = obs.websocket_settings()
+        checks.append(Check(
+            "OBS WebSocket server", websocket.enabled or not obs.running(),
+            f"port {websocket.port}" if websocket.enabled else "off",
+            "close OBS and Vertex switches it on when it starts the replay buffer",
+            required=False))
+        problems = obs.validate(presets.resolve(config.recorder, []))
+        checks.append(Check("recorder settings", not problems, "; ".join(problems) or "valid",
+                            "fix them in Settings → Recording", required=False))
+    return checks
+
+
+def _gsr_checks(config: config_mod.Config) -> list[Check]:
+    checks: list[Check] = []
     found = gsr.detect(config.recorder.command)
     if not found.available:
         detail, fix = "not installed", _hint("gsr") + " — or set its command in Settings"
@@ -109,21 +93,65 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
                         found_notifier or "not found",
                         _hint("gsr-notify") + " — to show notifications over games",
                         required=False))
+    return checks
+
+
+def _folder_check(name: str, folder: str) -> Check:
+    """Where a folder Vertex keeps things in is, and whether it is really
+    there: Windows can keep an app's AppData folders somewhere else, where
+    the programs Vertex starts (ffmpeg, OBS) don't look."""
+    if not os.path.isdir(folder):
+        return Check(name, False, f"{paths.tilde(folder)} (not there yet)",
+                     "run Vertex once to create it", required=False)
+    real = os.path.realpath(folder)
+    if os.path.normcase(real) != os.path.normcase(os.path.abspath(folder)):
+        return Check(name, False, f"{paths.tilde(folder)}, kept in {paths.tilde(real)}",
+                     "ffmpeg and OBS may not find it there", required=False)
+    return Check(name, True, paths.tilde(folder), required=False)
+
+
+def run_checks(config: config_mod.Config | None = None) -> list[Check]:
+    config = config or config_mod.Config.load_or_default()
+    checks: list[Check] = []
+
+    for tool in ("ffmpeg", "ffprobe"):
+        found = shutil.which(tool)
+        checks.append(Check(tool, bool(found), found or "not found", _hint("ffmpeg")))
+
+    lib = _find_libmpv()
+    checks.append(Check("libmpv", bool(lib), lib or "not found", _hint("libmpv")))
+
+    for module, label in (("PySide6", "PySide6"), ("mpv", "python-mpv"),
+                          ("send2trash", "Send2Trash")):
+        found = importlib.util.find_spec(module) is not None
+        checks.append(Check(label, found, "installed" if found else "missing",
+                            f"pip install {label}", required=module != "send2trash"))
+
+    if platform.SONAR:
+        checks += _audio_server_checks()
+
+    checks += _obs_checks(config) if backend.is_obs() else _gsr_checks(config)
 
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),
                         "run Vertex once to go through setup", required=False))
-    # A virtual environment's (pipx's) own python says little: name the
+    # A virtual environment's (pipx's) own python.exe says little: name the
     # Python it was made from too.
     python = sys.executable if sys.prefix == sys.base_prefix else \
         f"{sys.executable}, made from {sys.base_prefix}"
     checks.append(Check("python", True, python, required=False))
+    for name, folder in (("library", config.resolved_data_dir()),
+                         ("state", config.resolved_state_dir()),
+                         ("cache", config.resolved_cache_dir())):
+        checks.append(_folder_check(name, folder))
+    if platform.FILE_OPENER is None:
+        return checks
+    opener, fix = platform.FILE_OPENER
     try:
-        subprocess.run(["xdg-open", "--version"], capture_output=True, timeout=5)
-        checks.append(Check("xdg-open", True, "found", required=False))
+        subprocess.run([opener, "--version"], capture_output=True, timeout=5)
+        checks.append(Check(opener, True, "found", required=False))
     except (OSError, subprocess.SubprocessError):
-        checks.append(Check("xdg-open", False, "not found", "install xdg-utils",
-                            required=False))
+        checks.append(Check(opener, False, "not found", fix, required=False))
     return checks
 
 

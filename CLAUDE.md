@@ -1,8 +1,10 @@
 # Notes for Claude
 
-Vertex re-implements SteelSeries Moments (clips library, editor, export) and
-SteelSeries Sonar (virtual Game/Chat/Media outputs and a Vertex Mic) for
-Linux. Read `docs/DEVELOPMENT.md` before changing code.
+Vertex re-implements SteelSeries Moments (clips library, editor, export) for
+Linux and Windows, and SteelSeries Sonar (virtual Game/Chat/Media outputs and
+a Vertex Mic) on Linux only. One package serves both: GPU Screen Recorder
+records on Linux, OBS Studio on Windows. Read `docs/DEVELOPMENT.md` before
+changing code.
 
 ## The work list
 
@@ -43,7 +45,12 @@ and push it. Code, tests and docs don't mention TODO items.
 ## Rules of the code
 
 - Everything outside `vertex.ui` stays free of Qt.
-- Blocking work (pactl, ffmpeg, disk) goes through `ui/workers.run`, never on
+- What differs between Linux and Windows lives in `vertex/platform/`
+  (`linux.py`, `windows.py`, the same names in each, listed in `NAMES`);
+  nothing else checks which system it runs on, and a test fails if it does.
+  Sonar exists where `platform.SONAR` says; in the UI, `context.sonar` is
+  None without it. Hotkeys and fullscreen-game tagging are Windows-only.
+- Blocking work (pactl, ffmpeg, the recorder, disk) goes through `ui/workers.run`, never on
   the UI thread.
 - Never modify a user's recordings; write under a staging name and move into
   place.
@@ -57,6 +64,12 @@ and push it. Code, tests and docs don't mention TODO items.
 
 - No audio server runs there. Tests use the fake pactl in `tests/fake_pactl.py`;
   the PipeWire tests skip themselves.
+- No Windows there: `tests/test_windows.py` switches the Windows branches on
+  (`platform.WINDOWS`, `ipc.USE_TCP`), and CI's Windows job runs it for real.
+  A test of the app without Sonar asks for the `no_sonar` fixture.
+- No OBS there either: `tests/fake_obs.py` stands in for obs-websocket.
+  What Vertex sets up in OBS is only proven on Windows, so ask the maintainer
+  to have recording changes tried there.
 - Run the tests through `python -m pytest`: the bare `pytest` on the PATH can
   be a separate tool that can't import Vertex. If `import vertex` fails in a
   new container, run `pip install -e ".[dev]"` again.

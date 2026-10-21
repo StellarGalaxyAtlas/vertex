@@ -135,7 +135,7 @@ def game_from_filename(name: str, patterns=None) -> str:
 
     "THE-FINALS__2024-06-16__19-45-23.mp4" → "THE FINALS". GPU Screen
     Recorder's fixed "Replay_…" naming carries no game at all, so those clips
-    are left for the library (or the Sonar game channel) to tag instead.
+    are left for the library (or Sonar's Game channel) to tag instead.
     `patterns` are tried first (by default the ones taught).
     """
     reading = _read(name, patterns)
@@ -176,6 +176,7 @@ _NOT_GAMES = frozenset({
     "wineserver", "pressure-vessel-wrap", "reaper", "proton", "gamescope",
     "firefox", "chromium", "chrome", "discord", "spotify", "vesktop", "obs",
     "pipewire", "wireplumber", "pulseaudio", "paplay", "pw-play", "mpv",
+    "msedge", "brave", "opera", "vlc", "explorer",
 })
 
 
@@ -192,6 +193,17 @@ def game_from_app(name: str) -> str:
     if " " not in text and ("_" in text or "-" in text):
         text = clean_tag(text.replace("_", " ").replace("-", " "))
     return text.translate(TRADEMARKS).strip()
+
+
+def game_from_window(title: str, program: str) -> str:
+    """A tag-worthy game name from a fullscreen window: its title, or its
+    program's name when it has none ("HeroesOfTheStorm_x64.exe" → as is).
+    A browser, chat or media app filling the screen comes back "": that's
+    no game being played."""
+    program = re.split(r"[\\/]", program)[-1]      # a Windows path, read anywhere
+    if program and not game_from_app(program):
+        return ""
+    return clean_tag(title.translate(TRADEMARKS)) or game_from_app(program)
 
 
 def fixed_name(game: str, names: dict[str, str]) -> str:

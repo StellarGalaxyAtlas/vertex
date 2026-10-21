@@ -8,6 +8,7 @@ import sys
 import threading
 
 from vertex.media.ffmpeg import BASE
+from vertex.platform import NO_WINDOW
 
 # A lane is a couple of thousand pixels wide at most, so 4 kHz mono still
 # leaves ~100 samples behind every pixel column, and decodes fast.
@@ -32,7 +33,8 @@ def peaks(clip_path: str, index: int, duration: float, buckets: int = PEAK_BUCKE
     argv = [*BASE, "-v", "error", "-i", clip_path, "-map", f"0:a:{index}", "-vn",
             "-ac", "1", "-ar", str(PEAK_RATE), "-f", "s16le", "-"]
     try:
-        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                **NO_WINDOW)
     except OSError:
         return []
 

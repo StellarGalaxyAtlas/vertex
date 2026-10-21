@@ -1,5 +1,5 @@
-"""First-run setup: the clips folder, Vertex Sonar, Vertex Moments, and the
-clips someone already has."""
+"""First-run setup: the clips folder, Vertex Sonar (where there is one),
+Vertex Moments, and the clips someone already has."""
 
 from __future__ import annotations
 
@@ -26,13 +26,12 @@ from vertex import APP_NAME, fmt, paths
 from vertex.config import Config, default_config
 from vertex.core import importing
 from vertex.library.database import DB_NAME, Library
-from vertex.recorder import gsr, notifier
+from vertex.recorder import backend, gsr, notifier
 from vertex.ui import icons, theme, workers
 from vertex.ui.dialogs.importing import FolderList
 from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
-from vertex.ui.settings.tracks import NOTE as TRACKS_NOTE
-from vertex.ui.settings.tracks import TrackTable
+from vertex.ui.settings.tracks import TrackTable, tracks_note
 from vertex.ui.sonar_view import DeviceField
 from vertex.ui.widgets import (
     ChoiceCard,
@@ -154,6 +153,8 @@ class FirstRunView(QWidget):
         for key, build in (("folders", lambda: self._folders(missing)),
                            ("sonar", self._sonar), ("moments", self._moments),
                            ("library", self._library), ("tags", self._tags)):
+            if key == "sonar" and context.sonar is None:
+                continue
             self.pages[key] = self._page(build())
             self.stack.addWidget(self.pages[key])
 
@@ -302,7 +303,7 @@ class FirstRunView(QWidget):
         row.addLayout(text, 1)
         self.install_button = button("How to install it", "primary",
                                      on_click=lambda: QDesktopServices.openUrl(
-                                         QUrl(gsr.INSTALL_URL)))
+                                         QUrl(backend.install_url())))
         row.addWidget(self.install_button, 0, Qt.AlignmentFlag.AlignVCenter)
         self.recheck_button = button("Check again", on_click=self._find_recorder)
         row.addWidget(self.recheck_button, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -310,7 +311,7 @@ class FirstRunView(QWidget):
         self.install.hide()
 
         section = Section("Recording")
-        self.gsr_status = label("Looking for GPU Screen Recorder…", "Dim", wrap=True)
+        self.gsr_status = label(f"Looking for {backend.name()}…", "Dim", wrap=True)
         section.add(self.gsr_status)
         # Its notifier, which shows Vertex's notifications over games.
         self.notifier_row = QWidget()
@@ -331,11 +332,12 @@ class FirstRunView(QWidget):
         self.choices.quality_picked.connect(self._quality_picked)
         self.choices.monitors_changed.connect(self._choices_changed)
         # Settings' tracks: which device each one records.
-        self.tracks = TrackTable()
+        self.tracks = TrackTable(backend.has_track_volume())
+        self.tracks.load(self.config.recorder)
         self.tracks.show_devices([], self.config.recorder)
         self.tracks.changed.connect(self._tracks_changed)
         section.add(self.tracks)
-        section.add(label(TRACKS_NOTE, "Dim", wrap=True))
+        section.add(label(tracks_note(), "Dim", wrap=True))
         self.rec_autostart = Toggle(self.config.recorder.autostart if self.again else False)
         self._autostart_touched = self.again
         self.rec_autostart.clicked.connect(lambda: setattr(self, "_autostart_touched", True))
@@ -356,15 +358,15 @@ class FirstRunView(QWidget):
         self.choices.show(self.config.recorder)
         self.clip_size.estimate(self.config, self.choices.recorded)
 
+    def _tracks_changed(self) -> None:
+        self.tracks.apply(self.config.recorder)
+        self.clip_size.estimate(self.config, self.choices.recorded)
+
     def _quality_picked(self) -> None:
         # As in Settings: picking a level drops a bitrate set by hand.
         if self.choices.video_quality.currentData() != "custom":
             self.config.recorder.bitrate_kbps = 0
         self._choices_changed()
-
-    def _tracks_changed(self) -> None:
-        self.tracks.apply(self.config.recorder)
-        self.clip_size.estimate(self.config, self.choices.recorded)
 
     def _find_recorder(self) -> None:
         command = self.config.recorder.command
@@ -372,17 +374,19 @@ class FirstRunView(QWidget):
         self.notifier_check.setEnabled(False)
 
         def probe():
-            info = gsr.detect(command)
+            info = backend.detect(command)
             usable = info.available and not info.too_old
-            return (info, gsr.list_capture_options(command) if usable else [],
-                    notifier.find(), gsr.list_audio_devices(command) if usable else [])
+            return (info, backend.list_capture_options(command) if usable else [],
+                    notifier.find() if backend.has_notifier() else None,
+                    backend.list_audio_devices(command) if usable else [])
 
         workers.run(probe, self._got_recorder)
 
     def _got_recorder(self, result) -> None:
         info, options, notifier_path, devices = result
         self.notifier_path = notifier_path
-        self._show_notifier(bool(notifier_path))
+        if backend.has_notifier():
+            self._show_notifier(bool(notifier_path))
         self.gsr_info = info
         self.recheck_button.setEnabled(True)
         usable = info.available and not info.too_old
@@ -392,7 +396,7 @@ class FirstRunView(QWidget):
         self.tracks.show_devices(devices, self.config.recorder)
         self._choices_changed()
         if usable:
-            self.gsr_status.setText(f"Recording with GPU Screen Recorder {info.version_text}.")
+            self.gsr_status.setText(f"Recording with {backend.name()} {info.version_text}.")
             theme.style(self.gsr_status, lambda: f"color: {theme.OK};")
             if not self._autostart_touched:
                 self.rec_autostart.setChecked(True)
@@ -400,22 +404,23 @@ class FirstRunView(QWidget):
         self.rec_autostart.setChecked(False)
         theme.style(self.gsr_status, lambda: f"color: {theme.WARN};")
         later = "Or carry on and set it up later in Settings."
+        name = backend.name()
         if info.too_old:
-            self.gsr_status.setText(f"GPU Screen Recorder {info.version_text} is too old.")
-            minimum = ".".join(map(str, gsr.MIN_VERSION))
-            self.install_title.setText("Update GPU Screen Recorder")
+            self.gsr_status.setText(f"{name} {info.version_text} is too old.")
+            minimum = ".".join(map(str, backend.min_version()))
+            self.install_title.setText(f"Update {name}")
             self.install_text.setText(f"Version {minimum} or newer is needed (you have "
                                       f"{info.version_text}). {later}")
             self.install_button.setText("How to update it")
         elif not info.missing:
-            self.gsr_status.setText("GPU Screen Recorder didn't start.")
-            self.install_title.setText("GPU Screen Recorder didn't start")
+            self.gsr_status.setText(f"{name} didn't start.")
+            self.install_title.setText(f"{name} didn't start")
             self.install_text.setText(f"{info.error} {later}")
             self.install_button.setText("How to install it")
         else:
-            self.gsr_status.setText("GPU Screen Recorder isn't installed.")
-            self.install_title.setText("Install GPU Screen Recorder")
-            self.install_text.setText(f"Vertex records with GPU Screen Recorder, which isn't "
+            self.gsr_status.setText(f"{name} isn't installed.")
+            self.install_title.setText(f"Install {name}")
+            self.install_text.setText(f"Vertex records with {name}, which isn't "
                                       f"installed. {later}")
             self.install_button.setText("How to install it")
 
@@ -435,7 +440,7 @@ class FirstRunView(QWidget):
 
     def _check_recording(self) -> bool:
         self.choices.apply(self.config.recorder)
-        problems = gsr.validate(self.choices.recorded(self.config.recorder))
+        problems = backend.validate(self.choices.recorded(self.config.recorder))
         self.moments_error.setText(problems[0] if problems else "")
         self.moments_error.setVisible(bool(problems))
         return not problems
@@ -805,7 +810,8 @@ class FirstRunView(QWidget):
     @property
     def steps(self) -> list[str]:
         """The steps, in order: the last one only when clips are brought along."""
-        order = ["folders", "sonar", "moments", "library"]
+        order = [key for key in ("folders", "sonar", "moments", "library")
+                 if key in self.pages]
         if self._bringing_clips():
             order.append("tags")
         return order
@@ -883,10 +889,12 @@ class FirstRunView(QWidget):
         self.choices.apply(config.recorder)
         self.tracks.apply(config.recorder)
         config.recorder.autostart = self.rec_autostart.isChecked()
-        config.sonar.output_device = self.output.currentData() or ""
-        config.sonar.mic_device = self.mic.currentData() or ""
         if self._bringing_clips():
             config.name_patterns = [p.to_dict() for p in self._patterns()]
         games, dates = self._confirmed_tags() if self._bringing_clips() else ({}, {})
-        self.finished.emit(SetupResult(config, self.sonar_enabled.isChecked(),
+        sonar = self.context.sonar is not None
+        if sonar:
+            config.sonar.output_device = self.output.currentData() or ""
+            config.sonar.mic_device = self.mic.currentData() or ""
+        self.finished.emit(SetupResult(config, sonar and self.sonar_enabled.isChecked(),
                                        self.rec_autostart.isChecked(), games, dates))

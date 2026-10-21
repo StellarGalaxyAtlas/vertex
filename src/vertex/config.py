@@ -14,8 +14,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vertex import APP_NAME, notifications, paths
+from vertex import APP_NAME, hotkeys, notifications, paths, platform
 from vertex.audio import channels
+from vertex.control import SAVE_LENGTHS
 from vertex.core.name_patterns import NamePattern
 from vertex.core.naming import add_game_name
 
@@ -52,12 +53,22 @@ REPLAY_STORAGES = ("ram", "disk")
 ENCODERS = ("gpu", "cpu")
 
 
+def _track_default(channel: channels.Channel, elsewhere: str):
+    """A track's device unless set: Sonar's channel where there is Sonar, else
+    `elsewhere`. Asked when a config is made, not when Vertex loads."""
+    return field(default_factory=lambda: f"device:{channel.record_source}" if platform.SONAR
+                 else elsewhere)
+
+
 @dataclass
 class RecorderConfig:
-    """How Vertex runs GPU Screen Recorder's replay buffer."""
+    """How Vertex runs the replay buffer: GPU Screen Recorder's on Linux,
+    OBS Studio's on Windows (see recorder.backend)."""
 
     autostart: bool = False          # start the replay buffer when Vertex starts
-    command: str = "gpu-screen-recorder"   # may be a full command, e.g. a Flatpak run line
+    # GSR's command, which may be a full one (a Flatpak run line); on Windows
+    # obs64.exe, "" = wherever OBS is installed.
+    command: str = platform.RECORDER_COMMAND
     capture: str = "screen"          # screen | portal | focused | region | <monitor name>
     region: str = ""                 # WxH+X+Y, for capture == "region"
     resolution: str = ""             # "1080p" (short side), "" = the monitor's own, or WxH
@@ -79,16 +90,26 @@ class RecorderConfig:
     restore_portal_session: bool = True
     output_dir: str = ""             # "" = the clip folder
     # The clip's audio tracks, as GSR's -a takes them ("default_output",
-    # "default_input", "device:<node>"); "" = no such track. Sonar's channels
-    # are devices like any other: while one is missing (Sonar off), its track
-    # records the default output or input instead (gsr.available_tracks).
-    game_audio: str = f"device:{channels.GAME.record_source}"
-    chat_audio: str = f"device:{channels.CHAT.record_source}"
-    media_audio: str = f"device:{channels.MEDIA.record_source}"
-    mic_audio: str = f"device:{channels.MIC.record_source}"
-    extra_args: str = ""
-    # Tag a new clip with the app playing on the Game channel when it is saved.
+    # "default_input", "device:<node>", "app:<name>"); "" = no such track.
+    # While a device is missing, its track records the default output or
+    # input instead (gsr.available_tracks). Where Sonar can run, the tracks
+    # record its channels, which are devices like any other: while Sonar is
+    # off, they record the defaults.
+    game_audio: str = _track_default(channels.GAME, "default_output")
+    chat_audio: str = _track_default(channels.CHAT, "")
+    media_audio: str = _track_default(channels.MEDIA, "")
+    mic_audio: str = _track_default(channels.MIC, "default_input")
+    # How loud each track is recorded, in percent (TRACK_VOLUME_RANGE), where
+    # the recorder can set it (backend.has_track_volume).
+    game_volume: int = 100
+    chat_volume: int = 100
+    media_volume: int = 100
+    mic_volume: int = 100
+    # Tag a saved clip with the game filling the screen (Windows), or Desktop.
+    tag_from_fullscreen: bool = True
+    # Tag a new clip with the app playing on Sonar's Game channel when it is saved.
     tag_from_game_channel: bool = True
+    extra_args: str = ""
 
 
 # --- Sonar ------------------------------------------------------------------
@@ -139,7 +160,11 @@ class SonarConfig:
 # --- The whole file ---------------------------------------------------------
 
 PLAYBACK_VOLUME_RANGE = (0, 300)
+TRACK_VOLUMES = ("game_volume", "chat_volume", "media_volume", "mic_volume")
+TRACK_VOLUME_RANGE = (0, 100)
 
+
+# --- The whole file ---------------------------------------------------------
 
 @dataclass
 class Config:
@@ -165,15 +190,21 @@ class Config:
     notify_over_games: bool = True
 
     recorder: RecorderConfig = field(default_factory=RecorderConfig)
+    # Sonar, where it can run (platform.SONAR).
     sonar: SonarConfig = field(default_factory=SonarConfig)
 
     # How clip apps write the game and the time into names, as the user
     # taught Vertex (NamePattern.to_dict()), tried first to last.
     name_patterns: list[dict] = field(default_factory=list)
 
+    # Global hotkeys (see vertex.hotkeys), as text by action, and how much
+    # the "Save the last" one saves.
+    hotkeys: dict[str, str] = field(default_factory=dict)
+    hotkey_last_seconds: int = 30
 
     # Game names the user fixed: a name Vertex reads (from a clip's name or
-    # Sonar's Game channel) → the tag it writes instead (naming.fixed_name).
+    # Sonar's Game channel or the fullscreen window) → the tag it writes
+    # instead (naming.fixed_name).
     game_names: dict[str, str] = field(default_factory=dict)
 
     # What a clip's name says that the user chose to keep their tag over:
@@ -242,7 +273,7 @@ class Config:
             if not path:
                 continue
             try:
-                os.makedirs(path, exist_ok=True)
+                paths.make_dir(path)
             except OSError:
                 failed.append(path)
         return failed
@@ -261,7 +292,8 @@ class Config:
                                     map(NamePattern.from_dict, taught) if pattern is not None]
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
-        config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
+        config.hotkeys = {action: hotkey.text for action, hotkey in
+                          hotkeys.bindings(config.hotkeys).items()}
         names: dict[str, str] = {}
         for old, new in config.game_names.items():
             if isinstance(new, str):
@@ -270,10 +302,21 @@ class Config:
         config.kept_tags = [list(pair) for pair in config.kept_tags
                             if isinstance(pair, list) and len(pair) == 2 and
                             all(isinstance(part, str) for part in pair)]
+        if config.hotkey_last_seconds not in SAVE_LENGTHS:
+            config.hotkey_last_seconds = Config.hotkey_last_seconds
         config.playback_volume = min(max(config.playback_volume, PLAYBACK_VOLUME_RANGE[0]),
                                      PLAYBACK_VOLUME_RANGE[1])
+        config.card_width = min(max(config.card_width, CARD_WIDTH_RANGE[0]), CARD_WIDTH_RANGE[1])
         config.recorder = _fill(RecorderConfig(), data.get("recorder"))
         config.sonar = _load_sonar(data.get("sonar"))
+        for key in TRACK_VOLUMES:
+            setattr(config.recorder, key, min(max(getattr(config.recorder, key),
+                                                  TRACK_VOLUME_RANGE[0]), TRACK_VOLUME_RANGE[1]))
+        # Tidied, as Windows' own separators, but '~' kept as written.
+        for owner, key in [*((config, key) for key in (*REQUIRED_FIELDS, "log_path")),
+                           (config.recorder, "output_dir")]:
+            value = getattr(owner, key).strip()
+            setattr(owner, key, os.path.normpath(value) if value else "")
         return config
 
     @classmethod
@@ -295,7 +338,7 @@ class Config:
     def save(self, path: str | os.PathLike | None = None) -> None:
         """Write the file atomically, so a crash mid-save never truncates it."""
         target = Path(path or paths.config_path())
-        target.parent.mkdir(parents=True, exist_ok=True)
+        paths.make_dir(target.parent)
         fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".config-", suffix=".json")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -364,7 +407,7 @@ def _load_sonar(data: Any) -> SonarConfig:
 
 def default_config() -> Config:
     """A Config with every path filled in for the account running right now."""
-    videos = paths.xdg_user_dir("VIDEOS", "~/Videos")
+    videos = paths.user_dir("VIDEOS", "~/Videos")
     clips = os.path.join(videos, CLIP_SUBDIR)
     return Config(
         clip_path=clips,

@@ -3,9 +3,10 @@ command line from Vertex's settings.
 
 Everything about a recording is a command-line flag, so the whole of
 `RecorderConfig` maps onto one argv, built here as a pure function. Audio is
-where Vertex adds something: with Sonar on, every recorded channel becomes its
-own track, titled after the channel, so every clip carries the same tracks in
-the same layout whatever the hardware is called.
+where Vertex adds something: every recorded part (game, chat, media, mic)
+becomes its own track, titled after the part, so every clip carries the same
+tracks in the same layout whatever the hardware is called. With Sonar on, the
+parts are its channels.
 """
 
 from __future__ import annotations
@@ -16,7 +17,6 @@ import shlex
 import subprocess
 from dataclasses import dataclass
 
-from vertex.audio import channels
 from vertex.config import (
     BITRATE_MODES,
     COLOR_RANGES,
@@ -28,6 +28,7 @@ from vertex.config import (
     Config,
     RecorderConfig,
 )
+from vertex.media import roles
 
 # `-a "name:<title>|device:<node>"` sets a track's title. Versions before this
 # take the "name:" part for a device and refuse to start.
@@ -165,9 +166,10 @@ def list_capture_options(command: str) -> list[CaptureOption]:
 class Track:
     """One audio track of a recording."""
 
-    source: str      # what GSR records: "device:vertex_game.monitor", "default_output", …
+    source: str      # what GSR records: "default_output", "app:Discord", "device:…"
     title: str       # the track title written into the clip ("" = GSR's own)
     channel: str = ""
+    volume: int = 100   # percent, where the recorder can set it
 
     def argument(self, named: bool) -> str:
         if named and self.title:
@@ -176,8 +178,8 @@ class Track:
 
 
 # A clip's audio tracks: the lane each becomes, and the setting naming its device.
-AUDIO_ROLES = ((channels.GAME.id, "game_audio"), (channels.CHAT.id, "chat_audio"),
-               (channels.MEDIA.id, "media_audio"), (channels.MIC.id, "mic_audio"))
+AUDIO_ROLES = ((roles.GAME.id, "game_audio"), (roles.CHAT.id, "chat_audio"),
+               (roles.MEDIA.id, "media_audio"), (roles.MIC.id, "mic_audio"))
 
 
 def audio_tracks(config: Config) -> list[Track]:
@@ -188,13 +190,14 @@ def audio_tracks(config: Config) -> list[Track]:
     for role, setting in AUDIO_ROLES:
         source = getattr(config.recorder, setting).strip()
         if source:
-            tracks.append(Track(source, channels.BY_ID[role].track_title, role))
+            volume = getattr(config.recorder, f"{role}_volume", 100)
+            tracks.append(Track(source, roles.BY_ID[role].track_title, role, volume))
     return tracks
 
 
 def fallback_source(role: str) -> str:
     """What a track records while its own device is missing."""
-    return "default_input" if role == channels.MIC.id else "default_output"
+    return "default_input" if role == roles.MIC.id else "default_output"
 
 
 def _recordable(source: str, devices: set[str]) -> bool:

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from vertex import platform
+
 LEVELS = ("info", "ok", "warn", "error")
 
 
@@ -49,7 +51,7 @@ class Notice:
 
 CATEGORIES = (
     Category("clips", "Clips", ""),
-    Category("sonar", "Sonar", ""),
+    *((Category("sonar", "Sonar", ""),) if platform.SONAR else ()),
     Category("vertex", "Vertex", ""),
 )
 

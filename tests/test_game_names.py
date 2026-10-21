@@ -25,6 +25,17 @@ def test_adding_a_name_never_leads_round_in_a_circle():
     assert naming.add_game_name(names, " ", "X") == names
 
 
+def test_the_game_of_a_fullscreen_window():
+    assert naming.game_from_window("Heroes of the Storm™",
+                                   r"C:\Games\HeroesOfTheStorm_x64.exe") == "Heroes of the Storm"
+    assert naming.game_from_window("", r"C:\Games\Deep_Rock_Galactic.exe") == \
+        "Deep Rock Galactic"
+    # A video or a call filling the screen is no game.
+    assert naming.game_from_window("YouTube", r"C:\Program Files\Mozilla Firefox\firefox.exe") == ""
+    assert naming.game_from_window("Friends", r"C:\Users\a\Discord\Discord.exe") == ""
+    assert naming.game_from_window("Overwatch", "") == "Overwatch"
+
+
 def test_the_library_retags_a_game_and_follows_the_names():
     library = Library.in_memory()
     library.set_tags("a.mp4", "Heroes of the Storm(Retail)", [])

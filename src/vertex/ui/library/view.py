@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 
 from PySide6.QtCore import QModelIndex, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
@@ -26,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import fmt
+from vertex import fmt, platform
 from vertex.config import CARD_WIDTH_DEFAULT, CARD_WIDTH_RANGE
 from vertex.core import storage
 from vertex.logs import CLIPS as log
@@ -546,12 +545,5 @@ class LibraryView(QWidget):
     def _show_in_folder(clip) -> None:
         # The file manager's own "select this file" call when it has one;
         # opening the folder is the universal fallback.
-        try:
-            subprocess.Popen(
-                ["dbus-send", "--session", "--dest=org.freedesktop.FileManager1",
-                 "--type=method_call", "/org/freedesktop/FileManager1",
-                 "org.freedesktop.FileManager1.ShowItems",
-                 f"array:string:{QUrl.fromLocalFile(clip.path).toString()}", "string:"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except OSError:
+        if not platform.show_in_folder(clip.path):
             QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(clip.path)))

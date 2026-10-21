@@ -1,8 +1,9 @@
 """The control API: what outside software can ask the running Vertex.
 
 A Stream Deck plugin, a desktop shortcut or a script talks to Vertex through
-the control socket, `$XDG_RUNTIME_DIR/vertex/control.sock` (see `ipc`). Each
-request is one JSON object on one line, and so is each reply:
+the control channel (see `ipc`): on Linux the socket
+`$XDG_RUNTIME_DIR/vertex/control.sock`. Each request is one JSON object on
+one line, and so is each reply:
 
     → {"command": "volume", "args": {"channel": "chat", "action": "up"}}
     ← {"ok": true, "message": "Chat at 55%.", "data": {"channel": "chat", "volume": 55}}
@@ -13,7 +14,7 @@ something to report carry it in `data`; failed ones carry an `error` code:
     unknown_command   no such command
     bad_argument      a missing or invalid argument (the message says which)
     replay_off        the replay buffer isn't running (saving a clip)
-    sonar_off         Sonar is off (volumes, mutes, devices)
+    sonar_off         Sonar is off, or there is none here (volumes, mutes, devices)
     no_device         no other device to switch to
     failed            anything else; the message says what
 
@@ -58,7 +59,8 @@ order, the ones not in its list yet last:
                                      "muted": false, "device": {…}}, …}}}
 
 `replay.state` is stopped, starting, running, restarting or failed. A device
-is null when there is none (Sonar off, nothing plugged in).
+is null when there is none (Sonar off, nothing plugged in). Where there is no
+Sonar (Windows), `sonar` is left out.
 
 `subscribe` answers like `state`, then keeps the connection open and sends
 one line per event until the client hangs up:
@@ -159,7 +161,12 @@ def device_list(priority: list[str], excluded: list[str], connected: list[str],
 
 def state(config, status, replay_phase: str) -> dict:
     """Everything a button face may show, from the settings, Sonar's status
-    (`audio.sonar.SonarStatus`) and the replay buffer's phase."""
+    (`audio.sonar.SonarStatus`, None where there is no Sonar) and the replay
+    buffer's phase."""
+    replay = {"state": replay_phase, "running": replay_phase == "running",
+              "seconds": config.recorder.replay_seconds}
+    if status is None:
+        return {"api": API_VERSION, "replay": replay}
     sonar = config.sonar
     names = sonar.device_names
     active = bool(status.active)
@@ -180,8 +187,7 @@ def state(config, status, replay_phase: str) -> dict:
                                       "muted": bool(muted), "device": _device(device, names)}
     return {
         "api": API_VERSION,
-        "replay": {"state": replay_phase, "running": replay_phase == "running",
-                   "seconds": config.recorder.replay_seconds},
+        "replay": replay,
         "sonar": {
             "enabled": sonar.enabled, "active": active, "linked": sonar.linked,
             "output": _device(status.output if active else "", names),

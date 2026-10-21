@@ -13,9 +13,11 @@ import os
 import shutil
 import subprocess
 
+from vertex import paths
 from vertex.logs import CLIPS as log
 from vertex.media.ffmpeg import BASE
 from vertex.media.probe import duration as probe_duration
+from vertex.platform import NO_WINDOW
 from vertex.proc import last_line
 
 SEEK_SECONDS = 1.0      # skip the black intro frame most recordings open on
@@ -27,9 +29,8 @@ PREVIEW_WIDTH = 960
 class ThumbnailCache:
     def __init__(self, cache_dir: str):
         self.cache_dir = cache_dir
-        self.thumb_dir = os.path.join(cache_dir, "thumbnails")
-        self.preview_root = os.path.join(cache_dir, "previews")
-        os.makedirs(self.thumb_dir, exist_ok=True)
+        self.thumb_dir = paths.make_dir(os.path.join(cache_dir, "thumbnails"))
+        self.preview_root = paths.real(os.path.join(cache_dir, "previews"))
 
     @staticmethod
     def digest(clip_path: str) -> str:
@@ -70,7 +71,7 @@ class ThumbnailCache:
                     "-frames:v", "1", "-vf", f"scale={THUMB_WIDTH}:-2", tmp]
             try:
                 done = subprocess.run(argv, timeout=30, stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.PIPE)
+                                      stderr=subprocess.PIPE, **NO_WINDOW)
                 if done.returncode == 0 and os.path.getsize(tmp) > 0:
                     os.replace(tmp, target)      # never leave a partial JPEG
                     return target
@@ -97,13 +98,13 @@ class ThumbnailCache:
             return []
         tmp = f"{out_dir}.tmp"
         shutil.rmtree(tmp, ignore_errors=True)
-        os.makedirs(tmp, exist_ok=True)
+        tmp = paths.make_dir(tmp)
         argv = [*BASE, "-v", "error", "-y", "-i", clip_path,
                 "-vf", f"fps={PREVIEW_FRAMES / duration:.6f},scale={PREVIEW_WIDTH}:-2",
                 "-frames:v", str(PREVIEW_FRAMES), os.path.join(tmp, "frame_%02d.jpg")]
         try:
             subprocess.run(argv, check=True, timeout=90,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **NO_WINDOW)
         except (subprocess.SubprocessError, OSError):
             shutil.rmtree(tmp, ignore_errors=True)
             return []
@@ -127,7 +128,7 @@ class ThumbnailCache:
         folder itself may be anywhere, shared with anything."""
         for folder in (self.thumb_dir, self.preview_root):
             shutil.rmtree(folder, ignore_errors=True)
-        os.makedirs(self.thumb_dir, exist_ok=True)
+        paths.make_dir(self.thumb_dir)
 
     def prune(self, clip_paths) -> int:
         """Delete cached images for clips that no longer exist. Returns count."""

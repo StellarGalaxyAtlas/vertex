@@ -74,6 +74,10 @@ def test_state_describes_what_buttons_show():
     # Off: no devices.
     off = control.state(config, SonarStatus(), "stopped")["sonar"]
     assert off["output"] is None and off["channels"]["game"]["device"] is None
+    # Where there is no Sonar, only the replay buffer.
+    assert control.state(Config(), None, "stopped") == {
+        "api": control.API_VERSION,
+        "replay": {"state": "stopped", "running": False, "seconds": 60}}
 
 
 def test_replies_and_events():

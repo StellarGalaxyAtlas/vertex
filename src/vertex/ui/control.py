@@ -30,16 +30,19 @@ class Commands(QObject):
         self.context = context
         self.subscribers = ipc.Subscribers()
         self.request.connect(self._handle, Qt.ConnectionType.BlockingQueuedConnection)
-        # Many changes come in bursts (a fader dragged, Sonar coming up):
+        # Many changes come in bursts (a fader dragged, Sonar coming up, a restart):
         # subscribers get the state once it settles, and only when it changed.
         self._last_state: dict | None = None
         self._state_timer = QTimer(self, singleShot=True, interval=120)
         self._state_timer.timeout.connect(self._publish_state)
-        for signal in (context.config_changed, context.recorder.state_changed,
-                       context.sonar.status_changed, context.sonar.devices_changed):
+        signals = [context.config_changed, context.recorder.state_changed]
+        if context.sonar is not None:
+            signals += [context.sonar.status_changed, context.sonar.devices_changed]
+        for signal in signals:
             signal.connect(self._state_may_have_changed)
         context.notified.connect(
             lambda notice: self.subscribers.publish(control.notice_event(notice)))
+        context.hotkeys.pressed.connect(self._hotkey)
 
     def dispatch(self, command: str, args: dict) -> dict:
         box: list = []
@@ -56,10 +59,22 @@ class Commands(QObject):
             box.append(control.error(control.FAILED, str(exc)))
         _log_command(command, args, box[-1])
 
+    def _hotkey(self, action: str) -> None:
+        """A hotkey runs its action as the command a shortcut would send."""
+        command, args = {
+            "save_clip": ("save-clip", {}),
+            "save_last": ("save-clip", {"seconds": self.context.config.hotkey_last_seconds}),
+            "replay": ("replay", {"action": "toggle"}),
+            "show": ("show", {}),
+        }[action]
+        logs.APP.info("Hotkey %s", self.context.config.hotkeys.get(action, action))
+        self._handle(command, args, [])
+
     # --- State --------------------------------------------------------------------
 
     def state(self) -> dict:
-        return control.state(self.context.config, self.context.sonar.status,
+        sonar = self.context.sonar
+        return control.state(self.context.config, sonar.status if sonar is not None else None,
                              self.context.recorder.phase)
 
     def _state_may_have_changed(self, *_args) -> None:
@@ -116,9 +131,12 @@ class Commands(QObject):
         recorder.stop()
         return control.ok("Stopping the replay buffer.", state="stopping")
 
+
     def _sonar(self, args) -> dict:
         sonar = self.context.sonar
         action = control.choice_arg(args, "action", ("up", "down", "status"))
+        if sonar is None:
+            return self._no_sonar()
         if action == "status":
             return control.ok(f"Sonar is {'up' if sonar.status.active else 'down'}.",
                               **self.state()["sonar"])
@@ -126,7 +144,13 @@ class Commands(QObject):
         return control.ok(f"Sonar is going {'up' if action == 'up' else 'down'}.",
                           enabled=action == "up")
 
+    @staticmethod
+    def _no_sonar() -> dict:
+        return control.error(control.SONAR_OFF, "There is no Sonar on this system.")
+
     def _need_sonar(self) -> dict | None:
+        if self.context.sonar is None:
+            return self._no_sonar()
         if not self.context.config.sonar.enabled:
             return control.error(control.SONAR_OFF, "Sonar is off. Turn it on with "
                                                     "`vertex sonar up`.")
@@ -193,6 +217,8 @@ class Commands(QObject):
 
     def _devices(self, _args) -> dict:
         sonar, config = self.context.sonar, self.context.config.sonar
+        if sonar is None:
+            return self._no_sonar()
         names = {**config.device_names,
                  **{d.name: d.description for d in sonar.outputs + sonar.inputs}}
         return control.ok(

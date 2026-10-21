@@ -53,6 +53,14 @@ def fake_audio(monkeypatch):
 
 
 @pytest.fixture
+def no_sonar(monkeypatch):
+    """A system without Sonar, as Windows is. Asked for before `window`."""
+    from vertex import platform
+
+    monkeypatch.setattr(platform.here(), "SONAR", False)
+
+
+@pytest.fixture
 def library_dir(tmp_path, sample_clip):
     clips = tmp_path / "clips"
     clips.mkdir()
@@ -179,7 +187,7 @@ def test_library_keys_move_a_focus_ring_and_act_on_its_card(qapp, window, monkey
 
 
 def test_a_card_is_not_dragged_out(qapp, window, monkeypatch):
-    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtCore import Qt
     from PySide6.QtGui import QDrag, QMouseEvent
 
     grid = window.library_view.grid
@@ -360,8 +368,9 @@ def test_library_cards_fill_their_row_at_any_size(qapp, window):
 
 def test_starting_adds_the_start_menu_entry(qapp, window):
     from vertex import desktop
+    from vertex.platform import linux
 
-    assert wait_until(qapp, lambda: desktop.desktop_file().exists())
+    assert wait_until(qapp, lambda: linux.desktop_file().exists())
     assert desktop.added_marker().exists()
 
 
@@ -655,7 +664,7 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     import sys
 
     from test_recorder import FAKE_GSR
-    from vertex.recorder import monitors
+    from vertex.recorder import backend, monitors
     from vertex.ui import screens
 
     fake_gsr = tmp_path / "gpu-screen-recorder"
@@ -668,7 +677,7 @@ def test_a_restart_shows_until_the_buffer_runs_again(qapp, window, tmp_path, mon
     recorder = context.recorder
     recorder.start()
     assert wait_until(qapp, lambda: recorder.phase == "running")
-    assert "-w DP-1" in " ".join(recorder.argv())
+    assert "-w DP-1" in backend.describe(recorder.launch_plan())
 
     states, notices = [], []
     recorder.state_changed.connect(lambda state, _error: states.append(state))
@@ -1192,6 +1201,25 @@ def _setup(qapp, tmp_path):
     view._autostart_touched = True
     view.rec_autostart.setChecked(False)
     return win, view
+
+
+def test_without_sonar_no_part_of_it_shows(qapp, tmp_path, no_sonar, window):
+    from vertex.ui.main_window import MainWindow
+    from vertex.ui.services import Context
+
+    assert window.sonar_view is None and window.home_view.sonar_tile is None
+    assert "sonar" not in window.topbar.tabs
+    settings = window.settings_view
+    assert not settings.tag_from_game.isVisibleTo(settings)
+    settings.tracks.show_devices([], window.context.config.recorder)
+    assert [settings.chat_audio.itemText(i) for i in range(settings.chat_audio.count())] == [
+        "None", "Default output"]
+    # Setup skips the Sonar step.
+    win = MainWindow(Context(Config()))
+    win.show_setup()
+    assert win.first_run.steps[:2] == ["folders", "moments"]
+    assert "sonar" not in win.first_run.pages
+    _close(win)
 
 
 def _moments_library(folder):
@@ -2178,7 +2206,7 @@ def test_a_saved_clip_takes_the_game_channel_and_is_named_after_it(qapp, window,
     name = "Desktop-Capture__2026-10-20__21-00-00.mp4"
     shutil.copy2(library_dir / "Replay_2026-01-02_03-04-05.mp4", library_dir / name)
     context.library.autotag_games([name])         # as the file appeared
-    context.recorder._game_hint = (time.monotonic(), "Heroes of the Storm")
+    context.recorder._game_hint = (time.monotonic(), "Heroes of the Storm", "channel")
     saved = []
     context.recorder.saved.connect(saved.append)
     context.recorder._on_saved(str(library_dir / name))
@@ -2194,7 +2222,7 @@ def test_a_saved_clip_takes_the_game_channel_and_is_named_after_it(qapp, window,
     context.recorder._on_saved(str(library_dir / "Replay_2026-01-02_03-04-05.mp4"))
     assert saved[-1].endswith("Replay_2026-01-02_03-04-05.mp4")
     shutil.copy2(library_dir / renamed, library_dir / "Replay_2026-10-20_21-00-00.mp4")
-    context.recorder._game_hint = (time.monotonic(), "Heroes of the Storm")
+    context.recorder._game_hint = (time.monotonic(), "Heroes of the Storm", "channel")
     context.recorder._on_saved(str(library_dir / "Replay_2026-10-20_21-00-00.mp4"))
     wait_until(qapp, lambda: len(saved) == 3)
     assert saved[-1].endswith("Heroes-of-the-Storm__2026-10-20__21-00-00_2.mp4")
@@ -2238,3 +2266,226 @@ def test_settings_review_tags_from_file_names(qapp, window, library_dir, sample_
     assert context.config.kept_tags == [["Ranked night", "Valorant"]]
     # Kept is remembered: Valorant isn't asked about again.
     assert wait_until(qapp, lambda: not any(g.game for g in line.groups))
+
+def test_each_track_has_a_recording_volume_where_the_recorder_sets_one(qapp, monkeypatch):
+    from vertex.config import RecorderConfig
+    from vertex.ui.settings.tracks import TrackTable
+
+    table = TrackTable(with_volume=True)
+    for device in table.devices.values():
+        device.addItem("None", "")
+        device.addItem("Default output", "default_output")
+    table.devices["game"].setCurrentIndex(1)
+    table.load(RecorderConfig(game_volume=80))
+    assert table.readouts["game"].text() == "80%" and table.volumes["game"].isEnabled()
+    assert not table.volumes["media"].isEnabled()         # records nothing
+    changed = []
+    table.changed.connect(lambda: changed.append(True))
+    table.volumes["game"].setValue(55)
+    rec = RecorderConfig()
+    table.apply(rec)
+    assert (rec.game_volume, rec.media_volume, changed) == (55, 100, [True])
+
+
+def test_tray_opens_pages_and_drives_the_replay_buffer(qapp, no_sonar, window):
+    from vertex.ui.tray import Tray
+
+    context = window.context
+    tray = Tray(window, context)
+    texts = [action.text() for action in tray.contextMenu().actions() if action.text()]
+    assert texts == ["Show Vertex", "Open Library", "Start replay buffer", "Save clip",
+                     "Save the last 30 seconds", "Quit"]
+    window.navigate("home")
+    next(a for a in tray.contextMenu().actions() if a.text() == "Open Library").trigger()
+    assert window.stack.currentWidget() is window.library_view
+    assert not tray.save_action.isEnabled()          # the buffer isn't running
+    tray._recorder_state("running", "")
+    assert tray.save_action.isEnabled() and tray.replay_action.text() == "Stop replay buffer"
+    tray.deleteLater()
+
+
+def test_control_api_answers_and_publishes(qapp, no_sonar, window):
+    import queue
+
+    from vertex.ui.control import Commands
+
+    context = window.context
+    commands = Commands(window, context)
+
+    def call(command, args=None):
+        box = []
+        commands._handle(command, args or {}, box)
+        return box[0]
+
+    from vertex import control
+
+    assert window.sonar_view is None and context.sonar is None
+    assert call("frobnicate")["error"] == "unknown_command"
+    for command, args in (("sonar", {"action": "status"}), ("devices", {}),
+                          ("volume", {"channel": "game", "action": "up"}),
+                          ("mute", {"channel": "mic", "action": "toggle"}),
+                          ("device", {"action": "next"})):
+        assert call(command, args)["error"] == "sonar_off"
+    assert call("save-clip", {"seconds": 45})["error"] == "bad_argument"
+    assert call("save-clip")["error"] == "replay_off"
+    assert call("replay", {"action": "sideways"})["error"] == "bad_argument"
+    assert call("ping")["data"]["api"] == control.API_VERSION
+    assert call("state")["data"] == {"api": control.API_VERSION, "replay": {
+        "state": "stopped", "running": False, "seconds": 60}}
+
+    # Subscribers hear the notifications, and the state once it changes.
+    events = commands.subscribers.add()
+    context.notify("clip_saved", "Clip saved", "a.mp4")
+    context.config.recorder.replay_seconds = 120
+    context.config_changed.emit()
+    seen = []
+
+    def heard(predicate):
+        while True:
+            try:
+                seen.append(events.get_nowait())
+            except queue.Empty:
+                break
+        return any(predicate(event) for event in seen)
+    assert wait_until(qapp, lambda: heard(
+        lambda e: e["event"] == "state" and e["data"]["replay"]["seconds"] == 120))
+    assert heard(lambda e: e["event"] == "notice" and e["data"]["kind"] == "clip_saved")
+    commands.subscribers.remove(events)
+
+
+def test_the_icon_ink_follows_the_windows_taskbar_not_the_apps(qapp, monkeypatch):
+    from vertex import platform
+    from vertex.ui import icons
+
+    monkeypatch.setattr(platform.here(), "light_desktop", lambda: False)    # dark taskbar
+    assert icons.desktop_ink() == icons.desktop_ink_outside_app() == "light"
+    monkeypatch.setattr(platform.here(), "light_desktop", lambda: True)
+    assert icons.desktop_ink() == "dark"
+
+
+def _hotkeys_page(monkeypatch):
+    from vertex import hotkeys
+    from vertex.config import Config
+    from vertex.ui.services import Context
+    from vertex.ui.settings.shortcuts import ShortcutsPage
+
+    monkeypatch.setattr(hotkeys, "AVAILABLE", True)
+    context = Context(Config())
+    return context, ShortcutsPage(context).hotkeys
+
+
+def test_a_hotkey_is_recorded_with_the_keys_held_shown_live(qapp, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from vertex.config import Config
+
+    context, page = _hotkeys_page(monkeypatch)
+    paused = []
+    recorder = page.rows["save_clip"].recorder
+    recorder.recording.connect(paused.append)
+    assert recorder.caps.parts == () and recorder.hotkey is None
+    recorder.listen()
+    assert paused == [True]
+    QTest.keyPress(recorder, Qt.Key.Key_Control, Qt.KeyboardModifier.ControlModifier)
+    QTest.keyPress(recorder, Qt.Key.Key_Alt,
+                   Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+    assert recorder.caps.parts == ("Ctrl", "Alt")
+    QTest.keyRelease(recorder, Qt.Key.Key_Alt)
+    assert recorder.caps.parts == ("Ctrl",)
+    QTest.keyPress(recorder, Qt.Key.Key_A, Qt.KeyboardModifier.ShiftModifier)
+    assert "Add Ctrl, Alt or Win" in page.rows["save_clip"].note.text()
+    assert recorder.listening
+    QTest.keyPress(recorder, Qt.Key.Key_F9,
+                   Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+    assert not recorder.listening and paused == [True, False]
+    assert Config.load().hotkeys == {"save_clip": "Ctrl+Alt+F9"}
+    assert recorder.caps.parts == ("Ctrl", "Alt", "F9")
+
+    recorder.listen()
+    QTest.keyPress(recorder, Qt.Key.Key_Escape)
+    assert not recorder.listening and context.config.hotkeys == {"save_clip": "Ctrl+Alt+F9"}
+    page.rows["save_clip"].clear.click()
+    assert context.config.hotkeys == {}
+
+
+def test_keys_another_action_has_move_and_can_come_back(qapp, monkeypatch):
+    from vertex import hotkeys
+
+    context, page = _hotkeys_page(monkeypatch)
+    keys = hotkeys.parse("Ctrl+Alt+F9")
+    page._chosen("save_clip", keys)
+    page._chosen("replay", keys)
+    assert context.config.hotkeys == {"replay": "Ctrl+Alt+F9"}
+    assert "Taken from “Save a clip”" in page.rows["replay"].note.text()
+    page.rows["replay"].note.linkActivated.emit("undo")
+    assert context.config.hotkeys == {"save_clip": "Ctrl+Alt+F9"}
+    assert page.rows["replay"].note.isHidden()
+
+
+def test_keys_another_program_holds_go_back_or_say_so(qapp, monkeypatch):
+    from vertex import hotkeys
+
+    context, page = _hotkeys_page(monkeypatch)
+    page._chosen("show", hotkeys.parse("Ctrl+Alt+V"))
+    context.hotkeys._got_result(set())
+    page._chosen("show", hotkeys.parse("Win+Alt+G"))
+    context.hotkeys._got_result({"show"})         # Windows refused the new keys
+    assert context.config.hotkeys == {"show": "Ctrl+Alt+V"}
+    assert "Another program already uses Win + Alt + G. Your old keys are kept." in \
+        page.rows["show"].note.text()
+    context.hotkeys._got_result(set())
+    assert "Your old keys are kept" in page.rows["show"].note.text()
+    context.hotkeys._got_result({"show"})         # held elsewhere since, say at start
+    assert page.rows["show"].recorder.warn
+    assert "does nothing for now" in page.rows["show"].note.text()
+    context.hotkeys._got_result(set())
+    assert not page.rows["show"].recorder.warn and page.rows["show"].note.isHidden()
+
+
+def test_a_hotkey_runs_its_action(qapp, window):
+    from vertex.ui.control import Commands
+
+    commands = Commands(window, window.context)
+    ran = []
+    commands._run = lambda command, args: ran.append((command, args)) or {"ok": True}
+    window.context.config.hotkey_last_seconds = 60
+    for action in ("save_clip", "save_last", "replay", "show"):
+        window.context.hotkeys.pressed.emit(action)
+    assert ran == [("save-clip", {}), ("save-clip", {"seconds": 60}),
+                   ("replay", {"action": "toggle"}), ("show", {})]
+
+
+def test_a_saved_clip_is_tagged_with_the_fullscreen_game(qapp, window, monkeypatch):
+    from types import SimpleNamespace
+
+    from vertex import platform
+    from vertex.platform import windows as windows_platform
+
+    context, library = window.context, window.context.library
+    recorder = context.recorder
+    monkeypatch.setattr(recorder, "recorder", SimpleNamespace(running=True,
+                                                              save=lambda _seconds: None,
+                                                              stop=lambda timeout: None))
+    monkeypatch.setattr(platform, "WINDOWS", True)
+    context.rename_game("HeroesOfTheStorm_x64", "Heroes of the Storm")
+    windows = [("", r"C:\Games\HeroesOfTheStorm_x64.exe"), ("", ""), None]
+    asked = []
+    monkeypatch.setattr(windows_platform, "fullscreen_app",
+                        lambda: asked.append(1) or windows.pop(0))
+    hints = []
+    real_got = recorder._got_fullscreen
+    monkeypatch.setattr(recorder, "_got_fullscreen",
+                        lambda window: (real_got(window), hints.append(window)))
+
+    for count, clip in enumerate(("a.mp4", "b.mp4", "c.mp4"), 1):
+        recorder.save()
+        assert wait_until(qapp, lambda count=count: len(hints) == count)
+        recorder._on_saved(f"/clips/{clip}")
+    games = {name: game for name, (game, _people) in library.tags().items()}
+    # Nothing fullscreen is the desktop; Vertex in front can't tell.
+    assert games.get("a.mp4") == "Heroes of the Storm"
+    assert games.get("b.mp4") == "Desktop"
+    assert not games.get("c.mp4")
+    assert context.config.game_names == {"HeroesOfTheStorm_x64": "Heroes of the Storm"}
+

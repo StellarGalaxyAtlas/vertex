@@ -1,8 +1,8 @@
 """Naming a clip's audio tracks: which one is the game, the chat, the mic…
 
-Clips recorded through Vertex's Sonar devices are recognised exactly: their
-tracks are titled after the channel they came from ("Vertex Game", or GPU
-Screen Recorder's own "Devices: Monitor of Vertex Game"), whatever the
+Clips recorded by Vertex are recognised exactly: their tracks are titled
+after the part they hold ("Vertex Game", or GPU Screen Recorder's own
+"Devices: Monitor of Vertex Game" for Sonar's channels), whatever the
 hardware is called.
 
 Other clips go by how their devices happen to be named. All or nothing: a
@@ -15,27 +15,27 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from vertex.audio import channels
+from vertex.media import roles
 from vertex.media.probe import AudioTrack
 
 DESKTOP = "desktop"   # a recorder's mixed-down output: game and chat in one track
 
 LABELS = {
-    channels.GAME.id: "Game",
+    roles.GAME.id: "Game",
     DESKTOP: "Desktop",
-    channels.CHAT.id: "Chat",
-    channels.MEDIA.id: "Media",
-    channels.MIC.id: "Microphone",
+    roles.CHAT.id: "Chat",
+    roles.MEDIA.id: "Media",
+    roles.MIC.id: "Microphone",
 }
 # The order lanes appear in, whatever order the streams have in the file.
-ORDER = (channels.GAME.id, DESKTOP, channels.CHAT.id, channels.MEDIA.id, channels.MIC.id)
+ORDER = (roles.GAME.id, DESKTOP, roles.CHAT.id, roles.MEDIA.id, roles.MIC.id)
 
 # Recorders name the field as well as the device — "device:Virtual_Game_Sink",
 # "Devices: Monitor of Game Audio".
 DEVICE_PREFIX = re.compile(r"^devices?\s*:\s*", re.IGNORECASE)
 MONITOR_PREFIX = re.compile(r"^monitor of\s+", re.IGNORECASE)
 VERTEX_DEVICE = re.compile(
-    rf"^vertex[ _-]?(?P<channel>{'|'.join(c.id for c in channels.ALL)})(?:\.monitor)?$",
+    rf"^vertex[ _-]?(?P<channel>{'|'.join(c.id for c in roles.ALL)})(?:\.monitor)?$",
     re.IGNORECASE,
 )
 
@@ -54,7 +54,7 @@ def track_devices(name: str) -> list[str]:
 
 
 def vertex_channel(device: str) -> str | None:
-    """The Sonar channel a device is, if it is one of Vertex's own."""
+    """The part a track title names, if it is one of Vertex's own."""
     match = VERTEX_DEVICE.match(MONITOR_PREFIX.sub("", device.strip()))
     return match.group("channel").lower() if match else None
 
@@ -63,28 +63,28 @@ def guess_source(device: str) -> str | None:
     """Which lane a device's name looks like it belongs to, or None."""
     lowered = device.lower()
     if "game" in lowered:
-        return channels.GAME.id
+        return roles.GAME.id
     if "chat" in lowered or "voice" in lowered:
-        return channels.CHAT.id
+        return roles.CHAT.id
     if "media" in lowered or "music" in lowered:
-        return channels.MEDIA.id
+        return roles.MEDIA.id
     # An Aux output has no lane of its own; numbered beats called the mic.
     if re.search(r"\baux\b", lowered):
         return None
     if "mic" in lowered:
-        return channels.MIC.id
+        return roles.MIC.id
     # "Audio 1" is a placeholder for a track with no name at all.
     if re.fullmatch(r"audio \d+", lowered):
         return None
     # Loopbacks are "Monitor of …"; anything else is a real capture device —
     # the microphone, whatever it is called.
     if "monitor of" not in lowered and not lowered.endswith(".monitor"):
-        return channels.MIC.id
+        return roles.MIC.id
     return None
 
 
 def _is_microphone(device: str) -> bool:
-    return vertex_channel(device) == channels.MIC.id or "mic" in device.lower()
+    return vertex_channel(device) == roles.MIC.id or "mic" in device.lower()
 
 
 def match_source(name: str) -> str | None:

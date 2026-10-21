@@ -1,5 +1,5 @@
-"""The tray icon: Vertex keeps routing audio and buffering replays while the
-window is closed, and this is how you reach it."""
+"""The tray icon: Vertex keeps buffering replays (and routing audio, with
+Sonar) while the window is closed, and this is how you reach it."""
 
 from __future__ import annotations
 
@@ -21,31 +21,34 @@ class Tray(QSystemTrayIcon):
         menu = QMenu()
         self.show_action = self._add(menu, f"Show {APP_NAME}", window.bring_to_front)
         self._add(menu, "Open Library", lambda: self._open("library"))
-        self._add(menu, "Open Sonar", lambda: self._open("sonar"))
+        if context.sonar is not None:
+            self._add(menu, "Open Sonar", lambda: self._open("sonar"))
         menu.addSeparator()
         self.replay_action = self._add(menu, "Start replay buffer", context.recorder.toggle)
         self.save_action = self._add(menu, "Save clip", lambda: self._save(None))
         self.save_30_action = self._add(menu, "Save the last 30 seconds", lambda: self._save(30))
         menu.addSeparator()
-        self.sonar_action = self._add(menu, "Sonar", lambda: context.sonar.set_enabled(
-            not context.config.sonar.enabled))
-        self.sonar_action.setCheckable(True)
-        # Switching devices for now, as on the Sonar page: the lists keep their order.
-        self.output_menu = menu.addMenu("Output device")
-        self.mic_menu = menu.addMenu("Microphone")
         self._shown_devices = None
-        menu.addSeparator()
+        if context.sonar is not None:
+            self.sonar_action = self._add(menu, "Sonar", lambda: context.sonar.set_enabled(
+                not context.config.sonar.enabled))
+            self.sonar_action.setCheckable(True)
+            # Switching devices for now, as on the Sonar page: the lists keep their order.
+            self.output_menu = menu.addMenu("Output device")
+            self.mic_menu = menu.addMenu("Microphone")
+            menu.addSeparator()
         self._add(menu, "Quit", window.quit)
         self.setContextMenu(menu)
         self._menu = menu
         self.activated.connect(self._activated)
         self.messageClicked.connect(window.bring_to_front)
         context.recorder.state_changed.connect(self._recorder_state)
-        context.sonar.status_changed.connect(lambda _s: self._sonar_state())
-        context.sonar.devices_changed.connect(lambda _o, _i: self._sonar_state())
-        context.config_changed.connect(self._sonar_state)
         self._recorder_state("stopped", "")
-        self._sonar_state()
+        if context.sonar is not None:
+            context.sonar.status_changed.connect(lambda _s: self._sonar_state())
+            context.sonar.devices_changed.connect(lambda _o, _i: self._sonar_state())
+            context.config_changed.connect(self._sonar_state)
+            self._sonar_state()
 
     @staticmethod
     def _add(menu: QMenu, text: str, handler) -> QAction:

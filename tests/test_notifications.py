@@ -45,7 +45,7 @@ def test_gsr_notifier_arguments():
                          "replay") == [
         "gsr-notify", "--text", "Clip saved: a.mp4", "--timeout", "3.0",
         "--icon-color", "FFFFFF", "--bg-color", "A1B2C3", "--icon", "replay"]
-    args = notifier.argv("gsr-notify", "Sonar ran into a problem", "error", "#ff6b70", "#000")
+    args = notifier.argv("gsr-notify", "The recorder stopped", "error", "#ff6b70", "#000")
     assert "--icon" not in args and args[args.index("--timeout") + 1] == "5.0"
     for kind in notifications.KINDS:
         assert kind.icon in ("", *notifier.ICONS)

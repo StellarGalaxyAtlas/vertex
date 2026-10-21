@@ -1,4 +1,5 @@
-"""The application context: config, library, thumbnails, Sonar and the recorder.
+"""The application context: config, library, thumbnails, the recorder,
+hotkeys (Windows) and Sonar (Linux).
 
 Views never call pactl, ffmpeg or the recorder themselves. They call these
 controllers, which run the blocking work on worker threads and report back
@@ -9,13 +10,12 @@ from __future__ import annotations
 
 import logging
 import os
-import shlex
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from vertex import fmt, logs, notifications
+from vertex import fmt, hotkeys, logs, notifications, platform
 from vertex.audio import channels, devices, levels
 from vertex.audio.pulse import AudioError, Pactl
 from vertex.audio.sonar import Sonar, SonarStatus
@@ -25,8 +25,8 @@ from vertex.core.naming import game_from_app
 from vertex.library import Library
 from vertex.media import probe
 from vertex.media.thumbnails import ThumbnailCache
-from vertex.recorder import gsr, monitors, presets
-from vertex.recorder.replay import RecorderError, ReplayRecorder, State
+from vertex.recorder import backend, gsr, monitors, presets
+from vertex.recorder.replay import RecorderError, State
 from vertex.ui import screens, workers
 
 
@@ -485,7 +485,7 @@ class SonarController(QObject):
 
 
 class RecorderController(QObject):
-    # GPU Screen Recorder dying while it records is started again once; dying
+    # The recorder dying while it records is started again once; dying
     # again this soon after that restart is left stopped (and said so).
     RECOVER_WINDOW = 60.0
 
@@ -499,25 +499,28 @@ class RecorderController(QObject):
         super().__init__(context)
         self.context = context
         self.info = gsr.GsrInfo(command=context.config.recorder.command)
-        self.recorder = ReplayRecorder(
+        self.recorder = backend.recorder(
             on_state=lambda state, error: workers.post(self._on_state, (state, error)),
             on_saved=lambda path: workers.post(self._on_saved, path))
-        self._game_hint: tuple[float, str] = (0.0, "")
         self._restart_pending = False
         self._restarting = False
-        # False once stopped, so a start still finding GSR or Sonar doesn't
-        # launch after all.
+        # False once stopped, so a start still finding the recorder doesn't launch
+        # after all.
         self._wanted = False
         # Whether Sonar's devices were all there when last seen.
         self._sonar_active: bool | None = None
         # The state last passed on, so a stop isn't announced twice.
         self._reported = State.STOPPED
-        # When GSR was last started again after dying, and whether that is
+        # When the recorder was last started again after dying, and whether that is
         # the restart underway.
         self._recovered_at = float("-inf")
         self._recovering = False
-        context.sonar.status_changed.connect(self._sonar_status)
-        # What GSR said it can record when last asked: its monitors' names.
+        # (when, game, where it was seen: "channel" or "screen") of the last
+        # save asked for, to tag the clip it brings.
+        self._game_hint: tuple[float, str, str] = (0.0, "", "")
+        if context.sonar is not None:
+            context.sonar.status_changed.connect(self._sonar_status)
+        # What the recorder said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
 
     @property
@@ -534,37 +537,37 @@ class RecorderController(QObject):
         return self.recorder.running
 
     def detect(self, then=None) -> None:
-        """Find GSR and ask what it can record, off the UI thread."""
+        """Find the recorder and ask what it can record, off the UI thread."""
         command = self.context.config.recorder.command
 
         def probe():
-            info = gsr.detect(command)
-            return info, gsr.list_capture_options(command) if info.available else []
+            info = backend.detect(command)
+            return info, backend.list_capture_options(command) if info.available else []
 
         def done(result):
             info, self.capture_options = result
             if info != self.info:
                 if info.available:
-                    logs.RECORDER.info("Found GPU Screen Recorder %s (%s)", info.version_text,
-                                       command)
+                    logs.RECORDER.info("Found %s %s (%s)", backend.name(), info.version_text,
+                                       command or "where it is installed")
                 else:
-                    logs.RECORDER.warning("GPU Screen Recorder: %s", info.error or "not found")
+                    logs.RECORDER.warning("%s: %s", backend.name(), info.error or "not found")
             self.info = info
             self.info_changed.emit(self.info)
             if then is not None:
                 then(self.info)
 
         def failed(exc):
-            done((gsr.GsrInfo(command, error=f"Couldn't run GPU Screen Recorder: {exc}"), []))
+            done((gsr.GsrInfo(command, error=f"Couldn't run {backend.name()}: {exc}"), []))
 
         workers.run(probe, done, failed)
 
     def problems(self) -> list[str]:
         if not self.info.available:
-            return [self.info.error or "GPU Screen Recorder is not installed."]
+            return [self.info.error or f"{backend.name()} is not installed."]
         if self.info.too_old:
             return [self.info.error]
-        return gsr.validate(self._as_recorded())
+        return backend.validate(self._as_recorded())
 
     def _monitors(self) -> list[monitors.Monitor]:
         return monitors.arrange(self.capture_options, screens.desktop_screens())
@@ -575,13 +578,15 @@ class RecorderController(QObject):
         return monitors.target(self.context.config.recorder.capture, self._monitors())
 
     def _as_recorded(self):
-        """The settings as GSR gets them, for the monitor recorded now."""
+        """The settings as the recorder gets them, for the monitor recorded now."""
         return presets.resolve(self.context.config.recorder, self._monitors())
 
-    def argv(self) -> list[str]:
+    def launch_plan(self):
+        """What the recorder would be started with now: GSR's command line,
+        or what is set up in OBS."""
         config = self.context.config
-        return gsr.build_argv(self._as_recorded(), gsr.audio_tracks(config),
-                              config.resolved_recording_dir(), self.info)
+        return backend.launch_plan(config, self._monitors(), gsr.audio_tracks(config),
+                                   self.info)
 
     def start(self) -> None:
         if self.running:
@@ -593,7 +598,10 @@ class RecorderController(QObject):
             if problems:
                 self._on_state((State.FAILED, problems[0]))
                 return
-            self.context.sonar.ensure_up(self._launch)
+            if self.context.sonar is not None:
+                self.context.sonar.ensure_up(self._launch)
+            else:
+                self._launch()
 
         # Asked every time: monitors come and go between starts.
         self.detect(go)
@@ -601,9 +609,10 @@ class RecorderController(QObject):
     def _launch(self) -> None:
         if self.running or not self._wanted:
             return
-        # Asked now, with Sonar up: its channels are only devices while it runs.
+        # Asked every time: devices come and go between starts, and Sonar's
+        # channels are only devices while it runs.
         command = self.context.config.recorder.command
-        workers.run(lambda: [name for name, _d in gsr.list_audio_devices(command)],
+        workers.run(lambda: [name for name, _d in backend.list_audio_devices(command)],
                     self._launch_with, lambda _exc: self._launch_with([]))
 
     def _launch_with(self, devices: list[str]) -> None:
@@ -621,11 +630,10 @@ class RecorderController(QObject):
             self.context.notify(
                 "track_missing", f"{role} audio: {device} isn't available",
                 f"Recording {what} instead" if what else "Recording without it")
-        argv = gsr.build_argv(self._as_recorded(), tracks, config.resolved_recording_dir(),
-                              self.info)
-        logs.RECORDER.info("Starting the replay buffer: %s", shlex.join(argv))
+        plan = backend.launch_plan(config, self._monitors(), tracks, self.info)
+        logs.RECORDER.info("Starting the replay buffer: %s", backend.describe(plan))
         try:
-            self.recorder.start(argv, config.resolved_recording_dir())
+            self.recorder.start(plan, config.resolved_recording_dir())
         except RecorderError as exc:
             self._on_state((State.FAILED, str(exc)))
 
@@ -681,39 +689,38 @@ class RecorderController(QObject):
         problem = ""
         if not self.running:
             problem = "The replay buffer is not running."
-        elif seconds is not None and int(seconds) not in gsr.SAVE_PRESETS:
-            problem = f"Only the last {sorted(gsr.SAVE_PRESETS)} seconds can be saved"
+        elif seconds is not None and int(seconds) not in backend.SAVE_PRESETS:
+            problem = f"Only the last {sorted(backend.SAVE_PRESETS)} seconds can be saved"
         if problem:
             # Saving from a shortcut or the tray shows nothing else of it.
             self.context.notify("clip_not_saved", "Clip not saved", problem)
             raise RecorderError(problem)
         logs.RECORDER.info("Saving %s",
                            f"the last {seconds} seconds" if seconds else "the replay buffer")
-        # Finding GSR to signal reads /proc: off the UI thread.
+        # Finding GSR to signal reads /proc, and OBS is asked over its socket:
+        # off the UI thread.
         workers.run(lambda: self.recorder.save(seconds), None,
                     lambda exc: self.context.notify("clip_not_saved", "Clip not saved",
                                                     str(exc)))
-        if self.context.config.recorder.tag_from_game_channel and self.context.sonar.enabled:
-            workers.run(self.context.sonar.game_apps, self._got_game_apps,
-                        lambda _exc: None)
+        self._game_hint = (0.0, "", "")
+        rec, sonar = self.context.config.recorder, self.context.sonar
+        if sonar is not None and rec.tag_from_game_channel and sonar.enabled:
+            workers.run(sonar.game_apps, self._got_game_apps, lambda _exc: None)
+        if platform.FULLSCREEN_GAME and rec.tag_from_fullscreen:
+            workers.run(platform.fullscreen_app, self._got_fullscreen, lambda _exc: None)
         span = f"the last {fmt.duration(seconds)}" if seconds else "the replay buffer"
         return f"Saving {span}…"
 
-    def _got_game_apps(self, names: list[str]) -> None:
-        games = {game_from_app(name) for name in names or []} - {""}
-        # Only a single, unambiguous game is worth writing down.
-        self._game_hint = (time.monotonic(), games.pop() if len(games) == 1 else "")
-
     def _recover(self, error: str) -> bool:
-        """GSR died while recording: start it again, once. False when it
+        """The recorder died while recording: start it again, once. False when it
         wasn't running yet (a start that fails stays failed), or it died again
         within RECOVER_WINDOW of the last such restart."""
         if self._reported != State.RUNNING or self._restarting or not self._wanted:
             return False
         now = time.monotonic()
         if now - self._recovered_at < self.RECOVER_WINDOW:
-            logs.RECORDER.error("GPU Screen Recorder stopped again; leaving the replay "
-                                "buffer off")
+            logs.RECORDER.error("%s stopped again; leaving the replay buffer off",
+                                backend.name())
             return False
         self._recovered_at = now
         logs.RECORDER.warning("Starting the replay buffer again after it stopped (%s)", error)
@@ -734,11 +741,11 @@ class RecorderController(QObject):
             restarted = state == State.RUNNING
             recovered, self._recovering = self._recovering, False
         if state == State.STOPPED and self._reported == State.STOPPED:
-            return      # a stop reports itself, and so does GSR exiting
+            return      # a stop reports itself, and so does the recorder exiting
         self._reported = state
         if restarted:
             self.context.notify("replay_restarted", "Replay buffer restarted",
-                                "GPU Screen Recorder had stopped" if recovered else "")
+                                f"{backend.name()} had stopped" if recovered else "")
         elif state == State.RUNNING:
             seconds = self.context.config.recorder.replay_seconds
             self.context.notify("replay_started", "Replay buffer on",
@@ -749,15 +756,29 @@ class RecorderController(QObject):
             self.context.notify("replay_failed", "Replay buffer stopped", error)
         self.state_changed.emit(state.value, error or "")
 
+    def _got_game_apps(self, names: list[str]) -> None:
+        games = {game_from_app(name) for name in names or []} - {""}
+        # Only a single, unambiguous game is worth writing down.
+        self._game_hint = (time.monotonic(), games.pop() if len(games) == 1 else "", "channel")
+
+    def _got_fullscreen(self, window: tuple[str, str] | None) -> None:
+        if window is not None:
+            game = naming.game_from_window(*window) or naming.DESKTOP_TAG
+            self._game_hint = (time.monotonic(), game, "screen")
+
     def _on_saved(self, path: str) -> None:
-        when, game = self._game_hint
+        when, game, seen = self._game_hint
         library = self.context.library
         logs.RECORDER.info("Saved %s", path)
-        self._game_hint = (0.0, "")
+        self._game_hint = (0.0, "", "")
         name = os.path.basename(path)
         tagged = game and time.monotonic() - when < 60 and library is not None and \
             library.tag_recorded(name, game)
         if not tagged:
+            self.saved.emit(path)
+            return
+        if seen == "screen":
+            logs.CLIPS.info("Tagged %s with %s (on screen when it was saved)", name, tagged)
             self.saved.emit(path)
             return
         logs.CLIPS.info("Tagged %s with %s (playing on the Game channel)", name, tagged)
@@ -860,6 +881,52 @@ class LevelFeed(QObject):
         self._levels.stop()
 
 
+class Hotkeys(QObject):
+    """The global hotkeys in the settings, held with Windows while Vertex
+    runs (see vertex.hotkeys). `pressed` names the action; `failed` holds the
+    actions whose keys another program has, as of the last `checked`."""
+
+    pressed = Signal(str)
+    checked = Signal()               # Windows said which hotkeys it holds
+    _result = Signal(object)
+
+    def __init__(self, context: Context):
+        super().__init__(context)
+        self.context = context
+        self.failed: set[str] = set()
+        self._paused = False
+        self._started = False
+        # Both are called from the listener's thread: through signals, they
+        # land on the UI thread.
+        self._listener = hotkeys.listener(self.pressed.emit, self._result.emit)
+        self._result.connect(self._got_result)
+        context.config_changed.connect(self.apply)
+
+    def start(self) -> None:
+        self._started = True
+        self.apply()
+
+    def apply(self) -> None:
+        if self._started:
+            self._listener.set({} if self._paused else
+                               hotkeys.bindings(self.context.config.hotkeys))
+
+    def pause(self, paused: bool) -> None:
+        """Let every hotkey go while new keys are being recorded, so pressing
+        one records it rather than running it."""
+        if paused != self._paused:
+            self._paused = paused
+            self.apply()
+
+    def _got_result(self, failed: set[str]) -> None:
+        if not self._paused:
+            self.failed = set(failed)
+            self.checked.emit()
+
+    def shutdown(self) -> None:
+        self._listener.close()
+
+
 class Context(QObject):
     config_changed = Signal()
     library_reset = Signal()             # the library or clips folder changed
@@ -874,9 +941,11 @@ class Context(QObject):
         naming.use_patterns(config.patterns())
         self.library: Library | None = None
         self.thumbs: ThumbnailService | None = None
-        self.sonar = SonarController(self)
+        # Sonar and its meters, where Sonar can run (platform.SONAR); None elsewhere.
+        self.sonar = SonarController(self) if platform.SONAR else None
         self.recorder = RecorderController(self)
-        self.levels = LevelFeed(self)
+        self.levels = LevelFeed(self) if self.sonar is not None else None
+        self.hotkeys = Hotkeys(self)
         self._save_timer = QTimer(self, singleShot=True, interval=1000)
         self._save_timer.timeout.connect(self.save_config)
 
@@ -938,11 +1007,13 @@ class Context(QObject):
         self._save_timer.start()
 
     def shutdown(self) -> None:
+        self.hotkeys.shutdown()
         if self._save_timer.isActive():
             self.save_config()
         self.recorder.shutdown()
-        self.levels.shutdown()
-        self.sonar.shutdown(take_down=True)
+        if self.sonar is not None:
+            self.levels.shutdown()
+            self.sonar.shutdown(take_down=True)
         if self.thumbs is not None:
             self.thumbs.shutdown()
         if self.library is not None:

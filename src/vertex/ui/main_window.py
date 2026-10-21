@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop, kwin, logs, notifications, reset
+from vertex import APP_NAME, desktop, logs, notifications, platform, reset
 from vertex.audio import channels
 from vertex.config import Config
 from vertex.media import export
@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
         self.start_menu_job = None
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(icons.desktop_ink()))
+        platform.put_on_taskbar(int(self.winId()))
         # The icon on the desktop's panels follows its light or dark look.
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._ink_changed)
         self.resize(1280, 820)
@@ -76,18 +77,20 @@ class MainWindow(QMainWindow):
         self.library_view = LibraryView(context, self.state)
         self.library_view.open_clip.connect(self.open_clip)
         self.library_view.import_requested.connect(self._open_import)
-        self.sonar_view = SonarView(context)
         self.settings_view = SettingsView(context)
         self.settings_view.saved.connect(self._settings_saved)
         self.settings_view.imported.connect(self.state.reload)
         self.settings_view.setup_requested.connect(self.run_setup_again)
         self.settings_view.reset_requested.connect(self.reset)
         self.settings_view.test_requested.connect(self._test_over_games)
+        # Sonar's page, where Sonar can run.
+        self.sonar_view = SonarView(context) if context.sonar is not None else None
         self.home_view = HomeView(context, self.state, self.library_view)
         self.home_view.navigate.connect(self.navigate)
         self.home_view.open_clip.connect(self.open_clip)
         for page in (self.home_view, self.library_view, self.sonar_view, self.settings_view):
-            self.stack.addWidget(page)
+            if page is not None:
+                self.stack.addWidget(page)
         self.editor: EditorView | None = None
         self._editor_from = "library"
         # The editor's video is an OpenGL widget, and the first one a shown
@@ -111,9 +114,10 @@ class MainWindow(QMainWindow):
 
         for keys, handler in (("Ctrl+F", self._focus_search), ("F5", self.state.reload),
                               ("Ctrl+Q", self.quit), ("Ctrl+,", lambda: self.navigate("settings")),
-                              ("Ctrl+1", lambda: self.navigate("library")),
-                              ("Ctrl+2", lambda: self.navigate("sonar"))):
+                              ("Ctrl+1", lambda: self.navigate("library"))):
             QShortcut(QKeySequence(keys), self, handler)
+        if self.sonar_view is not None:
+            QShortcut(QKeySequence("Ctrl+2"), self, lambda: self.navigate("sonar"))
 
     # --- Pages ---------------------------------------------------------------
 
@@ -239,6 +243,16 @@ class MainWindow(QMainWindow):
         self._settings_saved(any(getattr(before, key) != getattr(context.config, key)
                                  for key in ("clip_path", "data_path", "cache_path",
                                              "state_path")))
+        if context.sonar is not None:
+            self._apply_sonar_setup(before, config, enable_sonar)
+        if context.config.recorder != before.recorder:
+            context.recorder.detect()
+            context.recorder.restart_if_running()
+        if start_recorder and not before.recorder.autostart:
+            context.recorder.start()      # just asked to start with Vertex: now, too
+
+    def _apply_sonar_setup(self, before: Config, config: Config, enable_sonar: bool) -> None:
+        context = self.context
         if enable_sonar != before.sonar.enabled:
             context.config.sonar.output_device = config.sonar.output_device
             context.config.sonar.mic_device = config.sonar.mic_device
@@ -253,11 +267,6 @@ class MainWindow(QMainWindow):
                     context.sonar.set_channel_output(channel.id, output, lasting=True)
             if mic and mic != status.mic:
                 context.sonar.set_mic(mic, lasting=True)
-        if context.config.recorder != before.recorder:
-            context.recorder.detect()
-            context.recorder.restart_if_running()
-        if start_recorder and not before.recorder.autostart:
-            context.recorder.start()      # just asked to start with Vertex: now, too
 
     # --- Reset and delete -----------------------------------------------------------
 
@@ -288,7 +297,7 @@ class MainWindow(QMainWindow):
             self.banner.show_message(f"Settings reset. {_kept(where, 'old ones are')}", "ok",
                                      10000)
 
-        if context.sonar.enabled:
+        if context.sonar is not None and context.sonar.enabled:
             context.sonar.set_enabled(False, then=sonar_down)
         else:
             sonar_down()
@@ -338,9 +347,10 @@ class MainWindow(QMainWindow):
         if context.thumbs is not None:
             QTimer.singleShot(5000, lambda: context.thumbs.prune(
                 [clip.path for clip in self.state.all_clips]))
-        context.sonar.start()
-        if enable_sonar:
-            context.sonar.set_enabled(True)
+        if context.sonar is not None:
+            context.sonar.start()
+            if enable_sonar:
+                context.sonar.set_enabled(True)
         context.recorder.detect()
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:
             context.recorder.start()
@@ -478,10 +488,10 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
         if QGuiApplication.platformName() == "wayland":
-            # Wayland won't let us take the focus; KWin can give it (see kwin).
+            # Wayland won't let us take the focus; the desktop may give it.
             # The pause lets a window coming out of the tray map first.
             pid = os.getpid()
-            QTimer.singleShot(150, lambda: workers.run(lambda: kwin.activate(pid)))
+            QTimer.singleShot(150, lambda: workers.run(lambda: platform.activate_windows(pid)))
 
     def closeEvent(self, event):
         tray_ok = self.tray is not None and QSystemTrayIcon.isSystemTrayAvailable()

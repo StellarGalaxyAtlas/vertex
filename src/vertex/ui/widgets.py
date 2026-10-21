@@ -839,7 +839,8 @@ class PathField(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.edit = QLineEdit(paths.tilde(value) if value else "")
+        self.edit = QLineEdit()
+        self.set_value(value)
         self.edit.setPlaceholderText(placeholder)
         self.edit.textChanged.connect(lambda _t: self.changed.emit(self.value()))
         self.edit.editingFinished.connect(lambda: self.committed.emit(self.value()))
@@ -851,6 +852,7 @@ class PathField(QWidget):
         return paths.normalize(self.edit.text())
 
     def set_value(self, value: str) -> None:
+        value = paths.normalize(value)
         self.edit.setText(paths.tilde(value) if value else "")
 
     def _browse(self) -> None:

@@ -7,6 +7,7 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLineEdit, QVBoxLayout, QWidget
 
+from vertex import platform
 from vertex.core import storage
 from vertex.ui import theme
 from vertex.ui.widgets import ChoiceDialog, Section, TextDialog, button, label
@@ -121,7 +122,8 @@ class ResetPage(QObject):
     def _settings(self) -> None:
         if TypeToConfirm.ask(
                 self.parent_widget, "Reset settings", "Reset every setting?",
-                ["All settings, including Sonar's devices and volumes"],
+                ["All settings, including the recorder's and Sonar's devices and volumes"
+                 if platform.SONAR else "All settings, including the recorder's"],
                 f"Clips and the library are kept. {_kept_where()}",
                 "RESET", "Reset settings"):
             self.reset_requested.emit("settings")

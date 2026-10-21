@@ -32,3 +32,22 @@ jobs:
       - name: Test
         # Under Xvfb so the editor's OpenGL video test runs too.
         run: xvfb-run -a -s "-screen 0 1600x1000x24" pytest
+
+  windows:
+    # The platform-neutral tests and the Windows-specific ones, OBS's among
+    # them. The UI, media and GSR tests still assume Linux (shell-script
+    # stand-ins, xvfb); without ffmpeg here, the tests that need a clip skip.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests tools
+      - name: Test
+        run: >-
+          python -m pytest tests/test_windows.py tests/test_obs.py tests/test_config.py
+          tests/test_control.py tests/test_library.py tests/test_core.py

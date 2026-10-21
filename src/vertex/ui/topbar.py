@@ -232,6 +232,8 @@ class TopBar(QFrame):
         self.tabs: dict[str, PageTab] = {}
         group = QButtonGroup(self)
         for key, text, icon_name in self.PAGES:
+            if key == "sonar" and context.sonar is None:
+                continue
             tab = PageTab(text, icon_name)
             tab.clicked.connect(lambda _c=False, k=key: self.navigate.emit(k))
             group.addButton(tab)

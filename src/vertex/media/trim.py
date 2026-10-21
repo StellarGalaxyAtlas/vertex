@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 import subprocess
 
+from vertex import paths
 from vertex.media.ffmpeg import BASE, FFPROBE, MediaError, run_quiet
 from vertex.media.probe import probe
+from vertex.platform import NO_WINDOW
 
 # How far back to look for the keyframe before a cut point. Recorders key every
 # couple of seconds; beyond this the search costs more than the seek saves.
@@ -30,7 +32,7 @@ def keyframe_before(clip_path: str, seconds: float, window: float = KEYFRAME_WIN
              "-show_entries", "packet=pts_time,flags",
              "-read_intervals", f"{low:.3f}%{seconds + 0.05:.3f}",
              "-of", "csv=p=0", clip_path],
-            capture_output=True, text=True, timeout=30, check=True,
+            capture_output=True, text=True, timeout=30, check=True, **NO_WINDOW,
         ).stdout
     except (subprocess.SubprocessError, OSError):
         return seconds
@@ -94,7 +96,7 @@ def trim(clip_path: str, out_path: str, start: float, end: float, timeout: float
     """
     if end - start < MIN_SELECTION:
         raise MediaError("The selection is too short to trim.")
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    paths.make_dir(os.path.dirname(os.path.abspath(out_path)))
     argv = trim_command(clip_path, out_path, start, end, audio_titles(clip_path))
     run_quiet(argv, timeout, "Could not trim the clip")
     return os.path.getsize(out_path)

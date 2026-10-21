@@ -216,7 +216,7 @@ class ExportDialog(QDialog):
     def _choose_folder(self) -> None:
         chosen = QFileDialog.getExistingDirectory(self, "Export to", self.folder)
         if chosen:
-            self.folder = chosen
+            self.folder = paths.normalize(chosen)
             self._show_where()
 
     def _show_preview(self, path: str) -> None:

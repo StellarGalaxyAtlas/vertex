@@ -1,53 +1,26 @@
-"""Where Vertex keeps things: XDG base directories and bundled assets.
+"""Where Vertex keeps things: per-user folders and bundled assets.
 
-Every default is derived from the account the app is running under, honouring
-the XDG_* environment variables, so nothing machine-specific ever has to be
-written into the repository.
+Every default is derived from the account the app is running under, so
+nothing machine-specific ever has to be written into the repository. Where
+that is on each system is up to `vertex.platform`: the XDG base directories
+on Linux, the AppData folders on Windows.
 """
 
 from __future__ import annotations
 
 import os
-import subprocess
 from importlib import resources
 from pathlib import Path
 
-from vertex import APP_ID
-
-
-def _xdg(var: str, fallback: str) -> Path:
-    value = os.environ.get(var, "").strip()
-    # The spec says relative values are invalid and must be ignored.
-    if value and os.path.isabs(value):
-        return Path(value)
-    return Path(os.path.expanduser(fallback))
-
-
-def config_home() -> Path:
-    return _xdg("XDG_CONFIG_HOME", "~/.config")
-
-
-def data_home() -> Path:
-    return _xdg("XDG_DATA_HOME", "~/.local/share")
-
-
-def state_home() -> Path:
-    return _xdg("XDG_STATE_HOME", "~/.local/state")
-
-
-def cache_home() -> Path:
-    return _xdg("XDG_CACHE_HOME", "~/.cache")
+from vertex import platform
 
 
 def runtime_dir() -> Path:
-    """Per-user runtime dir for sockets; falls back to the cache dir."""
-    value = os.environ.get("XDG_RUNTIME_DIR", "").strip()
-    base = Path(value) if value and os.path.isabs(value) else cache_home()
-    return base / APP_ID
+    return platform.runtime_dir()
 
 
 def config_dir() -> Path:
-    return config_home() / APP_ID
+    return platform.config_dir()
 
 
 def config_path() -> Path:
@@ -55,15 +28,15 @@ def config_path() -> Path:
 
 
 def default_data_dir() -> Path:
-    return data_home() / APP_ID
+    return platform.data_dir()
 
 
 def default_state_dir() -> Path:
-    return state_home() / APP_ID
+    return platform.state_dir()
 
 
 def default_cache_dir() -> Path:
-    return cache_home() / APP_ID
+    return platform.cache_dir()
 
 
 def default_log_dir() -> Path:
@@ -71,8 +44,25 @@ def default_log_dir() -> Path:
 
 
 def control_socket() -> Path:
-    """The Unix socket a running Vertex listens on for `vertex <command>`."""
-    return runtime_dir() / "control.sock"
+    """Where a running Vertex listens for `vertex <command>`: a Unix socket,
+    or a file saying which local port it listens on (see `ipc`)."""
+    return runtime_dir() / platform.CONTROL_FILE
+
+
+def real(path: str) -> str:
+    """Where `path` really is on disk, for handing to another program: a
+    Python packaged as a Windows app keeps what it makes in AppData in a
+    private copy other programs don't see (see platform.windows.real)."""
+    return platform.real(path)
+
+
+def make_dir(path: str | os.PathLike) -> str:
+    """os.makedirs(path, exist_ok=True), and the folder's real place (see
+    `real`). Raises OSError like os.makedirs."""
+    path = os.fspath(path)
+    platform.prepare_dir(path)
+    os.makedirs(path, exist_ok=True)
+    return real(path)
 
 
 def normalize(path: str | os.PathLike | None) -> str:
@@ -84,7 +74,10 @@ def normalize(path: str | os.PathLike | None) -> str:
 
 
 def tilde(path: str) -> str:
-    """`path` with the home directory written as '~', for display."""
+    """`path` with the home directory written as '~', for display, where
+    the system has that shorthand."""
+    if not platform.SHORT_HOME:
+        return path
     home = os.path.expanduser("~")
     if path == home:
         return "~"
@@ -93,34 +86,10 @@ def tilde(path: str) -> str:
     return path
 
 
-def xdg_user_dir(role: str, fallback: str) -> str:
-    """Absolute path of an XDG user folder by role, e.g. ('VIDEOS', '~/Videos').
-
-    Asked for by role because the folders carry translated names on a
-    non-English desktop ("Vidéos", "Видео"). Tries the xdg-user-dir helper,
-    then the user-dirs.dirs file it reads, then the English fallback.
-    """
-    home = os.path.expanduser("~")
-    try:
-        out = subprocess.run(
-            ["xdg-user-dir", role], capture_output=True, text=True, timeout=5,
-        ).stdout.strip()
-        if out and out != home:
-            return normalize(out)
-    except (OSError, subprocess.SubprocessError):
-        pass  # helper not installed; read the file it would have read
-
-    try:
-        with open(config_home() / "user-dirs.dirs", encoding="utf-8") as handle:
-            for line in handle:
-                key, _, value = line.strip().partition("=")
-                if key == f"XDG_{role}_DIR":
-                    value = value.strip().strip('"').replace("$HOME", home)
-                    if value:
-                        return normalize(value)
-    except OSError:
-        pass
-    return normalize(fallback)
+def user_dir(role: str, fallback: str) -> str:
+    """Absolute path of a user folder by role, e.g. ('VIDEOS', '~/Videos'),
+    under whatever name the system gives it in the user's language."""
+    return platform.user_dir(role, fallback)
 
 
 # --- Bundled assets ---------------------------------------------------------

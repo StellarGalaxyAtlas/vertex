@@ -1,5 +1,5 @@
-"""Home: the newest clips, a quick mixer, the games, the disk and the people,
-on one screen. Vertex opens on it."""
+"""Home: the newest clips, a quick mixer where there is Sonar, the games, the
+disk and the people, on one screen. Vertex opens on it."""
 
 from __future__ import annotations
 
@@ -716,8 +716,8 @@ class StorageArea(QWidget):
 
 
 class HomeView(QWidget):
-    """The tiles: the newest clips across the top, then Sonar, the games, and
-    the disk with the people. `navigate` asks for a page; the library's
+    """The tiles: the newest clips across the top, then Sonar (where there is
+    one), the games, and the disk with the people. `navigate` asks for a page; the library's
     filters are set first when a tile leads there."""
 
     navigate = Signal(str)
@@ -753,8 +753,9 @@ class HomeView(QWidget):
         layout.addWidget(self.latest_tile)
         self.bottom = bottom = QHBoxLayout()
         bottom.setSpacing(SPACING)
-        self.sonar_tile = self._build_sonar()
-        bottom.addWidget(self.sonar_tile, 1)
+        self.sonar_tile = self._build_sonar() if self.controller is not None else None
+        if self.sonar_tile is not None:
+            bottom.addWidget(self.sonar_tile, 1)
         self.games_tile = self._build_games()
         bottom.addWidget(self.games_tile, 1)
         self.column = QVBoxLayout()
@@ -1009,10 +1010,12 @@ class HomeView(QWidget):
 
     def hideEvent(self, event):
         super().hideEvent(event)
-        self.context.levels.want("home", False)
+        if self.controller is not None:
+            self.context.levels.want("home", False)
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.context.levels.want("home", True)
-        self.controller.refresh()
-        self.controller.refresh_streams()
+        if self.controller is not None:
+            self.context.levels.want("home", True)
+            self.controller.refresh()
+            self.controller.refresh_streams()

@@ -2,7 +2,8 @@ import os
 import stat
 import sys
 
-from vertex import kwin, paths
+from vertex import paths
+from vertex.platform import kwin
 
 FAKE = """#!{python}
 import sys

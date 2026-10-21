@@ -4,9 +4,9 @@ One file per part of the app, so a problem with the audio isn't buried under
 clip saves:
 
     vertex.log      the app itself: starting, quitting, settings, commands
-                    from shortcuts and the Stream Deck, errors
-    recorder.log    the replay buffer and GPU Screen Recorder's own output
-    sonar.log       the virtual devices, real devices, volumes and routing
+                    from shortcuts and scripts, errors
+    recorder.log    the replay buffer and the recorder's own output
+    sonar.log       Sonar (Linux): the virtual devices, real devices, volumes and routing
     clips.log       the library: clips saved, tagged, trimmed, exported, deleted
 
 Every line starts with the time and how serious it is, so the files read in
@@ -14,7 +14,7 @@ any text editor, `less` or `tail -f`. A file that reaches MAX_BYTES starts
 over, keeping the previous BACKUPS as `.1` and `.2`: no part of Vertex ever
 holds more than about 6 MB of logs.
 
-Modules log to the logger of their part (`logs.SONAR.info(...)`). Nothing is
+Modules log to the logger of their part (`logs.CLIPS.info(...)`). Nothing is
 written anywhere until `setup` names a folder, which only the running app
 does, and only while Keep logs is on in Settings: a `vertex save-clip` from a
 hotkey leaves the files alone.
@@ -28,7 +28,7 @@ import sys
 import threading
 from logging.handlers import RotatingFileHandler
 
-from vertex import APP_NAME, __version__
+from vertex import APP_NAME, __version__, paths
 
 MAX_BYTES = 2 * 1024 * 1024
 BACKUPS = 2
@@ -89,7 +89,7 @@ def setup(path: str) -> str:
     if path == _folder:
         return _folder
     try:
-        os.makedirs(path, exist_ok=True)
+        paths.make_dir(path)
         opened = {name: _handler(os.path.join(path, file)) for name, file in FILES.items()}
     except OSError as exc:
         APP.error("Couldn't write logs to %s: %s", path, exc)

@@ -7,6 +7,7 @@ import subprocess
 import threading
 from collections.abc import Callable
 
+from vertex.platform import NO_WINDOW
 from vertex.proc import last_line
 
 FFMPEG = "ffmpeg"
@@ -40,7 +41,8 @@ def run_pass(argv: list[str], duration: float, on_progress: ProgressFn | None = 
     set, MediaError with ffmpeg's last stderr line when it fails.
     """
     try:
-        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                **NO_WINDOW)
     except OSError as exc:
         raise MediaError(f"Could not start ffmpeg: {exc}") from exc
 
@@ -73,7 +75,8 @@ def run_pass(argv: list[str], duration: float, on_progress: ProgressFn | None = 
 def run_quiet(argv: list[str], timeout: float, what: str) -> subprocess.CompletedProcess:
     """Run a short ffmpeg/ffprobe command, raising MediaError on failure."""
     try:
-        return subprocess.run(argv, capture_output=True, timeout=timeout, check=True)
+        return subprocess.run(argv, capture_output=True, timeout=timeout, check=True,
+                              **NO_WINDOW)
     except subprocess.CalledProcessError as exc:
         raise MediaError(f"{what}: {last_line(exc.stderr, 'ffmpeg failed.')}") from exc
     except (subprocess.SubprocessError, OSError) as exc:

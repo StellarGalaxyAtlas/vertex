@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QComboBox, QVBoxLayout, QWidget
 
 from vertex import fmt
 from vertex.config import Config, RecorderConfig
-from vertex.recorder import gsr, monitors, presets
+from vertex.recorder import backend, gsr, monitors, presets
 from vertex.ui import screens, theme
 from vertex.ui.settings import monitors as monitor_map
 from vertex.ui.widgets import FieldGrid, Meter, Section, label
@@ -88,7 +88,7 @@ class ClipChoices(QObject):
     # --- The monitor --------------------------------------------------------------
 
     def set_capture_options(self, options: list[gsr.CaptureOption]) -> None:
-        """What GPU Screen Recorder says it can record ([] when it can't say)."""
+        """What the recorder says it can record ([] when it can't say)."""
         self.capture_options = list(options)
         self.show_capture()
 
@@ -161,10 +161,11 @@ class ClipChoices(QObject):
         sizes.append(("", f"Native · {pixels[0]} × {pixels[1]}" if pixels[0] else "Native"))
         fill(self.resolution, sizes, rec.resolution, lambda r: r.replace("x", " × "))
 
-        constant = rec.bitrate_mode == "cbr"
+        # OBS is given a quality level, not a bitrate.
+        constant = rec.bitrate_mode == "cbr" and not backend.is_obs()
         size = presets.output_size(rec.resolution, pixels)
         levels = []
-        for level in presets.LEVELS:
+        for level in backend.quality_levels():
             name = QUALITY_NAMES[level]
             if constant:
                 name += f" · {mbps(presets.video_kbps(level, size, rec.fps))}"
@@ -209,14 +210,14 @@ class ClipSize(QWidget):
     def estimate(self, config: Config,
                  recorded: Callable[[RecorderConfig], RecorderConfig]) -> int:
         """Show the estimate for `config`, with `recorded` turning its recorder
-        settings into what GSR gets (ClipChoices.recorded). Returns the bytes."""
+        settings into what the recorder gets (ClipChoices.recorded). Returns the bytes."""
         rec = config.recorder
         tracks = len(gsr.audio_tracks(config))
         size = presets.clip_bytes(recorded(rec), tracks)
         largest = presets.clip_bytes(recorded(dataclasses.replace(
             rec, quality=presets.LEVELS[-1], resolution="", fps=max(presets.FRAME_RATES),
             replay_seconds=max(presets.DURATIONS), bitrate_kbps=0)), tracks)
-        constant = rec.bitrate_mode == "cbr"
+        constant = rec.bitrate_mode == "cbr" and not backend.is_obs()
         self.figure.setText(f"{'About' if constant else 'Roughly'} {fmt.size(size, 0)} per clip")
         self.meter.set_fraction(size / largest if largest else 0)
         where = "in memory" if rec.replay_storage == "ram" else "on disk"

@@ -9,12 +9,15 @@ from vertex import logs
 
 @pytest.fixture(autouse=True)
 def isolated_home(tmp_path, monkeypatch):
-    """Every test gets its own HOME and XDG dirs, so nothing touches the real ones."""
+    """Every test gets its own home, XDG and AppData dirs, so nothing touches
+    the real ones."""
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))     # what ~ means on Windows
     for var, sub in (("XDG_CONFIG_HOME", ".config"), ("XDG_DATA_HOME", ".local/share"),
-                     ("XDG_STATE_HOME", ".local/state"), ("XDG_CACHE_HOME", ".cache")):
+                     ("XDG_STATE_HOME", ".local/state"), ("XDG_CACHE_HOME", ".cache"),
+                     ("APPDATA", "AppData/Roaming"), ("LOCALAPPDATA", "AppData/Local")):
         monkeypatch.setenv(var, str(home / sub))
     yield home
     # A test that saved settings switched the logs on, in its own home.

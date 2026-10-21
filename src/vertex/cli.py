@@ -4,11 +4,11 @@
     vertex --background         start in the tray, e.g. at login
     vertex save-clip [--last N] save the replay buffer (bind this to a hotkey)
     vertex replay start|stop|toggle|status
-    vertex sonar up|down|status
+    vertex sonar up|down|status                       (Linux: Sonar)
     vertex volume CHANNEL up|down|0-100 [--step N]
     vertex mute CHANNEL [on|off|toggle]
     vertex device next|previous [CHANNEL]
-    vertex state [--json]       what is running, volumes, devices
+    vertex state [--json]       what is running, and Sonar's volumes and devices
     vertex watch                follow changes and notifications, as JSON lines
     vertex doctor               check dependencies
     vertex install-desktop      add Vertex to the start menu (and autostart)
@@ -21,13 +21,13 @@ import argparse
 import json
 import sys
 
-from vertex import APP_NAME, __version__, control, ipc
+from vertex import APP_NAME, __version__, control, ipc, platform
 from vertex.audio import channels
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="vertex", description=f"{APP_NAME} — game clips and Sonar audio for Linux.")
+        prog="vertex", description=f"{APP_NAME} — game clips: record, trim, mix and share.")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     parser.add_argument("--background", action="store_true",
                         help="start hidden in the system tray")
@@ -42,25 +42,27 @@ def _parser() -> argparse.ArgumentParser:
     replay = commands.add_parser("replay", help="control the replay buffer")
     replay.add_argument("action", choices=("start", "stop", "toggle", "status"))
 
-    sonar = commands.add_parser("sonar", help="control the virtual audio devices")
-    sonar.add_argument("action", choices=("up", "down", "status"))
+    if platform.SONAR:
+        sonar = commands.add_parser("sonar", help="control the virtual audio devices")
+        sonar.add_argument("action", choices=("up", "down", "status"))
 
-    names = [channel.id for channel in channels.ALL]
-    volume = commands.add_parser("volume", help="turn a Sonar channel up or down")
-    volume.add_argument("channel", choices=names)
-    volume.add_argument("level", metavar="up|down|0-100",
-                        help="a step up or down, or a volume in percent")
-    volume.add_argument("--step", type=int, default=control.VOLUME_STEP, metavar="PERCENT",
-                        help=f"how far up or down (default {control.VOLUME_STEP})")
-    mute = commands.add_parser("mute", help="mute or unmute a Sonar channel (mic: Vertex Mic)")
-    mute.add_argument("channel", choices=names)
-    mute.add_argument("action", nargs="?", default="toggle", choices=("on", "off", "toggle"))
-    device = commands.add_parser("device", help="switch to the next or previous device")
-    device.add_argument("action", choices=("next", "previous"))
-    device.add_argument("channel", nargs="?", choices=names,
-                        help="mic for microphones; an output channel while unlinked")
+        names = [channel.id for channel in channels.ALL]
+        volume = commands.add_parser("volume", help="turn a Sonar channel up or down")
+        volume.add_argument("channel", choices=names)
+        volume.add_argument("level", metavar="up|down|0-100",
+                            help="a step up or down, or a volume in percent")
+        volume.add_argument("--step", type=int, default=control.VOLUME_STEP, metavar="PERCENT",
+                            help=f"how far up or down (default {control.VOLUME_STEP})")
+        mute = commands.add_parser("mute", help="mute or unmute a Sonar channel (mic: Vertex Mic)")
+        mute.add_argument("channel", choices=names)
+        mute.add_argument("action", nargs="?", default="toggle", choices=("on", "off", "toggle"))
+        device = commands.add_parser("device", help="switch to the next or previous device")
+        device.add_argument("action", choices=("next", "previous"))
+        device.add_argument("channel", nargs="?", choices=names,
+                            help="mic for microphones; an output channel while unlinked")
 
-    state = commands.add_parser("state", help="what is running, the volumes and devices")
+    state = commands.add_parser("state", help="what is running"
+                                + (", the volumes and devices" if platform.SONAR else ""))
     state.add_argument("--json", action="store_true", help="the state as JSON")
     commands.add_parser("watch", help="print changes and notifications as JSON lines")
 
@@ -114,9 +116,11 @@ def _state(as_json: bool) -> int:
 
     def device(entry):
         return entry["description"] if entry else "nothing"
-    replay, sonar = state.get("replay", {}), state.get("sonar", {})
+    replay, sonar = state.get("replay", {}), state.get("sonar")
     keeping = f" (last {replay.get('seconds')} s)" if replay.get("running") else ""
     print(f"Replay buffer  {replay.get('state', '?')}{keeping}")
+    if sonar is None:
+        return 0
     if not sonar.get("enabled"):
         print("Sonar          off")
         return 0
@@ -190,6 +194,21 @@ def _sonar(action: str) -> int:
     return 0
 
 
+def _start_apart(background: bool) -> int:
+    """`vertex` typed in a terminal on Windows: Vertex starts on its own and
+    the terminal is handed back, so closing it doesn't quit Vertex."""
+    from vertex import desktop
+
+    try:
+        platform.start_detached([*desktop.launch_command(),
+                               *(["--background"] if background else [])])
+    except OSError as exc:
+        print(f"Couldn't start {APP_NAME}: {exc}", file=sys.stderr)
+        return 1
+    print(f"{APP_NAME} is starting. This window can be closed.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
 
@@ -199,6 +218,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "show":
             print(f"{APP_NAME} is not running.", file=sys.stderr)
             return 1
+        if platform.in_console():
+            return _start_apart(args.background)
         from vertex.ui.app import run
 
         return run(background=args.background)
