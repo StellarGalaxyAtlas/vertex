@@ -57,7 +57,7 @@ def relative_time(timestamp: float, now: float | None = None) -> str:
 def plural(count: int, noun: str, plural_form: str | None = None) -> str:
     """'1 clip', '3 clips'."""
     word = noun if count == 1 else (plural_form or noun + "s")
-    return f"{count} {word}"
+    return f"{count:,} {word}"
 
 
 def oxford(items: list[str]) -> str:

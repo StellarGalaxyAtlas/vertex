@@ -2702,3 +2702,104 @@ def test_library_picks_several_clips_and_acts_on_them_at_once(qapp, window, monk
     QTest.keyClick(grid, Qt.Key.Key_Delete)
     assert not state.visible and not view.selection
     assert view.top.currentWidget() is view.filters
+
+
+def test_settings_backs_up_and_restores_what_is_picked(qapp, window, library_dir, tmp_path,
+                                                         monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    from vertex import backup
+    from vertex.ui import theme
+    from vertex.ui.settings.backup import RestoreDialog
+    from vertex.ui.widgets import ChoiceDialog
+
+    context, settings = window.context, window.settings_view
+    names = sorted(os.listdir(library_dir))
+    # The day's automatic backup is made as Vertex starts, and listed.
+    assert wait_until(qapp, lambda: backup.automatic(context.config))
+    window.navigate("settings")
+    settings.show_page("backup")
+    assert wait_until(qapp, lambda: settings.backups.rows.count() == 1)
+    settings.backups.daily.setChecked(False)
+    assert Config.load().daily_backup is False
+
+    context.library.set_tags(names[0], "Apex Legends", ["Sam"])
+    context.config.game_names = {"Apex": "Apex Legends"}
+    context.save_config()
+    target = str(tmp_path / "mine")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (target, ""))
+    settings.backups.export_requested.emit()
+    assert wait_until(qapp, lambda: os.path.exists(target + ".zip"))
+    assert wait_until(qapp, lambda: settings.banner.text().startswith("Saved your settings"))
+
+    # Changed since: both come back, but only what was picked.
+    context.library.set_tags(names[0], "Valorant", [])
+    context.config.game_names = {}
+    context.config.colour_scheme = "polar"
+    context.save_config()
+    shown = []
+
+    def pick(dialog):
+        shown.append(dialog)
+        general = next(c for c in dialog.categories if c.box.text() == "General")
+        assert general.boxes["colour_scheme"].isChecked()
+        assert dialog.offered["colour_scheme"].now == "Polar"
+        general.box.click()                       # untick all of General
+        assert not general.picked() and dialog.everything.checkState() == \
+            Qt.CheckState.PartiallyChecked
+        return True
+    monkeypatch.setattr(RestoreDialog, "exec", pick)
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (target + ".zip", ""))
+    asked = []
+    monkeypatch.setattr(ChoiceDialog, "ask", classmethod(lambda *a, **k: asked.append(a)))
+    settings.backups.open_requested.emit()
+    assert wait_until(qapp, lambda: settings.banner.text().startswith("Restored your settings "
+                                                                       "and library"))
+    assert shown and context.library.tags()[names[0]][0] == "Apex Legends"
+    assert context.config.game_names == {"Apex": "Apex Legends"}
+    assert context.config.colour_scheme == "polar"            # General wasn't picked
+    assert Config.load().game_names == {"Apex": "Apex Legends"}
+    assert not asked                                          # the clips are all there
+    theme.use(Config().colour_scheme)
+
+
+def test_restore_window_ticks_everything_a_category_or_only_changes(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    from vertex import backup, platform
+    from vertex.ui.settings.backup import RestoreDialog
+
+    current, saved = Config(), Config()
+    saved.colour_scheme = "polar"
+    contents = backup.Contents(time.time(), "2.0", platform.RECORDER,
+                               ("settings", "library"), 1234)
+    offered = backup.choices(contents, saved, current)
+    dialog = RestoreDialog(None, contents, offered)
+    total = sum(len(c.boxes) for c in dialog.categories)
+    assert len(dialog.picked()) == total
+    assert dialog.summary.text() == f"{total - 1} settings and the library"
+    dialog.everything.click()
+    assert dialog.picked() == [] and not dialog.restore.isEnabled()
+    dialog.everything.click()
+    assert len(dialog.picked()) == total
+    dialog._only_changes()
+    assert dialog.picked() == ["colour_scheme", "library"]
+    library = dialog.categories[-1]
+    assert library.box.text() == "Library" and "1,234 clips" in \
+        library.body.findChildren(QLabel)[0].text()
+    dialog.deleteLater()
+
+
+def test_after_a_restore_missing_clips_are_asked_about(qapp, window, library_dir, tmp_path,
+                                                         monkeypatch):
+    from vertex.ui.widgets import ChoiceDialog
+
+    for name in os.listdir(library_dir):
+        window.context.library.set_tags(name, "Apex Legends", [])
+    window.context.config.clip_path = str(tmp_path / "elsewhere")
+    asked = []
+    monkeypatch.setattr(ChoiceDialog, "ask", classmethod(
+        lambda _cls, _parent, _title, message, *a, **k: asked.append(message)))
+    window._check_clips()
+    assert wait_until(qapp, lambda: asked)
+    assert asked[0].startswith("2 of the library's 2 clips aren't in")

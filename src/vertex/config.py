@@ -177,6 +177,7 @@ class Config:
     log_path: str = ""          # "" = a logs folder in the state folder
 
     close_to_tray: bool = True
+    daily_backup: bool = True   # an automatic backup a day (vertex.backup)
     colour_scheme: str = "navy"                                # a key of ui/theme.SCHEMES
     card_width: int = CARD_WIDTH_DEFAULT                       # see CARD_WIDTH_RANGE
     # How loud the editor plays clips, in percent (PLAYBACK_VOLUME_RANGE): only

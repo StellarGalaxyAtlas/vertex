@@ -11,6 +11,7 @@ from PySide6.QtGui import QDesktopServices, QFontDatabase
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLineEdit,
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import desktop, fmt, logs, paths, platform
+from vertex import APP_NAME, backup, desktop, fmt, logs, paths, platform, setting_groups
 from vertex.config import (
     AUDIO_CODECS,
     BITRATE_MODES,
@@ -42,6 +43,7 @@ from vertex.recorder import backend, gsr, obs
 from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog
 from vertex.ui.name_teacher import NameSources
+from vertex.ui.settings.backup import BackupPage, RestoreDialog
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
 from vertex.ui.settings.game_names import GameNames
 from vertex.ui.settings.notifications import NotificationsPage
@@ -70,7 +72,7 @@ from vertex.ui.widgets import (
 # restart the replay buffer, so they wait for Apply.
 APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                  "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
-                 "notify_over_games")
+                 "notify_over_games", "daily_backup")
 RECORDER_AT_ONCE = ("autostart", "tag_from_game_channel", "tag_from_fullscreen")
 
 LABELS = {
@@ -120,6 +122,7 @@ class SettingsView(QWidget):
     setup_requested = Signal()       # run first-run setup again
     reset_requested = Signal(str)    # settings | library | cache, confirmed
     test_requested = Signal()        # a sample notification over games
+    restore_requested = Signal(str, list)   # a backup's path, and what to put back
 
     def __init__(self, context, parent=None):
         super().__init__(parent)
@@ -138,6 +141,7 @@ class SettingsView(QWidget):
                              ("notifications", "Notifications", "bell"),
                              ("shortcuts", "Shortcuts", "keyboard"),
                              ("import", "Import and setup", "folder"),
+                             ("backup", "Backup", "storage"),
                              ("reset", "Reset and delete", "trash")], "general")
         self.tabs.setFixedWidth(240)
         self.tabs.changed.connect(lambda key, _d: self.show_page(key))
@@ -179,6 +183,7 @@ class SettingsView(QWidget):
         self.pages["shortcuts"] = scroll_page(top, *_pairs(groups))
         self.stack.addWidget(self.pages["shortcuts"])
         self._build_import()
+        self._build_backup()
         resets = ResetPage(self)
         resets.reset_requested.connect(self.reset_requested)
         self.pages["reset"] = scroll_page(tuple(resets.sections))
@@ -192,7 +197,8 @@ class SettingsView(QWidget):
             field.committed.connect(lambda _v: self.apply_now())
         for switch in (self.keep_logs, self.close_to_tray, self.autostart,
                        self.notifications.over_games, *self.notifications.switches.values(),
-                       self.rec_autostart, self.tag_from_game, self.tag_from_screen):
+                       self.rec_autostart, self.tag_from_game, self.tag_from_screen,
+                       self.backups.daily):
             switch.toggled.connect(lambda _on: self.apply_now())
         self.schemes.picked.connect(lambda _s: self.apply_now())
         self.output_dir.changed.connect(lambda _v: self._show_pending())
@@ -203,6 +209,8 @@ class SettingsView(QWidget):
         if key == "recording":
             self._refresh_recorder()
             self._refresh_storage()
+        elif key == "backup":
+            self.show_backups()
 
     # --- Pages ----------------------------------------------------------------
 
@@ -448,6 +456,72 @@ class SettingsView(QWidget):
         self.pages["import"] = scroll_page((copy_section, setup), names, renames)
         self.stack.addWidget(self.pages["import"])
 
+    def _build_backup(self) -> None:
+        self.backups = BackupPage(self)
+        self.backups.export_requested.connect(self._export_backup)
+        self.backups.open_requested.connect(self._open_backup)
+        self.backups.restore_requested.connect(self._ask_restore)
+        self.pages["backup"] = scroll_page(*self.backups.sections)
+        self.stack.addWidget(self.pages["backup"])
+
+    def show_backups(self) -> None:
+        """List the automatic backups again."""
+        config = copy.deepcopy(self.context.config)
+        workers.run(lambda: backup.automatic(config), self.backups.set_backups,
+                    lambda exc: logs.APP.warning("Couldn't list the backups: %s", exc))
+
+    def _backup_folder(self) -> str:
+        return self.context.config.resolved_export_dir() or os.path.expanduser("~")
+
+    def _export_backup(self) -> None:
+        target, _filter = QFileDialog.getSaveFileName(
+            self, "Export a backup", os.path.join(self._backup_folder(), backup.default_name()),
+            f"{APP_NAME} backups (*{backup.SUFFIX})")
+        if not target:
+            return
+        if not target.endswith(backup.SUFFIX):
+            target += backup.SUFFIX
+        config = copy.deepcopy(self.context.config)
+
+        def done(contents) -> None:
+            self.banner.show_message(f"Saved your settings and library "
+                                     f"({fmt.plural(contents.clips, 'clip')}) to "
+                                     f"{paths.tilde(target)}.", "ok")
+
+        def failed(exc) -> None:
+            self.banner.show_message(f"Couldn't save the backup: {exc}", "error", 10000)
+
+        workers.run(lambda: backup.export(target, config), done, failed)
+
+    def _open_backup(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Restore a backup", self._backup_folder(),
+            f"{APP_NAME} backups (*{backup.SUFFIX})")
+        if path:
+            self._ask_restore(path)
+
+    def _ask_restore(self, path: str) -> None:
+        """Read the backup, then ask what to put back."""
+
+        def load():
+            contents = backup.read(path)
+            settings = backup.load_settings(path) if "settings" in contents.parts else None
+            return contents, settings
+
+        def loaded(result) -> None:
+            contents, settings = result
+            offered = backup.choices(contents, settings, self.context.config)
+            left = setting_groups.left_here(settings) if settings is not None else []
+            dialog = RestoreDialog(self, contents, offered, left)
+            if dialog.exec():
+                self.restore_requested.emit(path, dialog.picked())
+            dialog.deleteLater()
+
+        def failed(exc) -> None:
+            self.banner.show_message(str(exc), "error", 10000)
+
+        workers.run(load, loaded, failed)
+
     def _forget_game_name(self, name: str) -> None:
         names = {old: new for old, new in self.context.config.game_names.items() if old != name}
         self.context.set_game_names(names)
@@ -480,6 +554,7 @@ class SettingsView(QWidget):
         self.log_path.edit.setPlaceholderText(paths.tilde(
             os.path.join(config.resolved_state_dir(), "logs")))
         self.close_to_tray.setChecked(config.close_to_tray)
+        self.backups.daily.setChecked(config.daily_backup)
         self.schemes.set_value(config.colour_scheme)
         if self.schemes.value() != theme.scheme:      # back from a scheme picked, not saved
             theme.use(self.schemes.value())
@@ -522,6 +597,7 @@ class SettingsView(QWidget):
         config.cache_path = self.cache_path.value()
         config.keep_logs = self.keep_logs.isChecked()
         config.log_path = self.log_path.value()
+        config.daily_backup = self.backups.daily.isChecked()
         config.close_to_tray = self.close_to_tray.isChecked()
         config.colour_scheme = self.schemes.value()
         config.notifications = self.notifications.choices()
@@ -849,7 +925,7 @@ class SettingsView(QWidget):
             self, "Tag clips",
             f"Tag {fmt.plural(len(changes), 'clip')} with the game in "
             f"{'its name' if one else 'their names'}?",
-            f"{patterns[index].app} reads {'it' if one else 'them'}: {_listed(games)}. "
+            f"{patterns[index].app} reads {'it' if one else 'them'}: {fmt.oxford(games)}. "
             f"{'It has' if one else 'They have'} no game yet.",
             [("Review…", "review", ""), ("Tag them" if not one else "Tag it", "tag", "primary")],
             cancel="Not now")
@@ -882,11 +958,6 @@ class SettingsView(QWidget):
         if pair not in self.context.config.kept_tags:
             self.context.config.kept_tags.append(pair)
             self.context.save_config()
-
-
-def _listed(items: list[str]) -> str:
-    """"a", "a and b", "a, b and c"."""
-    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 def _pairs(sections: list) -> list:

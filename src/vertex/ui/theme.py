@@ -396,17 +396,21 @@ def font(size: float = 10, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
 TICK_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
             '<path d="M5.5 12.5 10 17l8.5-10" fill="none" stroke="{colour}" '
             'stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+# A box only partly ticked: some of what it stands for is.
+DASH_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+            '<path d="M7 12h10" fill="none" stroke="{colour}" stroke-width="3" '
+            'stroke-linecap="round"/></svg>')
 
 
-def _tick() -> str:
-    """The tick in a checked box. A style sheet takes an image only from a
-    file, so it is written once for each colour it comes in: ON_ACCENT. No
-    file, no tick: the box is still filled."""
-    path = paths.runtime_dir() / f"tick-{ON_ACCENT.lstrip('#')}.svg"
+def _tick(name: str = "tick", svg: str = TICK_SVG) -> str:
+    """The tick (or dash) in a checked box. A style sheet takes an image only
+    from a file, so it is written once for each colour it comes in: ON_ACCENT.
+    No file, no tick: the box is still filled."""
+    path = paths.runtime_dir() / f"{name}-{ON_ACCENT.lstrip('#')}.svg"
     try:
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(TICK_SVG.format(colour=ON_ACCENT), encoding="utf-8")
+            path.write_text(svg.format(colour=ON_ACCENT), encoding="utf-8")
     except OSError:
         return ""
     return f"image: url({path.as_posix()});"
@@ -482,6 +486,9 @@ QCheckBox::indicator {{
 }}
 QCheckBox::indicator:checked {{
     background: {ACCENT_FILL}; border-color: {ACCENT_FILL_EDGE}; {_tick()}
+}}
+QCheckBox::indicator:indeterminate {{
+    background: {ACCENT_FILL}; border-color: {ACCENT_FILL_EDGE}; {_tick("dash", DASH_SVG)}
 }}
 
 /* --- Sliders ------------------------------------------------------------- */

@@ -11,6 +11,9 @@
     vertex state [--json]       what is running, and Sonar's volumes and devices
     vertex watch                follow changes and notifications, as JSON lines
     vertex doctor               check dependencies
+    vertex backup export [FILE] save your settings and library to one file
+    vertex backup import FILE [--only settings|library]
+                                put a backup back (quit Vertex first)
     vertex install-desktop      add Vertex to the start menu (and autostart)
     vertex uninstall-desktop
 """
@@ -19,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from vertex import APP_NAME, __version__, control, ipc, platform
@@ -74,6 +78,16 @@ def _parser() -> argparse.ArgumentParser:
     install.add_argument("--autostart", action=argparse.BooleanOptionalAction, default=None,
                          help="start Vertex in the tray when you log in")
     commands.add_parser("uninstall-desktop", help="remove the start menu entry and autostart")
+    backup = commands.add_parser("backup", help="back up or restore your settings and library")
+    actions = backup.add_subparsers(dest="action", required=True)
+    export = actions.add_parser("export", help="save your settings and library to one file")
+    export.add_argument("file", nargs="?",
+                        help="where to save it (default: \"Vertex backup DATE.zip\" here)")
+    restore = actions.add_parser("import", help="put a backup back (quit Vertex first)")
+    restore.add_argument("file")
+    restore.add_argument("--only", choices=("settings", "library"),
+                         help="put back only the settings or only the library")
+    restore.add_argument("-y", "--yes", action="store_true", help="don't ask first")
     return parser
 
 
@@ -194,6 +208,83 @@ def _sonar(action: str) -> int:
     return 0
 
 
+def _backup(args) -> int:
+    from vertex import backup, fmt, paths
+    from vertex.config import Config
+    from vertex.setting_groups import LIBRARY
+
+    if args.action == "export":
+        target = args.file or backup.default_name()
+        if os.path.isdir(target):
+            target = os.path.join(target, backup.default_name())
+        try:
+            contents = backup.export(target, Config.load_or_default())
+        except (OSError, backup.BackupError) as exc:
+            print(f"Couldn't save the backup: {exc}", file=sys.stderr)
+            return 1
+        held = "settings and library" if "library" in contents.parts else "settings"
+        clips = f" ({fmt.plural(contents.clips, 'clip')})" if "library" in contents.parts else ""
+        print(f"Saved your {held}{clips} to {paths.tilde(os.path.abspath(target))}.")
+        return 0
+
+    if ipc.is_running():
+        print(f"{APP_NAME} is running. Quit it from the tray first, or restore the backup in "
+              f"Settings › Backup.", file=sys.stderr)
+        return 1
+    try:
+        contents = backup.read(args.file)
+    except backup.BackupError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print("Add --yes to restore without being asked.", file=sys.stderr)
+            return 2
+        what = args.only or " and ".join(contents.parts)
+        answer = input(f"Replace your {what} with the backup from "
+                       f"{fmt.date(contents.created)}? [y/N] ")
+        if answer.strip().lower() not in ("y", "yes"):
+            return 1
+    current = Config.load_or_default()
+    try:
+        picks = None
+        if args.only:
+            offered = backup.choices(contents, backup.load_settings(args.file), current)
+            picks = [key for key, choice in offered.items() if choice.default and
+                     (key == LIBRARY) == (args.only == "library")]
+        restored = backup.restore(args.file, current, picks)
+    except (OSError, backup.BackupError) as exc:
+        print(f"Couldn't restore the backup: {exc}", file=sys.stderr)
+        return 1
+    print(_restored(restored))
+    return 0
+
+
+def _restored(restored) -> str:
+    """What a restore did, in a few lines."""
+    from vertex import backup, fmt, paths, setting_groups
+    from vertex.setting_groups import LIBRARY
+
+    what = [part for part, there in (("settings", restored.settings),
+                                     ("library", LIBRARY in restored.picks)) if there]
+    lines = [f"Restored your {' and '.join(what)}"
+             + (f" ({fmt.plural(restored.clips, 'clip')})." if LIBRARY in restored.picks
+                else ".")]
+    if restored.left_out:
+        items = setting_groups.items()
+        names = [items[key].title.lower() for key in restored.left_out]
+        lines.append(f"Kept as they were: {fmt.oxford(names)} (not on this computer, or made "
+                     f"for another recorder).")
+    missing, known = backup.missing_clips(restored.config)
+    if missing * 2 > known:
+        lines.append(f"{missing} of the library's {fmt.plural(known, 'clip')} aren't in "
+                     f"{paths.tilde(restored.config.resolved_clip_dir())}. Set the clips folder "
+                     f"in Settings › General.")
+    if restored.moved_to:
+        lines.append(f"What was replaced is in {restored.moved_to}.")
+    return "\n".join(lines)
+
+
 def _start_apart(background: bool) -> int:
     """`vertex` typed in a terminal on Windows: Vertex starts on its own and
     the terminal is handed back, so closing it doesn't quit Vertex."""
@@ -251,6 +342,8 @@ def main(argv: list[str] | None = None) -> int:
         for path in desktop.install(variant, args.autostart):
             print(f"  wrote {paths.tilde(str(path))}")
         return 0
+    if args.command == "backup":
+        return _backup(args)
     if args.command == "uninstall-desktop":
         from vertex import desktop, paths
 

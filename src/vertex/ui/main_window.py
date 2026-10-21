@@ -11,6 +11,7 @@ from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
     QMainWindow,
     QStackedWidget,
     QSystemTrayIcon,
@@ -18,13 +19,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, desktop, logs, notifications, platform, reset
+from vertex import (
+    APP_NAME,
+    backup,
+    desktop,
+    fmt,
+    logs,
+    notifications,
+    paths,
+    platform,
+    reset,
+    setting_groups,
+)
 from vertex.audio import channels
 from vertex.config import Config
 from vertex.core import clips as clips_mod
 from vertex.media import export
 from vertex.media.thumbnails import ThumbnailCache
 from vertex.recorder import notifier
+from vertex.setting_groups import LIBRARY
 from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView, SetupResult
@@ -83,6 +96,7 @@ class MainWindow(QMainWindow):
         self.settings_view.imported.connect(self.state.reload)
         self.settings_view.setup_requested.connect(self.run_setup_again)
         self.settings_view.reset_requested.connect(self.reset)
+        self.settings_view.restore_requested.connect(self.restore_backup)
         self.settings_view.test_requested.connect(self._test_over_games)
         # Sonar's page, where Sonar can run.
         self.sonar_view = SonarView(context) if context.sonar is not None else None
@@ -112,6 +126,10 @@ class MainWindow(QMainWindow):
         self.watcher.directoryChanged.connect(lambda _p: self._rescan_timer.start())
         self._rescan_timer = QTimer(self, singleShot=True, interval=1200)
         self._rescan_timer.timeout.connect(self._rescan)
+        # The day's automatic backup: at the start, then looked at now and
+        # then, for a Vertex that stays in the tray for days.
+        self._backup_timer = QTimer(self, interval=3 * 3600 * 1000)
+        self._backup_timer.timeout.connect(self.back_up_daily)
 
         for keys, handler in (("Ctrl+F", self._focus_search), ("F5", self.state.reload),
                               ("Ctrl+Q", self.quit), ("Ctrl+,", lambda: self.navigate("settings")),
@@ -321,6 +339,88 @@ class MainWindow(QMainWindow):
             self.settings_view.banner.show_message(
                 f"Library reset. {_kept(where, 'old one is')}", "ok", 10000)
 
+    def restore_backup(self, path: str, picks: list[str]) -> None:
+        """Put back what was picked of the backup at `path`: the recorder (and
+        Sonar, if its settings come back) stop first, and the library closes."""
+        context = self.context
+        items = setting_groups.items()
+        settings = [items[key] for key in picks if key != LIBRARY]
+        sonar_back = any(name.startswith("sonar.") for item in settings for name in item.fields)
+        recorder_back = any(name.startswith("recorder.") for item in settings
+                            for name in item.fields)
+        current = copy.deepcopy(context.config)
+        was_recording = context.recorder.running
+        self._close_editor()
+        if recorder_back:
+            context.recorder.stop()
+
+        def restore(_value=None):
+            if context.library is not None:
+                context.library.close()
+                context.library = None
+            workers.run(lambda: backup.restore(path, current, picks), restored, failed)
+
+        def restored(result: backup.Restored) -> None:
+            logs.APP.info("Restored %s from %s", ", ".join(result.picks), path)
+            # In place: Sonar and the recorder hold on to the settings' parts.
+            reset.reset_in_place(context.config, result.config)
+            context.save_config()            # and what follows a change: logs, names
+            context.open_library()
+            self.state.reload()
+            self.settings_view.load()
+            if sonar_back and context.sonar is not None and context.config.sonar.enabled:
+                context.sonar.set_enabled(True)
+            if recorder_back and (was_recording or context.config.recorder.autostart):
+                context.recorder.start()
+            what = fmt.oxford([part for part, back in (("settings", bool(settings)),
+                                                       ("library", LIBRARY in result.picks))
+                               if back])
+            self.settings_view.banner.show_message(
+                f"Restored your {what}. {_kept(result.moved_to, 'replaced ones are')}", "ok",
+                10000)
+            self._check_clips()
+
+        def failed(exc) -> None:
+            context.open_library()
+            self.state.reload()
+            if recorder_back and was_recording:
+                context.recorder.start()
+            self.settings_view.banner.show_message(f"Couldn't restore the backup: {exc}",
+                                                   "error", 10000)
+
+        if sonar_back and context.sonar is not None and context.sonar.enabled:
+            context.sonar.set_enabled(False, then=restore)
+        else:
+            restore()
+
+    def _check_clips(self) -> None:
+        """After a restore: if most of the library's clips aren't in the clips
+        folder, offer to pick the folder they are in."""
+        config = copy.deepcopy(self.context.config)
+
+        def counted(result) -> None:
+            missing, known = result
+            if not known or missing * 2 <= known:
+                return
+            folder = paths.tilde(config.resolved_clip_dir())
+            answer = ChoiceDialog.ask(
+                self, "Clips not found",
+                f"{missing:,} of the library's {fmt.plural(known, 'clip')} aren't in {folder}",
+                "Pick the folder they're in now, or leave it if they're on a drive that isn't "
+                "plugged in.", [("Pick the clips folder…", "pick", "primary")],
+                cancel="Leave it")
+            if answer != "pick":
+                return
+            chosen = QFileDialog.getExistingDirectory(self, "Your clips folder",
+                                                      config.resolved_clip_dir())
+            if chosen:
+                self.context.config.clip_path = chosen
+                self.context.save_config()
+                self.settings_view.load()
+                self._settings_saved(True)
+
+        workers.run(lambda: backup.missing_clips(config), counted)
+
     def clear_cache(self) -> None:
         context = self.context
         if context.thumbs is not None:
@@ -353,8 +453,21 @@ class MainWindow(QMainWindow):
             if enable_sonar:
                 context.sonar.set_enabled(True)
         context.recorder.detect()
+        self.back_up_daily()
+        self._backup_timer.start()
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:
             context.recorder.start()
+
+    def back_up_daily(self) -> None:
+        config = copy.deepcopy(self.context.config)
+
+        def made(path: str) -> None:
+            if path:
+                logs.APP.info("Backed up to %s", path)
+                self.settings_view.show_backups()
+
+        workers.run(lambda: backup.back_up_daily(config), made,
+                    lambda exc: logs.APP.warning("Couldn't back up: %s", exc))
 
     def add_to_start_menu(self) -> None:
         """Into the start menu on the first start, before setup is done, so
