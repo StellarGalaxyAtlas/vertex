@@ -153,6 +153,11 @@ class ExportDialog(QDialog):
         self.progress.setRange(0, 1000)
         self.progress.setValue(0)
         self.progress.setTextVisible(False)
+        # Shown only while exporting; its room is kept so the dialog doesn't jump.
+        policy = self.progress.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.progress.setSizePolicy(policy)
+        self.progress.hide()
         layout.addWidget(self.progress)
         self.status = label("", "Muted", wrap=True)
         layout.addWidget(self.status)
@@ -239,6 +244,7 @@ class ExportDialog(QDialog):
         self._running = True
         self._cancel.clear()
         self.progress.setValue(0)
+        self.progress.show()
         self.sizes.setEnabled(False)
         self.export_button.setEnabled(False)
         self.copy_button.hide()
@@ -278,7 +284,6 @@ class ExportDialog(QDialog):
         self.out_path = result.path
         log.info("Exported %s, %s%s", result.path, fmt.size(result.size),
                  " (over the size limit)" if result.over_limit else "")
-        self.progress.setValue(1000)
         self._release()
         over = ", over the size limit" if result.over_limit else ""
         if self.share:
@@ -306,6 +311,7 @@ class ExportDialog(QDialog):
             theme.style(self.status, lambda: f"color: {theme.DANGER};")
 
     def _release(self) -> None:
+        self.progress.hide()
         self.sizes.setEnabled(True)
         self.close_button.setText("Close")
         self._describe()

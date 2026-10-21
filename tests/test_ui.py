@@ -1154,9 +1154,12 @@ def test_dialogs(qapp, window, sample_clip):
     dialog = ExportDialog(window, window.context, clip, 0.0, 3.0, info.tracks, info)
     dialog.sizes._pick("10 MB")
     assert "kbps" in dialog.detail.text()
+    assert dialog.progress.isHidden()        # only while exporting
     dialog._export()
+    assert not dialog.progress.isHidden()
     assert wait_until(qapp, lambda: bool(dialog.out_path), timeout=60)
     assert os.path.getsize(dialog.out_path) <= 10 * 1024 * 1024
+    assert dialog.progress.isHidden()
     dialog.reject()
 
 
