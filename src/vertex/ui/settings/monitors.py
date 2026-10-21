@@ -6,6 +6,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
+from vertex import platform
 from vertex.recorder import monitors
 from vertex.recorder.monitors import Monitor
 from vertex.ui import theme
@@ -129,7 +130,8 @@ class MonitorMap(QWidget):
         self.picked.emit(name)
 
     def _tooltip(self, monitor: Monitor) -> str:
-        lines = [" — ".join(part for part in (monitor.name, monitor.model) if part)]
+        lines = [" — ".join(part for part in (platform.monitor_label(monitor.name), monitor.model)
+                            if part)]
         if resolution(monitor):
             lines.append(resolution(monitor))
         if monitor.primary:
@@ -142,7 +144,7 @@ class MonitorMap(QWidget):
     def _describe(self) -> None:
         chosen = next((m for m in self.monitors if m.name == self.current), None)
         self.setAccessibleDescription(
-            f"Recording {chosen.name}" if chosen else "No monitor chosen")
+            f"Recording {platform.monitor_label(chosen.name)}" if chosen else "No monitor chosen")
 
     # --- Painting ----------------------------------------------------------------
 
@@ -177,7 +179,7 @@ class MonitorMap(QWidget):
                           theme.RADIUS_SMALL, theme.RADIUS_SMALL)
 
         # Name, resolution and model, as many as fit, centred in the monitor.
-        lines = [(monitor.name, theme.font(9.5, QFont.Weight.DemiBold),
+        lines = [(platform.monitor_label(monitor.name), theme.font(9.5, QFont.Weight.DemiBold),
                   theme.TEXT)]
         # The chosen monitor's fill is brighter, so its small print steps up too.
         if resolution(monitor):

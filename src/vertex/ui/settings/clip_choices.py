@@ -14,7 +14,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QComboBox, QVBoxLayout, QWidget
 
-from vertex import fmt
+from vertex import fmt, platform
 from vertex.config import Config, RecorderConfig
 from vertex.recorder import backend, gsr, monitors, presets
 from vertex.ui import screens, theme
@@ -100,17 +100,18 @@ class ClipChoices(QObject):
         self.monitor_map.set_current(recorded)
         chosen = next((m for m in arranged if m.name == recorded), None)
         size = monitor_map.resolution(chosen) if chosen else ""
+        shown, wanted = platform.monitor_label(recorded), platform.monitor_label(self.capture)
         warn = False
         if chosen is None:
             text, tip, warn = "No monitors found", "", True
         elif recorded == self.capture:
-            text, tip = " · ".join(part for part in (recorded, size) if part), ""
+            text, tip = " · ".join(part for part in (shown, size) if part), ""
         elif not monitors.names_monitor(self.capture):
-            text = f"{recorded} · primary monitor" if chosen.primary else recorded
+            text = f"{shown} · primary monitor" if chosen.primary else shown
             tip = "Recording this monitor by default"
         else:
-            text, warn = f"{self.capture} isn't connected · recording {recorded}", True
-            tip = f"Recording {recorded} until {self.capture} is back"
+            text, warn = f"{wanted} isn't connected · recording {shown}", True
+            tip = f"Recording {shown} until {wanted} is back"
         self.capture_note.setText(text)
         self.capture_note.setToolTip(tip)
         theme.style(self.capture_note, lambda: f"color: {theme.WARN};" if warn else "")

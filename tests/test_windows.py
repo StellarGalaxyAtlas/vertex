@@ -267,6 +267,11 @@ def test_windows_is_asked_what_fills_the_screen():
     assert window is None or all(isinstance(part, str) for part in window)
 
 
+def test_monitors_are_shown_as_display_and_their_number(windows):
+    assert platform.monitor_label("\\\\.\\DISPLAY2") == "Display 2"
+    assert platform.monitor_label("Odd name") == "Odd name"
+
+
 def test_linux_and_windows_hand_out_the_same_names():
     from vertex.platform import linux
 

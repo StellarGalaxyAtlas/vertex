@@ -11,6 +11,7 @@ module too. The names `vertex.platform` hands out are listed there.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -744,6 +745,12 @@ class MonitorRect:
     y: int
     width: int
     height: int
+
+
+def monitor_label(name: str) -> str:
+    """A monitor's name to show: \\\\.\\DISPLAY1 reads as Display 1."""
+    match = re.fullmatch(r"\\\\\.\\DISPLAY(\d+)", name)
+    return f"Display {match[1]}" if match else name
 
 
 def monitor_rects() -> list[MonitorRect]:

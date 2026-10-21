@@ -49,6 +49,8 @@ NAMES = (
     # The menu entry and starting at sign-in (desktop).
     "launch_command", "install_entry", "has_entry", "draw_icon", "set_autostart",
     "autostart_enabled", "remove_entry", "refresh_menus",
+    # A monitor's name as Settings shows it.
+    "monitor_label",
     # The window, the taskbar, the file manager and the terminal.
     "set_app_id", "put_on_taskbar", "activate_windows", "allow_foreground",
     "light_desktop", "show_in_folder", "in_console", "start_detached",

@@ -392,6 +392,11 @@ def light_desktop() -> bool | None:
     return None
 
 
+def monitor_label(name: str) -> str:
+    """The desktop's own monitor names (DP-1, HDMI-A-1) read well as they are."""
+    return name
+
+
 def key_name(_native_key: int) -> str:
     """No global hotkeys here (HOTKEYS), so no native key codes to name."""
     return ""
