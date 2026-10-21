@@ -24,6 +24,8 @@ from collections.abc import Callable
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QApplication, QWidget
 
+from vertex import paths
+
 
 def _mix(a: str, b: str, amount: float) -> str:
     """`a` moved `amount` of the way towards `b`."""
@@ -391,6 +393,25 @@ def font(size: float = 10, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
     return result
 
 
+TICK_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+            '<path d="M5.5 12.5 10 17l8.5-10" fill="none" stroke="{colour}" '
+            'stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+
+
+def _tick() -> str:
+    """The tick in a checked box. A style sheet takes an image only from a
+    file, so it is written once for each colour it comes in: ON_ACCENT. No
+    file, no tick: the box is still filled."""
+    path = paths.runtime_dir() / f"tick-{ON_ACCENT.lstrip('#')}.svg"
+    try:
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(TICK_SVG.format(colour=ON_ACCENT), encoding="utf-8")
+    except OSError:
+        return ""
+    return f"image: url({path.as_posix()});"
+
+
 def _stylesheet() -> str:
     return f"""
 QWidget {{
@@ -459,7 +480,9 @@ QCheckBox::indicator {{
     width: 16px; height: 16px; border-radius: 5px; border: 1px solid {EDGE};
     background: {FIELD_BG};
 }}
-QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT_EDGE}; }}
+QCheckBox::indicator:checked {{
+    background: {ACCENT_FILL}; border-color: {ACCENT_FILL_EDGE}; {_tick()}
+}}
 
 /* --- Sliders ------------------------------------------------------------- */
 QSlider::groove:horizontal {{ height: 4px; background: {CONTROL_BG}; border-radius: 2px; }}

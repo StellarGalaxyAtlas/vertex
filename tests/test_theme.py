@@ -112,3 +112,14 @@ def test_a_light_scheme_turns_what_assumed_a_dark_ground(each_scheme):
     assert theme.PLAYHEAD == "#ffffff"
     assert theme.handle() == f"background: {theme.HANDLE};"
     assert theme.MEANING[False]["DANGER"] == theme.DANGER
+
+
+def test_a_checked_box_shows_a_tick_in_the_text_colour_on_the_accent(each_scheme, tmp_path,
+                                                                    monkeypatch):
+    from vertex import paths
+
+    monkeypatch.setattr(paths, "runtime_dir", lambda: tmp_path)
+    theme.select("polar")
+    tick = tmp_path / f"tick-{theme.ON_ACCENT.lstrip('#')}.svg"
+    assert f"url({tick.as_posix()})" in theme.STYLESHEET
+    assert theme.ON_ACCENT in tick.read_text()
