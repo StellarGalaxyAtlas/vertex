@@ -1285,6 +1285,25 @@ def test_first_run_writes_config(qapp, tmp_path, fake_audio):
     _close(win)
 
 
+def test_first_run_can_leave_recording_off(qapp, tmp_path, fake_audio):
+    win, view = _setup(qapp, tmp_path)
+    view._show("moments")
+    assert wait_until(qapp, lambda: view.gsr_info is not None)
+    assert not view.install.isHidden()            # no recorder in the test
+    view.record.setChecked(False)
+    assert view.install.isHidden() and view.recording_rows.isHidden()
+    assert not view.recording_off.isHidden()
+    view.record.setChecked(True)
+    assert not view.install.isHidden() and not view.recording_rows.isHidden()
+    view.record.setChecked(False)
+    _finish_setup(qapp, win)
+    assert not Config.load().recorder.enabled
+    assert win.topbar.recorder.isHidden()
+    assert win.home_view.empty_record.isHidden()
+    assert "turn on recording" in win.home_view.empty_text.text()
+    _close(win)
+
+
 def test_first_run_uses_existing_clips_where_they_are(qapp, tmp_path, fake_audio):
     source = _moments_library(tmp_path / "Moments")
     win, view = _setup(qapp, tmp_path)
@@ -2420,6 +2439,47 @@ def test_tray_opens_pages_and_drives_the_replay_buffer(qapp, no_sonar, window):
     assert not tray.save_action.isEnabled()          # the buffer isn't running
     tray._recorder_state("running", "")
     assert tray.save_action.isEnabled() and tray.replay_action.text() == "Stop replay buffer"
+    tray.deleteLater()
+
+
+def test_recording_off_leaves_only_clips(qapp, no_sonar, window, monkeypatch):
+    from vertex import control, hotkeys
+    from vertex.recorder.replay import RecorderError
+    from vertex.ui.control import Commands
+    from vertex.ui.tray import Tray
+
+    context, settings = window.context, window.settings_view
+    tray = Tray(window, context)
+    context.config.hotkeys = {"save_clip": "Alt+F10", "show": "Alt+F12"}
+    window.navigate("settings")
+    settings.show_page("recording")
+    started = []
+    monkeypatch.setattr(context.recorder, "detect", lambda then=None: started.append("detect"))
+    settings.recording.setChecked(False)              # applies at once
+    assert not context.config.recorder.enabled and not Config.load().recorder.enabled
+    assert all(section.isHidden() for section in settings.recording_sections)
+    assert window.topbar.recorder.isHidden()
+    assert not any(action.isVisible() for action in tray.recording_actions)
+    assert "recording off" in tray.toolTip()
+    if settings.shortcuts.hotkeys is not None:
+        rows = settings.shortcuts.hotkeys.rows
+        assert rows["save_clip"].isHidden() and not rows["show"].isHidden()
+    assert hotkeys.bindings(context.config.hotkeys, False).keys() == {"show"}
+    assert context.config.hotkeys["save_clip"] == "Alt+F10"     # kept for later
+    # Nothing starts it: not the recorder, not a command.
+    context.recorder.start()
+    assert context.recorder.phase == "stopped" and not started
+    with pytest.raises(RecorderError, match="Recording is off"):
+        context.recorder.save()
+    box = []
+    Commands(window, context)._handle("replay", {"action": "start"}, box)
+    assert box[0]["ok"] is False and box[0]["error"] == control.REPLAY_OFF
+
+    settings.recording.setChecked(True)
+    assert context.config.recorder.enabled and started == ["detect"]
+    assert not window.topbar.recorder.isHidden()
+    assert all(action.isVisible() for action in tray.recording_actions)
+    assert not any(section.isHidden() for section in settings.recording_sections)
     tray.deleteLater()
 
 

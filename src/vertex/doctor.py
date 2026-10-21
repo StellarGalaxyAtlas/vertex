@@ -130,7 +130,13 @@ def run_checks(config: config_mod.Config | None = None) -> list[Check]:
     if platform.SONAR:
         checks += _audio_server_checks()
 
-    checks += _obs_checks(config) if backend.is_obs() else _gsr_checks(config)
+    if not config.recorder.enabled:
+        checks.append(Check("recording", True, "off: Vertex only manages clips",
+                            required=False))
+    elif backend.is_obs():
+        checks += _obs_checks(config)
+    else:
+        checks += _gsr_checks(config)
 
     checks.append(Check("config", not config_mod.needs_setup(),
                         paths.tilde(str(paths.config_path())),

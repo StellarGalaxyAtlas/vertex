@@ -410,3 +410,14 @@ def test_doctor_finds_nothing_wrong_with_the_default_settings(fake_gsr):
     config = Config(recorder=RecorderConfig(command=fake_gsr))
     check = next(c for c in doctor.run_checks(config) if c.name == "recorder settings")
     assert check.ok, check.detail
+
+
+def test_doctor_skips_the_recorder_while_recording_is_off():
+    from vertex import doctor
+
+    config = Config(recorder=RecorderConfig(command="/no/such/recorder", enabled=False))
+    checks = doctor.run_checks(config)
+    assert not [c for c in checks if c.name in ("GPU Screen Recorder", "OBS Studio",
+                                                "recorder settings")]
+    check = next(c for c in checks if c.name == "recording")
+    assert check.ok and "off" in check.detail

@@ -65,6 +65,8 @@ class RecorderConfig:
     """How Vertex runs the replay buffer: GPU Screen Recorder's on Linux,
     OBS Studio's on Windows (see recorder.backend)."""
 
+    # Off, Vertex only manages clips: it never looks for or starts the recorder.
+    enabled: bool = True
     autostart: bool = False          # start the replay buffer when Vertex starts
     # GSR's command, which may be a full one (a Flatpak run line); on Windows
     # obs64.exe, "" = wherever OBS is installed.

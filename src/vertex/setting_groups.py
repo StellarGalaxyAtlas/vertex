@@ -80,6 +80,8 @@ GROUPS: tuple[Group, ...] = (
              lambda c: f"{c.card_width} px, {c.playback_volume}%"),
     )),
     Group("Recording", (
+        Item("recording", "Record clips with Vertex", ("recorder.enabled",),
+             lambda c: _on(c.recorder.enabled)),
         Item("capture", "What's recorded", (
             "recorder.capture", "recorder.region", "recorder.resolution", "recorder.fps",
             "recorder.cursor", "recorder.restore_portal_session"), _capture, recorder=True),

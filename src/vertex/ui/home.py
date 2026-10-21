@@ -768,6 +768,7 @@ class HomeView(QWidget):
 
         state.counts_changed.connect(self._show_counts)
         state.reset.connect(self._show_counts)
+        self.context.config_changed.connect(self._show_counts)
         state.storage_changed.connect(self._show_storage)
         self._show_counts()
 
@@ -973,9 +974,12 @@ class HomeView(QWidget):
         self.page_layout.setStretchFactor(self.latest_tile, 0 if total else 1)
         self.page_layout.setStretchFactor(self.bottom, 1 if total else 0)
         if not total:
+            recording = self.context.recorder.enabled
             self.empty_text.setText("Start the replay buffer and save a clip, or import "
-                                    "existing clips.")
-            self.empty_record.setVisible(not self.context.recorder.running)
+                                    "existing clips." if recording else
+                                    "Import the clips you have, or turn on recording in "
+                                    "Settings › Recording.")
+            self.empty_record.setVisible(recording and not self.context.recorder.running)
         games = state.games()
         self.games_count.setText(str(len(games)) if games else "")
         self.games.set_entries(games)

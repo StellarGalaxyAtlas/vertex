@@ -44,7 +44,7 @@ from vertex.ui import theme, workers
 from vertex.ui.dialogs.importing import CopyClipsDialog
 from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.backup import BackupPage, RestoreDialog
-from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
+from vertex.ui.settings.clip_choices import RECORDING_HINT, ClipChoices, ClipSize
 from vertex.ui.settings.game_names import GameNames
 from vertex.ui.settings.notifications import NotificationsPage
 from vertex.ui.settings.reread import RereadDialog, RereadLine
@@ -73,7 +73,7 @@ from vertex.ui.widgets import (
 APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                  "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
                  "notify_over_games", "daily_backup")
-RECORDER_AT_ONCE = ("autostart", "tag_from_game_channel", "tag_from_fullscreen")
+RECORDER_AT_ONCE = ("enabled", "autostart", "tag_from_game_channel", "tag_from_fullscreen")
 
 LABELS = {
     "very_high": "Very high", "qp": "Constant quality (QP)", "vbr": "Variable bitrate",
@@ -197,7 +197,8 @@ class SettingsView(QWidget):
             field.committed.connect(lambda _v: self.apply_now())
         for switch in (self.keep_logs, self.close_to_tray, self.autostart,
                        self.notifications.over_games, *self.notifications.switches.values(),
-                       self.rec_autostart, self.tag_from_game, self.tag_from_screen,
+                       self.recording, self.rec_autostart, self.tag_from_game,
+                       self.tag_from_screen,
                        self.backups.daily):
             switch.toggled.connect(lambda _on: self.apply_now())
         self.schemes.picked.connect(lambda _s: self.apply_now())
@@ -206,7 +207,7 @@ class SettingsView(QWidget):
     def show_page(self, key: str) -> None:
         self.tabs.set_current(key)
         self.stack.setCurrentWidget(self.pages[key])
-        if key == "recording":
+        if key == "recording" and self.recording.isChecked():
             self._refresh_recorder()
             self._refresh_storage()
         elif key == "backup":
@@ -262,6 +263,9 @@ class SettingsView(QWidget):
         self.stack.addWidget(self.pages["general"])
 
     def _build_recording(self) -> None:
+        switch = Section()
+        self.recording = Toggle()
+        switch.add_row("Record clips with Vertex", self.recording, RECORDING_HINT)
         status = Section(backend.name())
         self.gsr_status = label("", "Muted", wrap=True)
         status.add(self.gsr_status)
@@ -402,7 +406,10 @@ class SettingsView(QWidget):
             widget.currentIndexChanged.connect(self._update_preview)
         self.cursor.toggled.connect(self._update_preview)
 
-        self.pages["recording"] = scroll_page(status, clips, advanced)
+        self.pages["recording"] = scroll_page(switch, status, clips, advanced)
+        # Recording off: only the switch.
+        self.recording_sections = (status, clips, advanced)
+        self.recording.toggled.connect(self._show_recording)
         self.stack.addWidget(self.pages["recording"])
 
     def _build_estimate(self) -> QWidget:
@@ -563,6 +570,8 @@ class SettingsView(QWidget):
 
         rec = config.recorder
         self.command.setText(rec.command)
+        self.recording.setChecked(rec.enabled)
+        self._show_recording(rec.enabled)
         self.rec_autostart.setChecked(rec.autostart)
         self.tag_from_game.setChecked(rec.tag_from_game_channel)
         self.tag_from_screen.setChecked(rec.tag_from_fullscreen)
@@ -604,6 +613,7 @@ class SettingsView(QWidget):
         config.notify_over_games = self.notifications.over_games_choice()
         rec = config.recorder
         rec.command = self._command()
+        rec.enabled = self.recording.isChecked()
         rec.autostart = self.rec_autostart.isChecked()
         rec.tag_from_game_channel = self.tag_from_game.isChecked()
         rec.tag_from_fullscreen = self.tag_from_screen.isChecked()
@@ -721,6 +731,12 @@ class SettingsView(QWidget):
         if backend.is_obs():
             text = paths.normalize(text.strip('"'))
         return text or backend.default_command()
+
+    def _show_recording(self, on: bool) -> None:
+        for section in self.recording_sections:
+            section.setVisible(on)
+        if on and not self._loading and self.stack.currentWidget() is self.pages["recording"]:
+            self._refresh_recorder()
 
     def _refresh_recorder(self) -> None:
         command = self._command()

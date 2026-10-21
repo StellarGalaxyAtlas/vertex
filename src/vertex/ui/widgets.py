@@ -578,13 +578,15 @@ class FlowLayout(QLayout):
 
 
 class Section(QFrame):
-    """A settings card: a title, a sentence about it, then its controls."""
+    """A settings card: a title, a sentence about it, then its controls.
+    `flat`, just the controls, without the card: some of a card's rows, to
+    show or hide together."""
 
-    def __init__(self, title: str = "", blurb: str = "", parent=None):
+    def __init__(self, title: str = "", blurb: str = "", parent=None, flat: bool = False):
         super().__init__(parent)
-        self.setObjectName("Section")
+        self.setObjectName("SectionPart" if flat else "Section")
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(20, 18, 20, 20)
+        outer.setContentsMargins(*((0,) * 4 if flat else (20, 18, 20, 20)))
         outer.setSpacing(12)
         if title:
             outer.addWidget(label(title, "Subheading"))

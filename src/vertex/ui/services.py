@@ -524,6 +524,25 @@ class RecorderController(QObject):
             context.sonar.status_changed.connect(self._sonar_status)
         # What the recorder said it can record when last asked: its monitors' names.
         self.capture_options: list[gsr.CaptureOption] = []
+        self._enabled = context.config.recorder.enabled
+        context.config_changed.connect(self._config_changed)
+
+    @property
+    def enabled(self) -> bool:
+        """Whether Vertex records at all: off, it only manages clips."""
+        return self.context.config.recorder.enabled
+
+    def _config_changed(self) -> None:
+        """Recording turned off stops the buffer; turned on, the recorder is
+        looked for."""
+        if self.enabled == self._enabled:
+            return
+        self._enabled = self.enabled
+        logs.RECORDER.info("Recording %s", "on" if self.enabled else "off")
+        if self.enabled:
+            self.detect()
+        else:
+            self.stop()
 
     @property
     def state(self) -> State:
@@ -591,7 +610,7 @@ class RecorderController(QObject):
                                    self.info)
 
     def start(self) -> None:
-        if self.running:
+        if self.running or not self.enabled:
             return
         self._wanted = True
 
@@ -690,7 +709,9 @@ class RecorderController(QObject):
     def save(self, seconds: int | None = None) -> str:
         """Ask for a save. Returns a message to show; the clip arrives later."""
         problem = ""
-        if not self.running:
+        if not self.enabled:
+            problem = "Recording is off. Turn it on in Settings › Recording."
+        elif not self.running:
             problem = "The replay buffer is not running."
         elif seconds is not None and int(seconds) not in backend.SAVE_PRESETS:
             problem = f"Only the last {sorted(backend.SAVE_PRESETS)} seconds can be saved"
@@ -927,7 +948,8 @@ class Hotkeys(QObject):
     def apply(self) -> None:
         if self._started:
             self._listener.set({} if self._paused else
-                               hotkeys.bindings(self.context.config.hotkeys))
+                               hotkeys.bindings(self.context.config.hotkeys,
+                                                self.context.config.recorder.enabled))
 
     def pause(self, paused: bool) -> None:
         """Let every hotkey go while new keys are being recorded, so pressing

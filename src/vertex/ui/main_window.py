@@ -264,7 +264,7 @@ class MainWindow(QMainWindow):
                                              "state_path")))
         if context.sonar is not None:
             self._apply_sonar_setup(before, config, enable_sonar)
-        if context.config.recorder != before.recorder:
+        if context.config.recorder != before.recorder and context.recorder.enabled:
             context.recorder.detect()
             context.recorder.restart_if_running()
         if start_recorder and not before.recorder.autostart:
@@ -452,7 +452,8 @@ class MainWindow(QMainWindow):
             context.sonar.start()
             if enable_sonar:
                 context.sonar.set_enabled(True)
-        context.recorder.detect()
+        if context.recorder.enabled:
+            context.recorder.detect()
         self.back_up_daily()
         self._backup_timer.start()
         if start_recorder if start_recorder is not None else context.config.recorder.autostart:

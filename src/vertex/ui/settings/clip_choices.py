@@ -22,6 +22,8 @@ from vertex.ui.settings import monitors as monitor_map
 from vertex.ui.widgets import FieldGrid, Meter, Section, label
 
 # Video quality levels by GSR's names (see recorder.presets), as Vertex calls them.
+# Under the switch that turns recording on or off, in setup and Settings.
+RECORDING_HINT = "Off: Vertex only keeps your library and edits clips"
 QUALITY_NAMES = {"medium": "Low", "high": "Medium", "very_high": "High", "ultra": "Ultra"}
 
 

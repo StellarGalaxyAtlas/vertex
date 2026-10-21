@@ -92,22 +92,25 @@ class Action:
     id: str
     title: str
     more: str = ""
+    recording: bool = False          # does nothing while recording is off
 
 
 ACTIONS = (
-    Action("save_clip", "Save a clip", "As much as the replay buffer keeps"),
-    Action("save_last", "Save the last", "A shorter clip from the same buffer"),
-    Action("replay", "Start or stop the replay buffer"),
+    Action("save_clip", "Save a clip", "As much as the replay buffer keeps", True),
+    Action("save_last", "Save the last", "A shorter clip from the same buffer", True),
+    Action("replay", "Start or stop the replay buffer", recording=True),
     Action("show", "Show Vertex"),
 )
 BY_ID = {action.id: action for action in ACTIONS}
 
 
-def bindings(stored: dict) -> dict[str, Hotkey]:
-    """The hotkeys in the settings, by action; what can't be read is left out."""
+def bindings(stored: dict, recording: bool = True) -> dict[str, Hotkey]:
+    """The hotkeys in the settings, by action; what can't be read is left out,
+    and so are the recording ones while recording is off."""
     found = {}
     for action, text in (stored or {}).items():
-        hotkey = parse(text) if action in BY_ID else None
+        hotkey = parse(text) if action in BY_ID and (
+            recording or not BY_ID[action].recording) else None
         if hotkey is not None and hotkey not in found.values():
             found[action] = hotkey
     return found

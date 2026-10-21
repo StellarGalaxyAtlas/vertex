@@ -263,11 +263,30 @@ class TopBar(QFrame):
         self.search.textEdited.connect(self._searching)
         layout.addWidget(self.search)
         layout.addStretch(1)
-        layout.addSpacing(16)
+        self.pill_gap = QSpacerItem(16, 0)
+        layout.addItem(self.pill_gap)
 
         self.recorder = ReplayPill(context)
         layout.addWidget(self.recorder)
         self._compact = None
+        # Recording off: no replay buffer to show, and its room goes to the rest.
+        context.config_changed.connect(self._show_recording)
+        self._show_recording()
+
+    def _show_recording(self) -> None:
+        recording = self.context.config.recorder.enabled
+        if recording == self.recorder.isVisibleTo(self) and self._compact is not None:
+            return
+        self.recorder.setVisible(recording)
+        self.pill_gap.changeSize(16 if recording else 0, 0)
+        self._compact = None
+        self._fit()
+
+    def _pill_width(self, compact: bool) -> int:
+        """The replay buffer's width and the gap before it; none while recording is off."""
+        if not self.context.config.recorder.enabled:
+            return 0
+        return 16 + self.recorder.width_for(compact)
 
     def _show_logo(self) -> None:
         # The mark in the ink that shows on the bar: light, or dark on a light scheme.
@@ -293,10 +312,9 @@ class TopBar(QFrame):
     def natural_width(self, compact: bool) -> int:
         """The width the bar needs with the search at its narrowest."""
         margins = self.layout().contentsMargins()
-        pill = self.recorder.width_for(compact)
         return (margins.left() + margins.right() + self._brand_width(1.0) +
                 sum(tab.width_for(compact) for tab in self.tabs.values()) + 16 +
-                SEARCH_MIN + 16 + pill)
+                SEARCH_MIN + self._pill_width(compact))
 
     def _brand_width(self, scale: float) -> int:
         """The logo, the name and the room around them, at `scale`."""
@@ -336,8 +354,8 @@ class TopBar(QFrame):
         margins = self.layout().contentsMargins()
         base_pad = max(PAD, min(22, PAD + (width - 1500) // 50))
         smallest = self._brand_width(1.0) + self._tabs_width(compact, base_pad, 1.0)
-        room = (width - margins.left() - margins.right() - smallest - 16 - 16 -
-                self.recorder.width_for(compact))
+        room = (width - margins.left() - margins.right() - smallest - 16 -
+                self._pill_width(compact))
         widest = max(SEARCH_MAX, min(SEARCH_WIDEST, int(width * 0.34)))
         search = max(SEARCH_MIN, min(widest, room * 4 // 6))
         left = smallest + 16 + max(0, (room - search) // 2)

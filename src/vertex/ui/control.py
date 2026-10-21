@@ -126,6 +126,9 @@ class Commands(QObject):
             return control.ok(f"The replay buffer is {phase}.",
                               **self.state()["replay"])
         if action == "start" or (action == "toggle" and not recorder.running):
+            if not recorder.enabled:
+                return control.error(control.REPLAY_OFF, "Recording is off. Turn it on in "
+                                                         "Settings › Recording.")
             recorder.start()
             return control.ok("Starting the replay buffer.", state="starting")
         recorder.stop()

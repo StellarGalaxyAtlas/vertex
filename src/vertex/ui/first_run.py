@@ -30,7 +30,7 @@ from vertex.recorder import backend, gsr, notifier
 from vertex.ui import icons, theme, workers
 from vertex.ui.dialogs.importing import FolderList
 from vertex.ui.name_teacher import NameSources
-from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
+from vertex.ui.settings.clip_choices import RECORDING_HINT, ClipChoices, ClipSize
 from vertex.ui.settings.tracks import NOTE as TRACKS_NOTE
 from vertex.ui.settings.tracks import TrackTable
 from vertex.ui.sonar_view import DeviceField
@@ -318,7 +318,15 @@ class FirstRunView(QWidget):
         self.install.body.addLayout(row)
         self.install.hide()
 
-        section = Section("Recording")
+        outer = Section("Recording")
+        self.record = Toggle(self.config.recorder.enabled if self.again else True)
+        outer.add_row("Record clips with Vertex", self.record, RECORDING_HINT)
+        # The rest, shown while recording is on.
+        section = outer.add(Section(flat=True))
+        section.body.insertWidget(0, hline())
+        self.recording_off = outer.add(label("Turn it on any time in Settings › Recording.",
+                                             "Dim", wrap=True))
+        self.record.toggled.connect(self._show_recording)
         self.gsr_status = label(f"Looking for {backend.name()}…", "Dim", wrap=True)
         section.add(self.gsr_status)
         # Its notifier, which shows Vertex's notifications over games.
@@ -358,8 +366,17 @@ class FirstRunView(QWidget):
         section.add(self.moments_error)
         self.choices.show_capture()
         self._choices_changed()
+        self.recording_rows = section
+        self.recorder_usable = False
+        self._show_recording(self.record.isChecked())
         self._find_recorder()
-        return self._column(self.install, section)
+        return self._column(self.install, outer)
+
+    def _show_recording(self, on: bool) -> None:
+        self.recording_rows.setVisible(on)
+        self.recording_off.setVisible(not on)
+        self.install.setVisible(on and not self.recorder_usable and
+                                self.gsr_info is not None)
 
     def _choices_changed(self) -> None:
         self.choices.apply(self.config.recorder)
@@ -398,7 +415,8 @@ class FirstRunView(QWidget):
         self.gsr_info = info
         self.recheck_button.setEnabled(True)
         usable = info.available and not info.too_old
-        self.install.setVisible(not usable)
+        self.recorder_usable = usable
+        self.install.setVisible(not usable and self.record.isChecked())
         self.rec_autostart.setEnabled(usable)
         self.choices.set_capture_options(options)
         self.tracks.show_devices(devices, self.config.recorder)
@@ -910,7 +928,7 @@ class FirstRunView(QWidget):
         if key == "folders" and not self.clip_path.value():
             self.clip_path.edit.setFocus()
             return
-        if key == "moments" and not self._check_recording():
+        if key == "moments" and self.record.isChecked() and not self._check_recording():
             return
         if key == "library":
             if not self._library_ready() or self._copying:
@@ -940,6 +958,7 @@ class FirstRunView(QWidget):
                 setattr(config, key, getattr(defaults, key))
         self.choices.apply(config.recorder)
         self.tracks.apply(config.recorder)
+        config.recorder.enabled = self.record.isChecked()
         config.recorder.autostart = self.rec_autostart.isChecked()
         tagging = "tags" in self.steps
         if tagging:
@@ -950,4 +969,5 @@ class FirstRunView(QWidget):
             config.sonar.output_device = self.output.currentData() or ""
             config.sonar.mic_device = self.mic.currentData() or ""
         self.finished.emit(SetupResult(config, sonar and self.sonar_enabled.isChecked(),
+                                       self.record.isChecked() and
                                        self.rec_autostart.isChecked(), games, dates))

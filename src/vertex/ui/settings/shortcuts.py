@@ -338,7 +338,14 @@ class HotkeysPage:
             self.rows[action.id] = row
             self.section.add(row)
         context.hotkeys.checked.connect(self._checked)
+        context.config_changed.connect(self._show_rows)
         self.load()
+        self._show_rows()
+
+    def _show_rows(self) -> None:
+        """Recording's hotkeys only while Vertex records; their keys are kept."""
+        for row in self.rows.values():
+            row.setVisible(self.context.config.recorder.enabled or not row.action.recording)
 
     def load(self) -> None:
         config = self.context.config

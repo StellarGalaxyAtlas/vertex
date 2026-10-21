@@ -23,10 +23,11 @@ class Tray(QSystemTrayIcon):
         self._add(menu, "Open Library", lambda: self._open("library"))
         if context.sonar is not None:
             self._add(menu, "Open Sonar", lambda: self._open("sonar"))
-        menu.addSeparator()
+        self.recording_actions = [menu.addSeparator()]
         self.replay_action = self._add(menu, "Start replay buffer", context.recorder.toggle)
         self.save_action = self._add(menu, "Save clip", lambda: self._save(None))
         self.save_30_action = self._add(menu, "Save the last 30 seconds", lambda: self._save(30))
+        self.recording_actions += [self.replay_action, self.save_action, self.save_30_action]
         menu.addSeparator()
         self._shown_devices = None
         if context.sonar is not None:
@@ -43,6 +44,8 @@ class Tray(QSystemTrayIcon):
         self.activated.connect(self._activated)
         self.messageClicked.connect(window.bring_to_front)
         context.recorder.state_changed.connect(self._recorder_state)
+        context.config_changed.connect(
+            lambda: self._recorder_state(context.recorder.phase, ""))
         self._recorder_state("stopped", "")
         if context.sonar is not None:
             context.sonar.status_changed.connect(lambda _s: self._sonar_state())
@@ -75,6 +78,8 @@ class Tray(QSystemTrayIcon):
             pass         # the recorder has told the user
 
     def _recorder_state(self, state: str, error: str) -> None:
+        for action in self.recording_actions:
+            action.setVisible(self.context.recorder.enabled)
         running = state == "running"
         self.replay_action.setText("Stop replay buffer"
                                    if running or state in ("starting", "restarting")
@@ -84,6 +89,8 @@ class Tray(QSystemTrayIcon):
         tip = {"running": "replay buffer on", "starting": "starting the replay buffer",
                "restarting": "restarting the replay buffer",
                "failed": "replay buffer stopped"}.get(state, "replay buffer off")
+        if not self.context.recorder.enabled:
+            tip = "recording off"
         self.setToolTip(f"{APP_NAME} — {tip}")
 
     def _sonar_state(self) -> None:
