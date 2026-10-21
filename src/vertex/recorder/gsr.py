@@ -56,6 +56,10 @@ class GsrInfo:
     error: str = ""
     missing: bool = False        # the command isn't there at all
 
+    def titled(self, name: str) -> str:
+        """The recorder's name, followed by its version when that is known."""
+        return f"{name} {self.version_text}" if self.version_text else name
+
     @property
     def supports_track_names(self) -> bool:
         return self.version >= TRACK_NAMES_SINCE

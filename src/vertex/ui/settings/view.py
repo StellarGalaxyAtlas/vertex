@@ -663,7 +663,7 @@ class SettingsView(QWidget):
         if working:
             note = "" if info.supports_track_names or backend.is_obs() else \
                 " — update to 5.15+ so clip tracks are named Game, Chat and Mic"
-            self.gsr_status.setText(f"Found {backend.name()} {info.version_text}{note}.")
+            self.gsr_status.setText(f"Found {info.titled(backend.name())}{note}.")
             theme.style(self.gsr_status, lambda: f"color: {theme.OK if not note else theme.WARN};")
         else:
             # Its own wording here: the recorder's says "set its command in

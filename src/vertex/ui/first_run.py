@@ -397,7 +397,7 @@ class FirstRunView(QWidget):
         self.tracks.show_devices(devices, self.config.recorder)
         self._choices_changed()
         if usable:
-            self.gsr_status.setText(f"Recording with {backend.name()} {info.version_text}.")
+            self.gsr_status.setText(f"Recording with {info.titled(backend.name())}.")
             theme.style(self.gsr_status, lambda: f"color: {theme.OK};")
             if not self._autostart_touched:
                 self.rec_autostart.setChecked(True)

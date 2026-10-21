@@ -164,6 +164,11 @@ class TestArgv:
         assert gsr.parse_version("gpu-screen-recorder 4.3") == (4, 3)
         assert gsr.parse_version("") == ()
 
+    def test_a_version_is_named_only_when_known(self):
+        assert gsr.GsrInfo("obs", version_text="31.0.2").titled("OBS Studio") == \
+            "OBS Studio 31.0.2"
+        assert gsr.GsrInfo("obs").titled("OBS Studio") == "OBS Studio"
+
 
 class TestDetection:
     def test_detect_and_list(self, fake_gsr):
