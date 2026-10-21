@@ -41,10 +41,16 @@ DAY = 24 * 60 * 60
 def copy_file_to_clipboard(path: str) -> None:
     """Put the file itself on the clipboard, the way file managers do, so
     pasting into Discord or a browser upload field attaches it."""
-    url = QUrl.fromLocalFile(path)
+    copy_files_to_clipboard([path])
+
+
+def copy_files_to_clipboard(paths: list[str]) -> None:
+    """copy_file_to_clipboard for several files at once."""
+    urls = [QUrl.fromLocalFile(path) for path in paths]
     data = QMimeData()
-    data.setUrls([url])
-    data.setData("x-special/gnome-copied-files", f"copy\n{url.toString()}".encode())
+    data.setUrls(urls)
+    listed = "\n".join(url.toString() for url in urls)
+    data.setData("x-special/gnome-copied-files", f"copy\n{listed}".encode())
     data.setData("application/x-kde-cutselection", b"0")
     QGuiApplication.clipboard().setMimeData(data)
 

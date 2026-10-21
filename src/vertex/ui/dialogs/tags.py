@@ -49,42 +49,51 @@ class Chip(QFrame):
 
 
 class TagDialog(QDialog):
+    """A clip's game and people. For several clips at once it asks for one
+    of the two (`parts`): "game" or "people"."""
+
     def __init__(self, parent, clip_title: str, game: str = "", people=(),
-                 games=(), people_pool=()):
+                 games=(), people_pool=(), heading: str = "Tag clip",
+                 parts: str = "both"):
         super().__init__(parent)
-        self.setWindowTitle("Tag clip")
+        self.setWindowTitle(heading)
         self.setMinimumWidth(480)
         self.result_tags: tuple[str, list[str]] | None = None
         self._known_games = list(games)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 22, 24, 20)
         layout.setSpacing(10)
-        layout.addWidget(label("Tag clip", "Subheading"))
+        layout.addWidget(label(heading, "Subheading"))
         layout.addWidget(label(clip_title, "Muted"))
         layout.addSpacing(6)
 
-        layout.addWidget(label("GAME", "Group"))
+        game_part = [label("GAME", "Group")]
         self.game = QLineEdit(game)
         self.game.setPlaceholderText("Game")
         self.game.setCompleter(_completer(self._known_games, self))
-        layout.addWidget(self.game)
         self.game_hint = label("", "Dim")
-        layout.addWidget(self.game_hint)
         self.game.textChanged.connect(self._hint_spelling)
+        game_part += [self.game, self.game_hint]
 
-        layout.addSpacing(6)
-        layout.addWidget(label("PEOPLE", "Group"))
+        people_part = [label("PEOPLE", "Group")]
         self.chips_host = QWidget()
         self.chips = FlowLayout(self.chips_host)
-        layout.addWidget(self.chips_host)
         self.person = QLineEdit()
         self.person.setPlaceholderText("Add people")
         self.person.setCompleter(_completer(list(people_pool), self))
         self.person.completer().activated[str].connect(self._add_suggested)
         self.person.returnPressed.connect(self._add_typed)
-        layout.addWidget(self.person)
+        people_part += [self.chips_host, self.person]
         for name in people:
             self._add_chip(name)
+
+        shown = [part for part, name in ((game_part, "game"), (people_part, "people"))
+                 if parts in (name, "both")]
+        for index, part in enumerate(shown):
+            if index:
+                layout.addSpacing(6)
+            for widget in part:
+                layout.addWidget(widget)
 
         layout.addSpacing(10)
         row = QHBoxLayout()
@@ -97,7 +106,7 @@ class TagDialog(QDialog):
         save.setDefault(True)
         row.addWidget(save)
         layout.addLayout(row)
-        self.game.setFocus()
+        (self.person if parts == "people" else self.game).setFocus()
 
     def _hint_spelling(self, text: str) -> None:
         """Point out when a typed game is an existing tag spelled differently."""
@@ -145,8 +154,9 @@ class TagDialog(QDialog):
         self.accept()
 
     @classmethod
-    def ask(cls, parent, clip_title, game, people, games, people_pool):
-        dialog = cls(parent, clip_title, game, people, games, people_pool)
+    def ask(cls, parent, clip_title, game, people, games, people_pool, heading="Tag clip",
+            parts="both"):
+        dialog = cls(parent, clip_title, game, people, games, people_pool, heading, parts)
         dialog.exec()
         return dialog.result_tags
 

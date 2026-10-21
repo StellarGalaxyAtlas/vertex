@@ -250,6 +250,12 @@ def test_quick_export_uses_the_saved_trim_and_copies_the_file(qapp, window, tmp_
     exported = [url.toLocalFile() for url in QGuiApplication.clipboard().mimeData().urls()]
     assert len(exported) == 1 and exported[0].startswith(str(tmp_path / "exports"))
     assert abs(probe.probe(exported[0]).duration - 2.0) < 0.6
+    # Several at once: all of them on the clipboard together.
+    notices.clear()
+    view.quick_export(*state.visible[:2])
+    assert wait_until(qapp, lambda: notices and notices[-1][1] != "info", 60), notices
+    assert notices[-1][0].startswith("Copied 2 clips")
+    assert len(QGuiApplication.clipboard().mimeData().urls()) == 2
     # The offscreen platform crashes at exit while the clipboard holds data.
     QGuiApplication.clipboard().clear()
 
@@ -2564,3 +2570,54 @@ def test_the_editor_steps_through_the_clips_in_the_librarys_order(qapp, window):
     # Back still goes where the first clip was opened from.
     window.editor.back.emit()
     assert window.editor is None and window.stack.currentWidget() is window.library_view
+
+
+def test_library_picks_several_clips_and_acts_on_them_at_once(qapp, window, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from vertex.ui.dialogs.tags import TagDialog
+    from vertex.ui.widgets import ChoiceDialog
+
+    view, state = window.library_view, window.state
+    window.navigate("library")
+    first, second = state.visible
+    state.set_tags(first, "Apex Legends", ["Anna"])
+    grid, bar = view.grid, view.selection_bar
+    assert view.top.currentWidget() is view.filters
+    # Ctrl-click picks a card instead of opening it; the bar takes the filters' place.
+    opened = []
+    view.open_clip.connect(opened.append)
+    centre = grid.visualRect(view.model.index(0)).center()
+    QTest.mouseClick(grid.viewport(), Qt.MouseButton.LeftButton,
+                     Qt.KeyboardModifier.ControlModifier, centre)
+    assert view.picked() == [first] and not opened
+    assert view.top.currentWidget() is bar and bar.count.text() == "1 selected"
+    # While some are picked, a plain click picks too.
+    QTest.mouseClick(grid.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier(0),
+                     grid.visualRect(view.model.index(1)).center())
+    assert view.picked() == [first, second] and not opened
+    QTest.keyClick(grid, Qt.Key.Key_Escape)
+    assert not view.picked() and view.top.currentWidget() is view.filters
+    QTest.keyClick(grid, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    assert bar.count.text() == "2 selected"
+
+    bar.buttons["favorite"].click()
+    assert {first.name, second.name} <= state.favorites
+    assert bar.buttons["favorite"].toolTip() == "Unfavorite"
+    bar.buttons["favorite"].click()
+    assert not state.favorites & {first.name, second.name}
+
+    monkeypatch.setattr(TagDialog, "ask", classmethod(lambda *a, **k: ("The Finals", [])))
+    bar.buttons["game"].click()
+    assert state.tags_of(first) == ("The Finals", ["Anna"])
+    assert state.tags_of(second)[0] == "The Finals"
+    monkeypatch.setattr(TagDialog, "ask", classmethod(lambda *a, **k: ("", ["Ben", "anna"])))
+    bar.buttons["people"].click()
+    assert state.tags_of(first) == ("The Finals", ["Anna", "Ben"])
+    assert state.tags_of(second)[1] == ["Ben", "anna"]
+
+    monkeypatch.setattr(ChoiceDialog, "ask", classmethod(lambda *a, **k: "delete"))
+    QTest.keyClick(grid, Qt.Key.Key_Delete)
+    assert not state.visible and not view.selection
+    assert view.top.currentWidget() is view.filters

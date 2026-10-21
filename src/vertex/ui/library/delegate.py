@@ -39,6 +39,12 @@ def star_rect(cell: QRect) -> QRectF:
     return QRectF(thumb.right() - STAR - 8, thumb.top() + 8, STAR, STAR)
 
 
+def tick_rect(cell: QRect) -> QRectF:
+    """The circle that selects a card, across from the star."""
+    thumb = thumb_rect(cell)
+    return QRectF(thumb.left() + 8, thumb.top() + 8, STAR, STAR)
+
+
 def title_rect(cell: QRect) -> QRectF:
     thumb = thumb_rect(cell)
     return QRectF(thumb.left() + 14, thumb.bottom() + 8, thumb.width() - 28, 22)
@@ -55,11 +61,16 @@ class ClipDelegate(QStyledItemDelegate):
     tags_requested = Signal(object)          # clip
     rename_requested = Signal(object)        # QModelIndex
     favorite_toggled = Signal(object)        # clip
+    select_clicked = Signal(int, object)     # row, the keyboard modifiers held
 
-    def __init__(self, view, state, parent=None):
+    def __init__(self, view, state, parent=None, selectable: bool = False):
+        """`selectable`: cards can be picked to act on several at once, and
+        `selection` holds the names of the ones picked."""
         super().__init__(parent)
         self.view = view
         self.state = state
+        self.selectable = selectable
+        self.selection: set[str] = set()
         self.cell = QSize(320, 260)
 
     def sizeHint(self, option, index):
@@ -80,6 +91,7 @@ class ClipDelegate(QStyledItemDelegate):
         card = card_rect(cell)
         thumb = thumb_rect(cell)
 
+        selected = clip.name in self.selection
         self._shadow(painter, card, hovered)
         body = QPainterPath()
         body.addRoundedRect(card, RADIUS, RADIUS)
@@ -123,6 +135,21 @@ class ClipDelegate(QStyledItemDelegate):
             painter.drawRoundedRect(badge, 6, 6)
             painter.setPen(QColor(theme.ON_VIDEO))
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, text)
+
+        # The selection circle: ticked when picked; empty on hover, and on
+        # every card while some are picked.
+        if self.selectable and (selected or hovered or self.selection):
+            tick = tick_rect(cell).adjusted(3, 3, -3, -3)
+            if selected:
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(theme.ACCENT_FILL))
+                painter.drawEllipse(tick)
+                painter.drawPixmap(QPointF(tick.center().x() - 9, tick.center().y() - 9),
+                                   icons.pixmap("check", theme.ON_ACCENT, 18))
+            else:
+                painter.setPen(QPen(QColor(theme.ON_VIDEO), 1.6))
+                painter.setBrush(QColor(6, 7, 10, 110))
+                painter.drawEllipse(tick)
 
         # Favourite star: always shown when set, on hover otherwise.
         favorite = clip.name in self.state.favorites
@@ -172,6 +199,10 @@ class ClipDelegate(QStyledItemDelegate):
                          metrics.elidedText(text, Qt.TextElideMode.ElideRight,
                                             int(line.right() - x)))
         self._outline(painter, card, hovered)
+        if selected:
+            painter.setPen(QPen(QColor(theme.ACCENT), 2.5))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(card.adjusted(-3, -3, 3, 3), RADIUS + 3, RADIUS + 3)
         if self.view.focus_row() == index.row():
             painter.setPen(QPen(QColor(theme.SELECT), 2))
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -224,7 +255,13 @@ class ClipDelegate(QStyledItemDelegate):
             return False
         point = event.position()
         cell = option.rect
-        if star_rect(cell).contains(point):
+        held = event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                    | Qt.KeyboardModifier.ShiftModifier)
+        # While some are picked a click anywhere on a card picks it or lets it go.
+        if self.selectable and card_rect(cell).contains(point) and (
+                held or self.selection or tick_rect(cell).contains(point)):
+            self.select_clicked.emit(index.row(), event.modifiers())
+        elif star_rect(cell).contains(point):
             self.favorite_toggled.emit(clip)
         elif tags_rect(cell).contains(point):
             self.tags_requested.emit(clip)
