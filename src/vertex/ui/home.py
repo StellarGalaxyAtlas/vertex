@@ -400,7 +400,6 @@ class RankList(QWidget):
 
     picked = Signal(str)
     ROW = 28
-    ROW_MOST = 56         # with room to spare and few names, rows open up to this
 
     def __init__(self, empty: str, parent=None):
         super().__init__(parent)
@@ -427,11 +426,11 @@ class RankList(QWidget):
 
     def pitch(self) -> float:
         """How tall a row is: as many as fit at ROW; when they all fit with room
-        over, they share it, up to ROW_MOST."""
+        over, they share all of it."""
         shown = len(self.shown())
         if not shown or shown < len(self.entries):
             return float(self.ROW)
-        return max(float(self.ROW), min(float(self.ROW_MOST), self.height() / shown))
+        return max(float(self.ROW), self.height() / shown)
 
     def _row_at(self, y: float) -> int:
         row = int(y // self.pitch())
@@ -465,24 +464,26 @@ class RankList(QWidget):
         metrics = QFontMetrics(self.font())
         width = float(self.width())
         pitch = self.pitch()
-        bar = 4.0 + (pitch - self.ROW) / 7           # 4 px, thickening to 8 as rows open up
+        bar = min(8.0, 4.0 + (pitch - self.ROW) / 7)   # 4 px, thickening to 8 as rows open up
+        line = metrics.height() + 2
         for row, (name, count) in enumerate(self.shown()):
-            y = row * pitch
+            # The name right over its bar, the two in the middle of the row.
+            y = row * pitch + (pitch - line - 3 - bar) / 2
             if row == self._hover:
                 p.setPen(Qt.PenStyle.NoPen)
                 p.setBrush(QColor(theme.CARD_HOVER))
-                p.drawRoundedRect(QRectF(-6, y, width + 12, pitch), 6, 6)
+                p.drawRoundedRect(QRectF(-6, row * pitch, width + 12, pitch), 6, 6)
             text = str(count)
             count_w = metrics.horizontalAdvance(text)
             p.setPen(QColor(theme.TEXT_MUTED))
-            p.drawText(QRectF(0, y, width, pitch - 4 - bar),
+            p.drawText(QRectF(0, y, width, line),
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
             p.setPen(QColor(theme.TEXT))
-            p.drawText(QRectF(0, y, width - count_w - 12, pitch - 4 - bar),
+            p.drawText(QRectF(0, y, width - count_w - 12, line),
                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                        metrics.elidedText(name, Qt.TextElideMode.ElideRight,
                                           int(width - count_w - 12)))
-            track = QRectF(0, y + pitch - 3 - bar, width, bar)
+            track = QRectF(0, y + line + 3, width, bar)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(theme.SEAM))
             p.drawRoundedRect(track, bar / 2, bar / 2)
