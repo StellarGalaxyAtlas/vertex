@@ -1242,6 +1242,17 @@ def _moments_library(folder):
     return folder
 
 
+def _finish_setup(qapp, win):
+    """Continue through every step, waiting where a step reads clips first."""
+    view = win.first_run
+    while win.first_run is not None:
+        if view.current() == "library":
+            assert wait_until(qapp, lambda: view.waiting is not None)
+        elif view.current() == "tags":
+            assert wait_until(qapp, lambda: view.tag_plan is not None)
+        view._go(1)
+
+
 def _close(win):
     if win.start_menu_job is not None:
         futures.wait([win.start_menu_job], timeout=30)    # see the window fixture
@@ -1261,6 +1272,7 @@ def test_first_run_writes_config(qapp, tmp_path, fake_audio):
     for _ in range(3):
         view._go(1)
     assert view.current() == "library"
+    assert wait_until(qapp, lambda: view.waiting == 0)  # an empty clips folder
     assert view.next_button.text() == "Open Vertex"     # starting fresh: the last step
     view._go(1)
     assert win.first_run is None
@@ -1321,6 +1333,35 @@ def test_first_run_copies_existing_clips(qapp, tmp_path, fake_audio):
     assert len(os.listdir(source)) == 4                # the originals stay
     assert win.context.library.tags()["THE-FINALS__2024-06-16__19-45-23.mp4"][0] == \
         "THE FINALS"
+    _close(win)
+
+
+def test_first_run_tags_clips_already_in_the_clips_folder(qapp, tmp_path, fake_audio):
+    clips = tmp_path / "clips"
+    clips.mkdir()
+    for name in ("MedalTVFirstLight20260817235610725.mp4", "MedalTVApex20260818101500001.mp4",
+                 "clip_final_edit.mp4"):
+        (clips / name).write_bytes(b"x")
+    win, view = _setup(qapp, tmp_path)
+    for _ in range(3):
+        view._go(1)
+    assert view.fresh.isChecked()                      # nothing to import
+    assert wait_until(qapp, lambda: view.waiting == 3)
+    assert not view.waiting_note.isHidden() and "3 clips without a game" in \
+        view.waiting_note.text()
+    assert view.step_label.text() == "Step 4 of 5"
+    view._go(1)
+    assert wait_until(qapp, lambda: view.current() == "tags" and view.tag_plan is not None)
+    assert view.tag_plan.folder == str(clips)
+    view.sources.teacher.choose("Medal")
+    assert wait_until(qapp, lambda: view.tag_plan is not None and
+                      set(view.tag_plan.games) == {"First Light", "Apex"})
+    view._go(1)
+    assert win.first_run is None
+    assert Config.load().name_patterns[0]["app"] == "Medal"
+    tags = win.context.library.tags()
+    assert tags["MedalTVFirstLight20260817235610725.mp4"][0] == "First Light"
+    naming.use_patterns([])
     _close(win)
 
 
@@ -1510,8 +1551,7 @@ def test_setup_runs_again_from_settings(qapp, window, monkeypatch):
     window.settings_view.setup_requested.emit()
     setup = window.first_run
     setup.choices.duration.setCurrentIndex(setup.choices.duration.findData(120))
-    for _ in range(len(setup.steps)):
-        setup._go(1)
+    _finish_setup(qapp, window)
     assert window.first_run is None
     assert context.config.recorder.replay_seconds == 120
     assert Config.load().recorder.replay_seconds == 120
@@ -1620,8 +1660,7 @@ def test_reset_settings_then_setup(qapp, window, monkeypatch, tmp_path):
                         lambda *_a, **_k: pytest.fail("services started twice"))
     setup.clip_path.set_value(str(tmp_path / "new clips"))
     setup.sonar_enabled.setChecked(False)
-    for _ in range(len(setup.steps)):
-        setup._go(1)
+    _finish_setup(qapp, window)
     assert window.first_run is None
     saved = Config.load()
     assert saved.is_complete() and saved.clip_path == str(tmp_path / "new clips")

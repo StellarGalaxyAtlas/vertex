@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from vertex import APP_NAME, fmt, paths
+from vertex import APP_NAME, fmt, logs, paths
 from vertex.config import Config, default_config
 from vertex.core import importing
 from vertex.library.database import DB_NAME, Library
@@ -118,8 +118,11 @@ class FirstRunView(QWidget):
         self.notifier_path: str | None = None     # GSR's notifier, once looked for
         self.copy_plan: importing.CopyPlan | None = None
         self.tag_plan: importing.ImportPlan | None = None
+        # Clips already in the clips folder without a game: None until counted.
+        self.waiting: int | None = None
         self._scan_token = 0
         self._tag_token = 0
+        self._waiting_token = 0
         self._copying = False
         self._cancel = workers.Cancel()
         self._copy_note = ""
@@ -466,6 +469,9 @@ class FirstRunView(QWidget):
         pair.addWidget(self.fresh, 1)
         pair.addWidget(self.existing, 1)
         choose.body.addLayout(pair)
+        self.waiting_note = label("", "Muted", wrap=True)
+        self.waiting_note.hide()
+        choose.add(self.waiting_note)
 
         self.where = Section("Where are they?")
         self.source = PathField(placeholder="The folder with your clips")
@@ -510,6 +516,7 @@ class FirstRunView(QWidget):
 
     def _library_changed(self) -> None:
         self.where.setVisible(self._bringing_clips())
+        self.waiting_note.setVisible(bool(self.waiting) and not self._bringing_clips())
         self._describe_modes()
         self._refresh_buttons()
         if self._bringing_clips() and self.source.value() and self.copy_plan is None:
@@ -622,7 +629,7 @@ class FirstRunView(QWidget):
 
     def _library_ready(self) -> bool:
         if not self._bringing_clips():
-            return True
+            return self.waiting is not None
         plan = self.copy_plan
         if plan is None:
             return False
@@ -671,10 +678,44 @@ class FirstRunView(QWidget):
         self._show("tags")
 
     def _library_folder(self) -> str:
-        """The folder the clips being brought along end up in."""
-        if self.in_place.isChecked():
+        """The folder the clips to tag are in: where the clips being brought
+        along end up, else the clips folder."""
+        if self._bringing_clips() and self.in_place.isChecked():
             return self.source.value()
         return self.clip_path.value()
+
+    def _count_waiting(self) -> None:
+        """Count the clips already in the clips folder that have no game, so
+        that tagging them comes next even with nothing to import."""
+        self._waiting_token += 1
+        token = self._waiting_token
+        self.waiting = None
+        folder = self.clip_path.value()
+        plan = self._planner(folder)
+
+        def count():
+            if not os.path.isdir(folder):
+                return 0
+            result = plan()
+            return len(result.strays) + sum(len(names) for names in result.games.values())
+
+        def done(found: int) -> None:
+            if token == self._waiting_token:
+                self._show_waiting(found)
+
+        def failed(exc) -> None:
+            logs.APP.warning("Couldn't read %s: %s", folder, exc)
+            done(0)
+
+        workers.run(count, done, failed)
+
+    def _show_waiting(self, found: int) -> None:
+        self.waiting = found
+        where = paths.tilde(self.clip_path.value())
+        self.waiting_note.setText(
+            f"{where} already has {fmt.plural(found, 'clip')} without a game. "
+            f"You can tag {'it' if found == 1 else 'them'} next.")
+        self._library_changed()
 
     # --- Step 5: tags -------------------------------------------------------------
 
@@ -722,19 +763,7 @@ class FirstRunView(QWidget):
         self.games.hide()
         self.others.hide()
         self._refresh_buttons()
-        library = self.context.library
-        if library is not None:
-            # Run again: the library is open, and used from this thread only.
-            snapshot = library_tags(library)
-        else:
-            snapshot = None
-            data_dir = self.config.resolved_data_dir()
-
-        patterns, names = self._patterns(), dict(self.config.game_names)
-
-        def plan():
-            known, tagged = snapshot if snapshot is not None else library_snapshot(data_dir)
-            return importing.plan_import(folder, known, tagged, patterns, names)
+        plan = self._planner(folder)
 
         def done(result):
             if token == self._tag_token:
@@ -747,6 +776,24 @@ class FirstRunView(QWidget):
                 self.tags_status.show()
 
         workers.run(plan, done, failed)
+
+    def _planner(self, folder: str):
+        """What tagging `folder` would do, worked out by the function returned,
+        off this thread."""
+        library = self.context.library
+        if library is not None:
+            # Run again: the library is open, and used from this thread only.
+            snapshot = library_tags(library)
+        else:
+            snapshot = None
+            data_dir = self.config.resolved_data_dir()
+        patterns, names = self._patterns(), dict(self.config.game_names)
+
+        def plan():
+            known, tagged = snapshot if snapshot is not None else library_snapshot(data_dir)
+            return importing.plan_import(folder, known, tagged, patterns, names)
+
+        return plan
 
     def _patterns(self) -> list:
         """The patterns the clips are read with: the list, then the app being
@@ -812,10 +859,11 @@ class FirstRunView(QWidget):
 
     @property
     def steps(self) -> list[str]:
-        """The steps, in order: the last one only when clips are brought along."""
+        """The steps, in order: the last one only when there are clips to tag,
+        brought along or already in the clips folder."""
         order = [key for key in ("folders", "sonar", "moments", "library")
                  if key in self.pages]
-        if self._bringing_clips():
+        if self._bringing_clips() or self.waiting:
             order.append("tags")
         return order
 
@@ -829,6 +877,7 @@ class FirstRunView(QWidget):
         self.heading.setText(title)
         self.intro.setText(intro)
         if key == "library":
+            self._count_waiting()
             self._describe_modes()
             if self._bringing_clips() and self.source.value():
                 self._scan()
@@ -863,11 +912,11 @@ class FirstRunView(QWidget):
             return
         if key == "moments" and not self._check_recording():
             return
-        if key == "library" and self._bringing_clips():
+        if key == "library":
             if not self._library_ready() or self._copying:
                 return
             self._copy_note = ""
-            if self.copy_in.isChecked() and self.copy_plan.files:
+            if self._bringing_clips() and self.copy_in.isChecked() and self.copy_plan.files:
                 self._start_copy()
                 return
         if key == order[-1]:
@@ -892,9 +941,10 @@ class FirstRunView(QWidget):
         self.choices.apply(config.recorder)
         self.tracks.apply(config.recorder)
         config.recorder.autostart = self.rec_autostart.isChecked()
-        if self._bringing_clips():
+        tagging = "tags" in self.steps
+        if tagging:
             config.name_patterns = [p.to_dict() for p in self._patterns()]
-        games, dates = self._confirmed_tags() if self._bringing_clips() else ({}, {})
+        games, dates = self._confirmed_tags() if tagging else ({}, {})
         sonar = self.context.sonar is not None
         if sonar:
             config.sonar.output_device = self.output.currentData() or ""
