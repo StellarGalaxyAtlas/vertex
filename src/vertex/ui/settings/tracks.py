@@ -1,5 +1,5 @@
-"""Settings › Recording's audio tracks: the device each one records and, where
-the recorder can set it, how loud."""
+"""The clip's audio tracks, in Settings › Recording and in setup: the device
+each one records, and how loud."""
 
 from __future__ import annotations
 
@@ -20,11 +20,8 @@ TRACKS = ((roles.GAME, "Game"), (roles.CHAT, "Chat"), (roles.MEDIA, "Media"),
           (roles.MIC, "Microphone"))
 
 
-def tracks_note() -> str:
-    """The line under the table."""
-    return ("Each is saved as a separate audio track; one set to None isn't recorded."
-            + (" The volume is what the track is recorded at, so clips play back right "
-               "at 100%." if backend.has_track_volume() else ""))
+NOTE = ("Each is saved as a separate audio track; one set to None isn't recorded. "
+        "The volume is what the track is recorded at, so clips play back right at 100%.")
 
 
 class TrackTable(QWidget):
@@ -32,7 +29,7 @@ class TrackTable(QWidget):
 
     changed = Signal()
 
-    def __init__(self, with_volume: bool, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         grid = QGridLayout(self)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -41,8 +38,7 @@ class TrackTable(QWidget):
         grid.setColumnStretch(1, 2)
         grid.addWidget(label("Track", "Dim"), 0, 0)
         grid.addWidget(label("Records", "Dim"), 0, 1)
-        if with_volume:
-            grid.addWidget(label("Recording volume", "Dim"), 0, 2, 1, 2)
+        grid.addWidget(label("Recording volume", "Dim"), 0, 2, 1, 2)
         self.devices: dict[str, QComboBox] = {}
         self.volumes: dict[str, QSlider] = {}
         self.readouts: dict[str, QWidget] = {}
@@ -53,8 +49,6 @@ class TrackTable(QWidget):
             device.currentIndexChanged.connect(lambda _i, r=role.id: self._device_changed(r))
             self.devices[role.id] = device
             grid.addWidget(device, row, 1)
-            if not with_volume:
-                continue
             slider = QSlider(Qt.Orientation.Horizontal)
             slider.setRange(*TRACK_VOLUME_RANGE)
             slider.setMinimumWidth(120)
@@ -72,8 +66,7 @@ class TrackTable(QWidget):
             readout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.readouts[role.id] = readout
             grid.addWidget(readout, row, 3)
-        if with_volume:
-            grid.setColumnStretch(2, 3)
+        grid.setColumnStretch(2, 3)
 
     def show_devices(self, devices: list[tuple[str, str]], rec) -> None:
         """Each track's choices: none, the default, Sonar's channels where
@@ -138,8 +131,6 @@ class TrackTable(QWidget):
 
     def _show(self, role_id: str) -> None:
         """A track that records nothing has no volume to set."""
-        if role_id not in self.volumes:
-            return
         on = bool(self.devices[role_id].currentData())
         self.volumes[role_id].setEnabled(on)
         self.readouts[role_id].setEnabled(on)

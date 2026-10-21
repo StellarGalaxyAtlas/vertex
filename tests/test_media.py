@@ -3,7 +3,16 @@ import threading
 
 import pytest
 
-from vertex.media import export, mixing, probe, thumbnails, tracks, trim, waveform
+from vertex.media import (
+    export,
+    mixing,
+    probe,
+    thumbnails,
+    track_volume,
+    tracks,
+    trim,
+    waveform,
+)
 from vertex.media.ffmpeg import Cancelled, MediaError
 from vertex.media.probe import AudioTrack
 
@@ -170,6 +179,43 @@ class TestWithFfmpeg:
             "Vertex Game", "Devices: Monitor of Vertex Chat", "Vertex Mic"]
         assert info.duration <= 3.2
         assert trim.keyframe_before(sample_clip, 2.5) <= 2.5
+
+    def test_track_volume_is_set_in_the_clip_and_the_rest_copied(self, sample_clip, tmp_path):
+        import shutil
+        import subprocess
+
+        def loudness(path, position):
+            out = subprocess.run(["ffmpeg", "-hide_banner", "-i", path, "-map", f"0:a:{position}",
+                                  "-af", "volumedetect", "-f", "null", "-"],
+                                 capture_output=True, text=True, check=True).stderr
+            return float(out.split("mean_volume:")[1].split("dB")[0])
+
+        folder = tmp_path / "clips"
+        folder.mkdir()
+        clip = str(folder / "clip.mp4")
+        shutil.copy2(sample_clip, clip)
+        before = (os.path.getmtime(clip), loudness(clip, 0), loudness(clip, 1))
+        assert not track_volume.apply(clip, {0: 100, 1: 100})       # nothing to do
+        assert track_volume.apply(clip, {0: 50, 1: 100, 7: 30})
+        assert os.listdir(folder) == ["clip.mp4"]                   # no staging file left
+        assert os.path.getmtime(clip) == before[0]
+        assert loudness(clip, 0) == pytest.approx(before[1] - 6.0, abs=0.5)
+        assert loudness(clip, 1) == pytest.approx(before[2], abs=0.1)
+        info = probe.probe(clip)
+        assert [t.name for t in info.tracks] == [
+            "Vertex Game", "Devices: Monitor of Vertex Chat", "Vertex Mic"]
+        assert info.duration == pytest.approx(probe.probe(sample_clip).duration, abs=0.1)
+
+    def test_track_volume_reencodes_only_the_tracks_it_changes(self):
+        argv = track_volume.command("in.mp4", "out.mp4", {1: 150},
+                                    [{"codec_name": "aac", "bit_rate": "128000"},
+                                     {"codec_name": "opus", "bit_rate": "96000"}], {})
+        assert argv[argv.index("-c") + 1] == "copy"
+        assert argv[argv.index("-filter:a:1") + 1] == "volume=1.5"
+        assert argv[argv.index("-c:a:1") + 1] == "libopus"
+        assert argv[argv.index("-b:a:1") + 1] == "96000"
+        assert "-filter:a:0" not in argv and "-c:a:0" not in argv
+        assert track_volume.changes([100, 80, 100, 120]) == {1: 80, 3: 120}
 
     def test_trim_rejects_empty_selection(self, sample_clip, tmp_path):
         with pytest.raises(MediaError):

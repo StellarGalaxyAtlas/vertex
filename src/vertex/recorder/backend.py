@@ -44,10 +44,11 @@ def has_notifier() -> bool:
     return not is_obs()
 
 
-def has_track_volume() -> bool:
-    """Whether each track's recording volume can be set: OBS sets it on the
-    track's source; GSR records devices as they are."""
-    return is_obs()
+def volume_after_save() -> bool:
+    """Whether Vertex sets each track's volume in a clip once it is saved
+    (media.track_volume): GSR records devices as they are, while OBS records
+    each track at its volume itself."""
+    return not is_obs()
 
 
 def quality_levels() -> tuple[str, ...]:

@@ -49,7 +49,8 @@ from vertex.ui.settings.reread import RereadDialog, RereadLine
 from vertex.ui.settings.reset import ResetPage
 from vertex.ui.settings.schemes import SchemePicker
 from vertex.ui.settings.shortcuts import ShortcutsPage
-from vertex.ui.settings.tracks import TrackTable, tracks_note
+from vertex.ui.settings.tracks import NOTE as TRACKS_NOTE
+from vertex.ui.settings.tracks import TrackTable
 from vertex.ui.widgets import (
     Banner,
     Columns,
@@ -292,12 +293,12 @@ class SettingsView(QWidget):
         tag_row = clips.add_row("Tag clips with the game", self.tag_from_screen,
                                 "The app filling the screen when a clip is saved, else Desktop")
         tag_row.setVisible(platform.FULLSCREEN_GAME)
-        self.tracks = TrackTable(backend.has_track_volume())
+        self.tracks = TrackTable()
         devices = self.tracks.devices
         self.game_audio, self.chat_audio = devices[roles.GAME.id], devices[roles.CHAT.id]
         self.media_audio, self.mic_audio = devices[roles.MEDIA.id], devices[roles.MIC.id]
         clips.add(self.tracks)
-        clips.add(label(tracks_note(), "Dim", wrap=True))
+        clips.add(label(TRACKS_NOTE, "Dim", wrap=True))
         clips.add(self._build_estimate())
 
         # OBS takes fewer of these than GSR: its rows for the rest are hidden.

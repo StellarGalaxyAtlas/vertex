@@ -23,7 +23,7 @@ from vertex.config import Config
 from vertex.core import naming
 from vertex.core.naming import game_from_app
 from vertex.library import Library
-from vertex.media import probe
+from vertex.media import probe, track_volume
 from vertex.media.thumbnails import ThumbnailCache
 from vertex.recorder import backend, gsr, monitors, presets
 from vertex.recorder.replay import RecorderError, State
@@ -518,6 +518,8 @@ class RecorderController(QObject):
         # (when, game, where it was seen: "channel" or "screen") of the last
         # save asked for, to tag the clip it brings.
         self._game_hint: tuple[float, str, str] = (0.0, "", "")
+        # The volume of each track the recorder records, in the clip's order.
+        self._volumes: list[int] = []
         if context.sonar is not None:
             context.sonar.status_changed.connect(self._sonar_status)
         # What the recorder said it can record when last asked: its monitors' names.
@@ -630,6 +632,7 @@ class RecorderController(QObject):
             self.context.notify(
                 "track_missing", f"{role} audio: {device} isn't available",
                 f"Recording {what} instead" if what else "Recording without it")
+        self._volumes = [track.volume for track in tracks]
         plan = backend.launch_plan(config, self._monitors(), tracks, self.info)
         logs.RECORDER.info("Starting the replay buffer: %s", backend.describe(plan))
         try:
@@ -767,10 +770,25 @@ class RecorderController(QObject):
             self._game_hint = (time.monotonic(), game, "screen")
 
     def _on_saved(self, path: str) -> None:
-        when, game, seen = self._game_hint
-        library = self.context.library
         logs.RECORDER.info("Saved %s", path)
-        self._game_hint = (0.0, "", "")
+        hint, self._game_hint = self._game_hint, (0.0, "", "")
+        volumes = track_volume.changes(self._volumes) if backend.volume_after_save() else {}
+        if not volumes:
+            self._tag_saved(path, hint)
+            return
+
+        def failed(exc: Exception) -> None:
+            logs.RECORDER.error("Couldn't set the tracks' volume in %s: %s", path, exc)
+            self._tag_saved(path, hint)
+
+        workers.run(lambda: track_volume.apply(path, volumes),
+                    lambda _changed: self._tag_saved(path, hint), failed)
+
+    def _tag_saved(self, path: str, hint: tuple[float, str, str]) -> None:
+        """Tag a clip just saved with its game, and name it after the game if
+        it was playing on the Game channel."""
+        when, game, seen = hint
+        library = self.context.library
         name = os.path.basename(path)
         tagged = game and time.monotonic() - when < 60 and library is not None and \
             library.tag_recorded(name, game)
@@ -806,7 +824,6 @@ class RecorderController(QObject):
             self.recorder.stop(timeout=3)
 
 
-
 def _name_after_game(path: str, game: str) -> str:
     """Rename a clip just saved after its game, Moments style, never over
     another file. Returns its path now."""
@@ -821,6 +838,7 @@ def _name_after_game(path: str, game: str) -> str:
         target = os.path.join(folder, f"{stem}_{number}{extension}")
     os.rename(path, target)
     return target
+
 
 # Every notice goes in the log of the part it is about, as serious as it looks.
 _NOTICE_LOGS = {"clips": logs.RECORDER, "sonar": logs.SONAR, "vertex": logs.APP}

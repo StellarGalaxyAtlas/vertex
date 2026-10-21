@@ -2198,6 +2198,32 @@ def test_renaming_a_game_retags_its_clips_and_new_ones(qapp, window):
     assert context.config.game_names == {} and not settings.game_names.empty.isHidden()
 
 
+def test_a_saved_clip_gets_each_tracks_recording_volume(qapp, window, library_dir,
+                                                         monkeypatch):
+    from vertex.media import track_volume
+
+    applied = []
+    real_apply = track_volume.apply
+
+    def apply(path, volumes):
+        applied.append(volumes)
+        return real_apply(path, volumes)
+
+    recorder = window.context.recorder
+    saved = []
+    recorder.saved.connect(saved.append)
+    clip = str(library_dir / "Replay_2026-01-02_03-04-05.mp4")
+    size = os.path.getsize(clip)
+    recorder._volumes = [100, 100, 100]
+    recorder._on_saved(clip)
+    assert saved == [clip] and os.path.getsize(clip) == size      # nothing to set
+    recorder._volumes = [60, 100, 100]
+    monkeypatch.setattr(track_volume, "apply", apply)
+    recorder._on_saved(clip)
+    assert wait_until(qapp, lambda: len(saved) == 2)
+    assert applied == [{0: 60}] and saved[-1] == clip and os.path.getsize(clip) != size
+
+
 def test_a_saved_clip_takes_the_game_channel_and_is_named_after_it(qapp, window,
                                                                     library_dir):
     import time
@@ -2267,11 +2293,11 @@ def test_settings_review_tags_from_file_names(qapp, window, library_dir, sample_
     # Kept is remembered: Valorant isn't asked about again.
     assert wait_until(qapp, lambda: not any(g.game for g in line.groups))
 
-def test_each_track_has_a_recording_volume_where_the_recorder_sets_one(qapp, monkeypatch):
+def test_each_track_has_a_recording_volume(qapp):
     from vertex.config import RecorderConfig
     from vertex.ui.settings.tracks import TrackTable
 
-    table = TrackTable(with_volume=True)
+    table = TrackTable()
     for device in table.devices.values():
         device.addItem("None", "")
         device.addItem("Default output", "default_output")

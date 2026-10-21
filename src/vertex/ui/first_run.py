@@ -31,7 +31,8 @@ from vertex.ui import icons, theme, workers
 from vertex.ui.dialogs.importing import FolderList
 from vertex.ui.name_teacher import NameSources
 from vertex.ui.settings.clip_choices import ClipChoices, ClipSize
-from vertex.ui.settings.tracks import TrackTable, tracks_note
+from vertex.ui.settings.tracks import NOTE as TRACKS_NOTE
+from vertex.ui.settings.tracks import TrackTable
 from vertex.ui.sonar_view import DeviceField
 from vertex.ui.widgets import (
     ChoiceCard,
@@ -332,12 +333,12 @@ class FirstRunView(QWidget):
         self.choices.quality_picked.connect(self._quality_picked)
         self.choices.monitors_changed.connect(self._choices_changed)
         # Settings' tracks: which device each one records.
-        self.tracks = TrackTable(backend.has_track_volume())
+        self.tracks = TrackTable()
         self.tracks.load(self.config.recorder)
         self.tracks.show_devices([], self.config.recorder)
         self.tracks.changed.connect(self._tracks_changed)
         section.add(self.tracks)
-        section.add(label(tracks_note(), "Dim", wrap=True))
+        section.add(label(TRACKS_NOTE, "Dim", wrap=True))
         self.rec_autostart = Toggle(self.config.recorder.autostart if self.again else False)
         self._autostart_touched = self.again
         self.rec_autostart.clicked.connect(lambda: setattr(self, "_autostart_touched", True))

@@ -99,8 +99,8 @@ class RecorderConfig:
     chat_audio: str = _track_default(channels.CHAT, "")
     media_audio: str = _track_default(channels.MEDIA, "")
     mic_audio: str = _track_default(channels.MIC, "default_input")
-    # How loud each track is recorded, in percent (TRACK_VOLUME_RANGE), where
-    # the recorder can set it (backend.has_track_volume).
+    # How loud each track is recorded, in percent (TRACK_VOLUME_RANGE): OBS
+    # records it so, and a GSR clip gets it once saved (media.track_volume).
     game_volume: int = 100
     chat_volume: int = 100
     media_volume: int = 100
