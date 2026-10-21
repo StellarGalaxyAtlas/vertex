@@ -335,7 +335,7 @@ class FilterRow(QWidget):
         layout.addWidget(self.found)
         layout.addStretch(1)
 
-        right = QHBoxLayout()
+        right = self._right = QHBoxLayout()
         right.setSpacing(14)
         for tool in tools:
             right.addWidget(tool, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -423,6 +423,19 @@ class FilterRow(QWidget):
         super().resizeEvent(event)
         self._fit()
 
+    def _invalidate(self, groups) -> None:
+        """Hidden widgets count at once only once every layout between them
+        and this row forgets the size it worked out."""
+        for widget in (widget for group in groups for widget in group):
+            parent = widget.parentWidget()
+            while parent is not None and parent is not self:
+                if parent.layout() is not None:
+                    parent.layout().invalidate()
+                parent.updateGeometry()
+                parent = parent.parentWidget()
+        self._right.invalidate()
+        self.layout().invalidate()
+
     def _fit(self) -> None:
         """Show as much of the disk and the card-size icons as fits."""
         groups = ([self.disk_text], self.size_icons, [self.disk])
@@ -430,6 +443,6 @@ class FilterRow(QWidget):
             for index, group in enumerate(groups):
                 for widget in group:
                     widget.setVisible(index >= level)
-            self.layout().invalidate()
+            self._invalidate(groups)
             if self.layout().sizeHint().width() <= self.width():
                 break

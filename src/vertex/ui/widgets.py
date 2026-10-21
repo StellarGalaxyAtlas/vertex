@@ -20,6 +20,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QFont,
     QFontMetrics,
     QLinearGradient,
     QPainter,
@@ -439,8 +440,8 @@ class Segmented(QWidget):
             #Segmented QPushButton {{ background: transparent; padding: 5px 12px;
                                       border-radius: 7px; color: {theme.TEXT_MUTED}; }}
             #Segmented QPushButton:hover {{ color: {theme.TEXT}; }}
-            #Segmented QPushButton:checked {{ background: {theme.ACCENT_SOFT}; color: {theme.TEXT};
-                                              font-weight: 600; }}
+            #Segmented QPushButton:checked {{ background: {theme.ACCENT_SOFT};
+                                              color: {theme.TEXT}; }}
         """)
         for key, text in options:
             option = QPushButton(text)
@@ -478,6 +479,10 @@ class Segmented(QWidget):
         for key, option in self._buttons.items():
             active = key == self._current
             option.setChecked(active)
+            # Bold set here, not in the style sheet, so the button's width counts it.
+            font = option.font()
+            font.setWeight(QFont.Weight.DemiBold if active else QFont.Weight.Normal)
+            option.setFont(font)
             arrow = (" ↓" if self._descending else " ↑") if active and self._directional else ""
             option.setText(self._labels[key] + arrow)
 
