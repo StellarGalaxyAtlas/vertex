@@ -410,7 +410,9 @@ QPushButton, QToolButton {{
 }}
 QPushButton:hover, QToolButton:hover {{ background: {CARD_HOVER}; }}
 QPushButton:pressed, QToolButton:pressed {{ background: {SECTION_BG}; }}
-QPushButton:disabled, QToolButton:disabled {{ color: {TEXT_DIM}; background: {SECTION_BG}; }}
+QPushButton:disabled, QToolButton:disabled {{
+    color: {TEXT_DIM}; background: {SECTION_BG}; border-color: {SEAM};
+}}
 QPushButton[kind="primary"] {{
     background: {ACCENT_FILL}; border: 1px solid {ACCENT_FILL_EDGE}; color: {ON_ACCENT};
     font-weight: 600;

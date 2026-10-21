@@ -3,8 +3,6 @@ category. Built from vertex.notifications, so a new kind shows up by itself."""
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QWidget
-
 from vertex import notifications
 from vertex.recorder import backend, notifier
 from vertex.ui import theme
@@ -18,17 +16,13 @@ class NotificationsPage:
             "Desktop notifications", "Pop-ups while you're in a game or another app")
         self.over_games = Toggle()
         self._over_games_on = False      # the saved choice, kept while it can't be used
+        self.over_games_row = pop_ups.add_row("Show them over games", self.over_games, " ")
         # A sample over whatever is on screen, to see how it looks in a game.
-        controls = QWidget()
-        row = QHBoxLayout(controls)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(14)
         self.test_button = button("Send a test", on_click=send_test)
         self.over_games.toggled.connect(lambda on: self.test_button.setEnabled(
             on and self.over_games.isEnabled()))
-        row.addWidget(self.test_button)
-        row.addWidget(self.over_games)
-        self.over_games_row = pop_ups.add_row("Show them over games", controls, " ")
+        self.test_row = pop_ups.add_row("Test notification", self.test_button,
+                                        "Shows one over whatever is on screen")
         self._show_notifier()
         self.sections = [pop_ups]
         for category in notifications.CATEGORIES:
@@ -44,6 +38,7 @@ class NotificationsPage:
         each time Settings opens, so installing it needs no restart."""
         # GSR's notifier is Linux's; Windows has no such overlay to use.
         self.over_games_row.setVisible(backend.has_notifier())
+        self.test_row.setVisible(backend.has_notifier())
         found = backend.has_notifier() and notifier.find() is not None
         self.over_games.setEnabled(found)
         self.over_games.setChecked(found and self._over_games_on)
