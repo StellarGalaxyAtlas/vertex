@@ -752,8 +752,8 @@ def test_a_buffer_that_dies_while_recording_starts_again_once(qapp, window, tmp_
     states.clear()
     notices.clear()
     os.kill(recorder.recorder.pid, signal.SIGKILL)
-    assert wait_until(qapp, lambda: recorder.phase == "failed")
-    qapp.processEvents()
+    # The recorder's own state turns first; the controller hears of it later.
+    assert wait_until(qapp, lambda: recorder.phase == "failed" and states)
     assert states == ["failed"]
     assert [n.kind for n in notices] == ["replay_failed"]
 
