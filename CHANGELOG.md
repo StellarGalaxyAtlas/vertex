@@ -3,9 +3,22 @@
 ## 2.0.0 — unreleased
 
 A rewrite of the application around a GUI-free core, with recording and Sonar
-added.
+added, for Linux and Windows.
 
 ### Added
+- **Windows 10 and 11**, from the same package: recording with OBS Studio 30+
+  (Vertex starts it in the tray and keeps a profile and scene of its own),
+  hotkeys set in Settings › Shortcuts, new clips tagged with the full-screen
+  game, Windows folders, Start menu shortcut and autostart. Sonar stays on
+  Linux.
+- **Backups**: Settings › Backup exports the settings and library to one
+  file, keeps a daily one (the last five) and restores what you pick, down to
+  single settings; `vertex backup export|import` from a terminal.
+- Recording can be switched off, in setup and Settings, to use Vertex only for
+  the clips you have.
+- Selecting several clips in the library to favorite, tag, export or delete
+  them together.
+- A recording volume per track.
 - **Sonar**: virtual Game, Chat, Media and Aux outputs and a Vertex Mic input on
   PipeWire/PulseAudio, with per-channel volume and mute, output and microphone
   selection, and remembered per-app routing.
