@@ -693,6 +693,19 @@ def program_running(image: str) -> bool:
     return image.lower() in out.lower()
 
 
+def close_program(pid: int) -> bool:
+    """Ask a program to quit, as closing its window does (it may still ask
+    or refuse): never forced."""
+    if not ON_WINDOWS:
+        return False
+    try:
+        result = subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True,
+                                text=True, timeout=10, **NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 _MMDEVICES = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio"
 # Property keys of an endpoint: what it is ("Speakers") and what it is part
 # of ("Realtek Audio"). Windows shows them as "Speakers (Realtek Audio)".

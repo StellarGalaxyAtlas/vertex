@@ -533,8 +533,8 @@ class RecorderController(QObject):
         return self.context.config.recorder.enabled
 
     def _config_changed(self) -> None:
-        """Recording turned off stops the buffer; turned on, the recorder is
-        looked for."""
+        """Recording turned off stops the buffer, and quits OBS if Vertex
+        started it; turned on, the recorder is looked for."""
         if self.enabled == self._enabled:
             return
         self._enabled = self.enabled
@@ -542,7 +542,7 @@ class RecorderController(QObject):
         if self.enabled:
             self.detect()
         else:
-            self.stop()
+            self.stop(close_app=True)
 
     @property
     def state(self) -> State:
@@ -659,13 +659,14 @@ class RecorderController(QObject):
         except RecorderError as exc:
             self._on_state((State.FAILED, str(exc)))
 
-    def stop(self) -> None:
+    def stop(self, close_app: bool = False) -> None:
+        """Stop the buffer; `close_app` also quits OBS if Vertex started it."""
         if self.running or self._restarting:
             logs.RECORDER.info("Stopping the replay buffer")
         self._wanted = False
         self._restart_pending = False
         self._restarting = self._recovering = False
-        workers.run(self.recorder.stop)
+        workers.run(self.recorder.close_app if close_app else self.recorder.stop)
 
     def toggle(self) -> None:
         if self.running or self._restarting:

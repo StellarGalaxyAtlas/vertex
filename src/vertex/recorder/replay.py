@@ -146,6 +146,10 @@ class ReplayRecorder:
         threading.Thread(target=self._settle, args=(proc,), daemon=True,
                          name="gsr-settle").start()
 
+    def close_app(self) -> None:
+        """Stop the buffer: GPU Screen Recorder is no app of its own to quit."""
+        self.stop()
+
     def stop(self, timeout: float = 5.0) -> None:
         """Stop the buffer without saving it."""
         with self._lock:

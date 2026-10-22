@@ -5,7 +5,8 @@ start, stop and save, with the state and each saved clip reported through
 callbacks on its own threads. Starting brings OBS up in the tray if it isn't
 running, switches it to Vertex's profile and scene collection, sets them up
 from the plan (obs.plan) and starts the buffer. OBS is left running when the
-buffer stops, as an app of its own.
+buffer stops, as an app of its own, until `close_app`: that quits an OBS
+this recorder started, and leaves one the user started alone.
 
 OBS saves the whole buffer into a folder of Vertex's. Each save is then
 finished into the clips folder: cut to the last N seconds when that was asked
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import threading
 import time
 from collections import deque
@@ -92,6 +94,8 @@ class ObsRecorder:
         self._lock = threading.Lock()
         self._stopping = False
         self._saves: deque[int | None] = deque()
+        # The OBS this recorder started, if it did.
+        self._launched: subprocess.Popen | None = None
 
     # --- Lifecycle ----------------------------------------------------------
 
@@ -134,6 +138,13 @@ class ObsRecorder:
             client.close()
         self._client = None
         self._set(State.STOPPED)
+
+    def close_app(self) -> None:
+        """Stop the buffer, and quit OBS if this recorder started it."""
+        self.stop()
+        launched, self._launched = self._launched, None
+        if launched is not None and obs.close(launched):
+            log.info("Closed OBS, which Vertex started")
 
     def save(self, seconds: int | None = None) -> None:
         client = self._client
@@ -184,7 +195,7 @@ class ObsRecorder:
                 log.info("Switching on OBS's WebSocket server")
                 settings = obs.enable_websocket()
             log.info("Starting OBS: %s", exe)
-            obs.launch(exe)
+            self._launched = obs.launch(exe)
             launched = True
         elif not settings.enabled:
             raise ObsError("OBS's WebSocket server is off. Close OBS and Vertex switches it "

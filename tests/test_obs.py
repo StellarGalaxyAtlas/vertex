@@ -236,6 +236,34 @@ class TestReplayBuffer:
         assert wait_for(lambda: recorder.state == State.FAILED)
         assert recorder.error == "OBS stopped the replay buffer."
 
+    def test_closing_quits_only_an_obs_vertex_started(self, connected, tmp_path, monkeypatch):
+        class Started:
+            pid = 4242
+
+            def poll(self):
+                return None
+
+        launched, closed = [], []
+        monkeypatch.setattr(obs, "find", lambda _command: "C:/OBS/bin/64bit/obs64.exe")
+        monkeypatch.setattr(obs, "launch", lambda exe: launched.append(exe) or Started())
+        monkeypatch.setattr(windows, "close_program", lambda pid: closed.append(pid) or True)
+        # OBS already open: the user's, left alone.
+        recorder = ObsRecorder()
+        recorder.start(a_plan(tmp_path), str(tmp_path / "clips"))
+        assert wait_for(lambda: recorder.state == State.RUNNING), recorder.error
+        recorder.close_app()
+        assert recorder.state == State.STOPPED and not launched and not closed
+        # Started by Vertex: quit with the buffer, once.
+        running = iter([False])
+        monkeypatch.setattr(obs, "running", lambda: next(running, True))
+        recorder.start(a_plan(tmp_path), str(tmp_path / "clips"))
+        assert wait_for(lambda: recorder.state == State.RUNNING), recorder.error
+        assert launched
+        recorder.close_app()
+        assert closed == [4242] and not connected.replay_active
+        recorder.close_app()
+        assert closed == [4242]
+
     def test_a_buffer_obs_wont_start(self, connected, tmp_path, monkeypatch):
         monkeypatch.setattr("vertex.recorder.obs_replay.OUTPUT_SECONDS", 0.3)
         connected.start_fails = True

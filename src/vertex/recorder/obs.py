@@ -104,13 +104,18 @@ def running() -> bool:
     return windows.program_running("obs64.exe")
 
 
-def launch(exe: str) -> None:
+def launch(exe: str) -> subprocess.Popen:
     """Start OBS in the tray. It must run in its own folder to find its files;
     the shutdown check would otherwise ask about safe mode after a crash."""
-    subprocess.Popen([exe, "--minimize-to-tray", "--disable-shutdown-check"],
-                     cwd=os.path.dirname(exe), close_fds=True,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL)
+    return subprocess.Popen([exe, "--minimize-to-tray", "--disable-shutdown-check"],
+                            cwd=os.path.dirname(exe), close_fds=True,
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+
+
+def close(process: subprocess.Popen) -> bool:
+    """Ask OBS, started by `launch`, to quit, if that same OBS still runs."""
+    return process.poll() is None and windows.close_program(process.pid)
 
 
 # --- obs-websocket's settings -------------------------------------------------
