@@ -155,7 +155,7 @@ Everything above works on both, except where this table says otherwise.
 | Game tag for new clips | The app on Sonar's Game channel | The full-screen game, or Desktop |
 | Hotkeys | Bind `vertex save-clip` in your desktop's shortcuts | Set in Settings › Shortcuts |
 | Notifications over games | With `gpu-screen-recorder-notification` | No |
-| Stream Deck | [StreamController plugin](https://github.com/StellarGalaxyAtlas/vertex-streamcontroller) | No |
+| Stream Deck | [StreamController plugin](https://github.com/StellarGalaxyAtlas/vertex-unified-plugin) | No |
 
 ---
 

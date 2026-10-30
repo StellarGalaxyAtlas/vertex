@@ -25,7 +25,7 @@ RECORDER = "gsr"                    # see recorder.backend
 RECORDER_COMMAND = "gpu-screen-recorder"
 SONAR = True                        # see vertex.audio
 # For StreamController, the Stream Deck app on Linux.
-STREAM_DECK_PLUGIN = "https://github.com/StellarGalaxyAtlas/vertex-streamcontroller"
+STREAM_DECK_PLUGIN = "https://github.com/StellarGalaxyAtlas/vertex-unified-plugin"
 UNIX_SOCKETS = hasattr(socket, "AF_UNIX")
 CONTROL_FILE = "control.sock"
 HOTKEYS = False                     # see HotkeyListener
