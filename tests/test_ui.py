@@ -2542,6 +2542,25 @@ def test_the_icon_ink_follows_the_windows_taskbar_not_the_apps(qapp, monkeypatch
     assert icons.desktop_ink() == "dark"
 
 
+def test_each_native_window_goes_on_the_taskbar_as_vertex(qapp, monkeypatch, fake_audio):
+    from vertex import platform
+    from vertex.ui.main_window import MainWindow
+    from vertex.ui.services import Context
+
+    told = []
+    monkeypatch.setattr(platform.here(), "put_on_taskbar", told.append)
+    win = MainWindow(Context(Config()))
+    assert told == []                   # no native window before it shows
+    win.show()
+    assert told and told[-1] == int(win.winId())
+    # Qt builds the window again (for OpenGL): the new one is told too.
+    told.clear()
+    QApplication.sendEvent(win, QEvent(QEvent.Type.WinIdChange))
+    assert told == [int(win.winId())]
+    win.hide()
+    _close(win)
+
+
 def _hotkeys_page(monkeypatch):
     from vertex import hotkeys
     from vertex.config import Config

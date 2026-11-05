@@ -6,7 +6,7 @@ import copy
 import os
 import sqlite3
 
-from PySide6.QtCore import QFileSystemWatcher, QTimer
+from PySide6.QtCore import QEvent, QFileSystemWatcher, QTimer
 from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
@@ -62,7 +62,6 @@ class MainWindow(QMainWindow):
         self.start_menu_job = None
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icons.app_icon(icons.desktop_ink()))
-        platform.put_on_taskbar(int(self.winId()))
         # The icon on the desktop's panels follows its light or dark look.
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._ink_changed)
         self.resize(1280, 820)
@@ -469,6 +468,14 @@ class MainWindow(QMainWindow):
 
         workers.run(lambda: backup.back_up_daily(config), made,
                     lambda exc: logs.APP.warning("Couldn't back up: %s", exc))
+
+    def event(self, event) -> bool:
+        # Qt builds the native window again for the editor's OpenGL video,
+        # and the new one has none of the taskbar's properties: each one
+        # gets them, or the taskbar shows (and pins) python.exe.
+        if event.type() in (QEvent.Type.Show, QEvent.Type.WinIdChange) and self.internalWinId():
+            platform.put_on_taskbar(int(self.internalWinId()))
+        return super().event(event)
 
     def add_to_start_menu(self) -> None:
         """Into the start menu on the first start, before setup is done, so

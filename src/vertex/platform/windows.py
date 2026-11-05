@@ -425,9 +425,10 @@ def launch_command() -> list[str]:
 
 def put_on_taskbar(hwnd: int) -> bool:
     """A window under Vertex's name and icon on the taskbar, also when
-    pinned (see set_window_app_id)."""
+    pinned (see set_window_app_id). The icon is named as a resource, a file
+    and its index: a bare path is ignored and the pin gets python.exe's."""
     return set_window_app_id(hwnd, APP_USER_MODEL_ID, subprocess.list2cmdline(launch_command()),
-                             str(_shortcut_icon()), APP_NAME)
+                             f"{_shortcut_icon()},0", APP_NAME)
 
 
 def draw_icon(variant: str) -> list[Path]:

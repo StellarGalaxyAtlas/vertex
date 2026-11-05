@@ -222,7 +222,13 @@ def test_windows_holds_the_hotkeys_and_lets_them_go():
         listener.close()
 
 
-def test_a_window_goes_on_the_taskbar_as_vertex():
+def test_a_window_goes_on_the_taskbar_as_vertex(monkeypatch):
+    given = []
+    monkeypatch.setattr(windows_platform, "set_window_app_id", lambda *args: given.append(args))
+    windows_platform.put_on_taskbar(1)
+    # The pin's icon is a resource: the file, then its index.
+    assert given[0][3] == f"{windows_platform._shortcut_icon()},0"
+    monkeypatch.undo()
     if sys.platform != "win32":
         assert not platform.put_on_taskbar(0)
         return
