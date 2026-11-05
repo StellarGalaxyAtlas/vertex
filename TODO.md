@@ -1,11 +1,20 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 86.
+and bugs get the next free number: 85.
 
 ---
 
 ## Open
+
+### Next
+
+**84.**
+**Sounds for clip events, and a toast over games on Windows**
+A sound when a clip is saved or isn't, and when the replay buffer starts or
+stops, on both systems, each one switchable and replaceable with your own
+file. On Windows, a ShadowPlay-style toast over games, as GSR's notifier
+gives on Linux.
 
 ### To try on Windows
 
