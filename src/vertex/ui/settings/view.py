@@ -299,7 +299,7 @@ class SettingsView(QWidget):
         clips.add_row("Record the cursor", self.cursor)
         self.tag_from_game = Toggle()
         tag_row = clips.add_row("Tag clips with the game you're playing", self.tag_from_game,
-                                "From the app on Sonar's Game channel")
+                                "From the app on Sonar's Game channel, or Desktop")
         tag_row.setVisible(platform.SONAR)
         self.tag_from_screen = Toggle()
         tag_row = clips.add_row("Tag clips with the game you're playing", self.tag_from_screen,

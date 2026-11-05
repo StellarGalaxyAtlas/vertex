@@ -48,6 +48,7 @@ class TestNaming:
         ("steam", ""),
         ("wine64-preloader", ""),
         ("Firefox", ""),
+        ("Vertex", ""),
         ("", ""),
     ])
     def test_game_from_app(self, app, game):

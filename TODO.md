@@ -1,11 +1,18 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 84.
+and bugs get the next free number: 86.
 
 ---
 
 ## Open
+
+### To try on Linux
+
+**85.**
+**Desktop tag**
+A clip saved with no game on Sonar's Game channel is tagged Desktop (not
+renamed). Built; John to try.
 
 ### To try on Windows
 

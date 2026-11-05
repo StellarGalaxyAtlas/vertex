@@ -2324,6 +2324,29 @@ def test_a_saved_clip_takes_the_game_channel_and_is_named_after_it(qapp, window,
     assert saved[-1].endswith("Heroes-of-the-Storm__2026-10-20__21-00-00_2.mp4")
 
 
+def test_a_clip_saved_with_no_game_on_the_game_channel_is_tagged_desktop(qapp, window,
+                                                                         library_dir):
+    context = window.context
+    name = "Replay_2026-01-02_03-04-05.mp4"
+    recorder = context.recorder
+    saved = []
+    recorder.saved.connect(saved.append)
+
+    # Only a browser and Vertex itself on the Game channel: no game.
+    recorder._got_game_apps(["Firefox", "Vertex"])
+    recorder._on_saved(str(library_dir / name))
+    wait_until(qapp, lambda: saved)
+    assert saved == [str(library_dir / name)]           # not named after Desktop
+    assert context.library.get_edit(name).game == "Desktop"
+
+    # Two games: which one is unclear, so neither, and not Desktop either.
+    context.library.set_tags(name, "", [])
+    recorder._got_game_apps(["Overwatch.exe", "Deep_Rock_Galactic"])
+    recorder._on_saved(str(library_dir / name))
+    wait_until(qapp, lambda: len(saved) == 2)
+    assert context.library.get_edit(name).game == ""
+
+
 def test_settings_review_tags_from_file_names(qapp, window, library_dir, sample_clip):
     from PySide6.QtCore import QTimer
 

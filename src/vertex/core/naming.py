@@ -176,7 +176,7 @@ _NOT_GAMES = frozenset({
     "wineserver", "pressure-vessel-wrap", "reaper", "proton", "gamescope",
     "firefox", "chromium", "chrome", "discord", "spotify", "vesktop", "obs",
     "pipewire", "wireplumber", "pulseaudio", "paplay", "pw-play", "mpv",
-    "msedge", "brave", "opera", "vlc", "explorer",
+    "msedge", "brave", "opera", "vlc", "explorer", "vertex",
 })
 
 

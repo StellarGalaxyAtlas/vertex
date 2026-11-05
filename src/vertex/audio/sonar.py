@@ -717,12 +717,10 @@ class Sonar:
         return moved
 
     def game_apps(self) -> list[str]:
-        """Names of the applications playing on the Game channel right now."""
-        try:
-            return [stream.name for stream in self.streams()
-                    if stream.channel == channels.GAME.id]
-        except AudioError:
-            return []
+        """Names of the applications playing on the Game channel right now.
+        Raises AudioError when the server can't be asked: that is no answer,
+        not an empty channel."""
+        return [stream.name for stream in self.streams() if stream.channel == channels.GAME.id]
 
     # --- Events -------------------------------------------------------------
 

@@ -783,6 +783,10 @@ class RecorderController(QObject):
 
     def _got_game_apps(self, names: list[str]) -> None:
         games = {game_from_app(name) for name in names or []} - {""}
+        if not games:
+            # No game on the Game channel: the clip is of the desktop.
+            self._game_hint = (time.monotonic(), naming.DESKTOP_TAG, "desktop")
+            return
         # Only a single, unambiguous game is worth writing down.
         self._game_hint = (time.monotonic(), games.pop() if len(games) == 1 else "", "channel")
 
@@ -817,8 +821,9 @@ class RecorderController(QObject):
         if not tagged:
             self.saved.emit(path)
             return
-        if seen == "screen":
-            logs.CLIPS.info("Tagged %s with %s (on screen when it was saved)", name, tagged)
+        if seen != "channel":
+            why = "on screen" if seen == "screen" else "no game on the Game channel"
+            logs.CLIPS.info("Tagged %s with %s (%s when it was saved)", name, tagged, why)
             self.saved.emit(path)
             return
         logs.CLIPS.info("Tagged %s with %s (playing on the Game channel)", name, tagged)

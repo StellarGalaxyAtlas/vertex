@@ -152,7 +152,7 @@ Everything above works on both, except:
 |---|---|---|
 | Recorder | [GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/) | [OBS Studio](https://obsproject.com/) 30+, run by Vertex in the tray |
 | Sonar | Yes (PipeWire or PulseAudio) | No. Use your own virtual devices to split game and chat |
-| Game tag for new clips | The app on Sonar's Game channel | The full-screen game, or Desktop |
+| Game tag for new clips | The app on Sonar's Game channel, or Desktop | The full-screen game, or Desktop |
 | Hotkeys | Bind `vertex save-clip` in your desktop's shortcuts | Settings › Shortcuts |
 | Notifications over games | With `gpu-screen-recorder-notification` | No |
 | Stream Deck | [StreamController plugin](https://github.com/StellarGalaxyAtlas/vertex-unified-plugin) | No |
