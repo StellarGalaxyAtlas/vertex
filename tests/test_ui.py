@@ -1536,6 +1536,102 @@ def test_over_games_switch_greyed_out_without_the_notifier(qapp, window, monkeyp
     assert page.over_games_row.hint.text() == "Uses GPU Screen Recorder's overlay"
 
 
+def test_sounds_play_for_their_kinds_and_are_set_in_settings(
+        qapp, window, monkeypatch, tmp_path, fake_mpv_sounds):
+    from vertex import sounds
+    from vertex.audio.sonar import SonarStatus
+
+    context, page = window.context, window.settings_view.notifications
+
+    def played():
+        return fake_mpv_sounds[0].played if fake_mpv_sounds else []
+
+    # In front or not, popped up or not: the sound plays.
+    monkeypatch.setattr(window, "isActiveWindow", lambda: True)
+    context.notify("clip_saved", "Clip saved")
+    assert wait_until(qapp, lambda: len(played()) == 1)
+    assert played()[-1] == (sounds.own_file("clip_saved"), "auto", sounds.DEFAULT_VOLUME)
+    context.notify("replay_started", "Replay buffer on")      # off by default
+    context.notify("in_tray", "Still running in the tray")    # has no sound
+    context.notify("replay_failed", "Replay buffer crashed")
+    assert wait_until(qapp, lambda: len(played()) == 2)
+    assert played()[-1][0] == sounds.own_file("replay_stopped")
+
+    # With Sonar on, straight on the device it plays through.
+    context.sonar.status = SonarStatus(active=True, output="alsa_output.usb-headset")
+    context.notify("clip_not_saved", "Clip not saved")
+    assert wait_until(qapp, lambda: len(played()) == 3)
+    assert played()[-1][1] == "pulse/alsa_output.usb-headset"
+    context.sonar.status = SonarStatus()
+
+    # Settings: a file of one's own, the volume, a switch; kept at once.
+    window.navigate("settings")
+    assert set(page.sound_switches) == set(sounds.BY_KIND)
+    assert page.sound_rows["clip_saved"].hint.text() == "Vertex's sound"
+    assert not page.sound_resets["clip_saved"].isVisibleTo(page.sounds_section)
+    mine = tmp_path / "ding.ogg"
+    mine.write_bytes(b"OggS")
+    monkeypatch.setattr("vertex.ui.settings.notifications.QFileDialog.getOpenFileName",
+                        lambda *args: (str(mine), ""))
+    page._choose("clip_saved")
+    assert wait_until(qapp, lambda: len(played()) == 4)       # a sample of it
+    assert played()[-1][0] == str(mine)
+    assert page.sound_rows["clip_saved"].hint.text() == "ding.ogg"
+    assert page.sound_resets["clip_saved"].isVisibleTo(page.sounds_section)
+    page.volume.setValue(35)
+    page.volume.sliderReleased.emit()
+    page.sound_switches["replay_started"].setChecked(True)
+    saved = Config.load()
+    assert saved.sound_files == {"clip_saved": str(mine)}
+    assert (saved.sound_volume, saved.sounds) == (35, {"replay_started": True})
+    context.notify("replay_started", "Replay buffer on")
+    assert wait_until(qapp, lambda: played()[-1][0] == sounds.own_file("replay_started"))
+    assert played()[-1][2] == 35
+
+    # The file gone: said so, and Vertex's own plays. Reset forgets it.
+    mine.unlink()
+    window.navigate("home")
+    window.navigate("settings")
+    assert "is gone" in page.sound_rows["clip_saved"].hint.text()
+    page.sound_resets["clip_saved"].click()
+    assert Config.load().sound_files == {}
+
+
+def test_own_toast_over_games_where_the_platform_has_one(qapp, window, monkeypatch):
+    from vertex import platform
+
+    monkeypatch.setattr(platform.here(), "GAME_TOAST", True)
+    monkeypatch.setattr(window, "isActiveWindow", lambda: False)
+    popped = []
+    monkeypatch.setattr(window, "tray", type("Tray", (), {"pop_up": popped.append})())
+    monkeypatch.setattr(window.over_games, "show", lambda *args: pytest.fail("GSR's notifier"))
+
+    window.context.notify("clip_not_saved", "Clip not saved", "The recorder didn't answer")
+    toast = window.game_toast
+    assert popped == [] and toast.isVisible()
+    assert (toast.title, toast.body, toast.level) == (
+        "Clip not saved", "The recorder didn't answer", "error")
+    # It never takes the focus or a click from the game.
+    flags = toast.windowFlags()
+    assert flags & Qt.WindowType.WindowStaysOnTopHint
+    assert flags & Qt.WindowType.WindowTransparentForInput
+    assert flags & Qt.WindowType.WindowDoesNotAcceptFocus
+    assert not toast.isActiveWindow()
+    screen = qapp.primaryScreen().geometry()
+    assert toast.geometry().right() < screen.right() and toast.y() > screen.top()
+
+    # Settings has the switch and the test, always usable.
+    page = window.settings_view.notifications
+    window.navigate("settings")
+    assert page.over_games.isEnabled() and page.over_games.isChecked()
+    assert page.over_games_row.hint.text() == "Over windowed and most full-screen games"
+    toast.hide()
+    page.test_button.click()
+    assert toast.isVisible() and toast.title == "Clip saved"
+    window.quit()
+    assert not toast.isVisible()
+
+
 def test_setup_runs_again_from_settings(qapp, window, monkeypatch):
     from vertex.ui import main_window
     from vertex.ui.widgets import ChoiceDialog

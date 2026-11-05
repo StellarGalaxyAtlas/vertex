@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vertex import APP_NAME, hotkeys, notifications, paths, platform
+from vertex import APP_NAME, hotkeys, notifications, paths, platform, sounds
 from vertex.audio import channels
 from vertex.control import SAVE_LENGTHS
 from vertex.core.name_patterns import NamePattern
@@ -191,6 +191,11 @@ class Config:
     notifications: dict[str, bool] = field(default_factory=dict)
     # Pop-ups through GPU Screen Recorder's notifier, over games, when it is installed.
     notify_over_games: bool = True
+    # How loud sounds play, in percent; the sounds switched away from their
+    # default, by notification kind; the user's own files for them (see sounds).
+    sound_volume: int = sounds.DEFAULT_VOLUME
+    sounds: dict[str, bool] = field(default_factory=dict)
+    sound_files: dict[str, str] = field(default_factory=dict)
 
     recorder: RecorderConfig = field(default_factory=RecorderConfig)
     # Sonar, where it can run (platform.SONAR).
@@ -295,6 +300,10 @@ class Config:
                                     map(NamePattern.from_dict, taught) if pattern is not None]
         config.notifications = notifications.changed_choices(
             {kind: on for kind, on in config.notifications.items() if isinstance(on, bool)})
+        config.sounds = sounds.changed_choices(config.sounds)
+        config.sound_files = sounds.own_files(config.sound_files)
+        config.sound_volume = min(max(config.sound_volume, sounds.VOLUME_RANGE[0]),
+                                  sounds.VOLUME_RANGE[1])
         config.hotkeys = {action: hotkey.text for action, hotkey in
                           hotkeys.bindings(config.hotkeys).items()}
         names: dict[str, str] = {}

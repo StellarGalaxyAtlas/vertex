@@ -38,6 +38,9 @@ UNIX_SOCKETS = False                # `vertex <command>` reaches Vertex over a l
 CONTROL_FILE = "control.json"       # ... named in this file, with its token
 HOTKEYS = True                      # see HotkeyListener
 FULLSCREEN_GAME = True              # see fullscreen_app
+# Vertex draws its own toast over games: a topmost window that takes no
+# focus, above windowed, borderless and most full-screen games.
+GAME_TOAST = True
 SHORT_HOME = False                  # no ~ for the home folder in paths shown
 LIBMPV_NAMES = ("mpv-2.dll", "libmpv-2.dll", "mpv-1.dll")
 FILE_OPENER: tuple[str, str] | None = None      # Explorer is always there

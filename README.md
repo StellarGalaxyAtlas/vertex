@@ -115,6 +115,8 @@ account.
   and volume.
 - New clips are tagged with the game you're playing.
 - Recording is optional. Switch it off to only manage the clips you have.
+- A sound and a notification over your game when a clip is saved or isn't.
+  Each sound can be switched off or swapped for a file of your own.
 
 ## Sonar (Linux)
 
@@ -154,7 +156,7 @@ Everything above works on both, except:
 | Sonar | Yes (PipeWire or PulseAudio) | No. Use your own virtual devices to split game and chat |
 | Game tag for new clips | The app on Sonar's Game channel, or Desktop | The full-screen game, or Desktop |
 | Hotkeys | Bind `vertex save-clip` in your desktop's shortcuts | Settings › Shortcuts |
-| Notifications over games | With `gpu-screen-recorder-notification` | No |
+| Notifications over games | With `gpu-screen-recorder-notification` | Yes, except over old exclusive full screen |
 | Stream Deck | [StreamController plugin](https://github.com/StellarGalaxyAtlas/vertex-unified-plugin) | No |
 
 ---

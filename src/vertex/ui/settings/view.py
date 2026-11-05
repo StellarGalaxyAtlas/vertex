@@ -72,7 +72,7 @@ from vertex.ui.widgets import (
 # restart the replay buffer, so they wait for Apply.
 APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                  "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
-                 "notify_over_games", "daily_backup")
+                 "notify_over_games", "sounds", "sound_files", "sound_volume", "daily_backup")
 RECORDER_AT_ONCE = ("enabled", "autostart", "tag_from_game_channel", "tag_from_fullscreen")
 
 LABELS = {
@@ -174,7 +174,9 @@ class SettingsView(QWidget):
         self._audio_devices: list[tuple[str, str]] = []
         self._build_general()
         self._build_recording()
-        self.notifications = NotificationsPage(self.test_requested.emit)
+        self.notifications = NotificationsPage(self.test_requested.emit, context.sounds.play,
+                                               lambda: self.apply_now())
+        # The pop-ups across, then the sounds beside the clips' notifications.
         first, *kinds = self.notifications.sections
         self.pages["notifications"] = scroll_page(first, *_pairs(kinds))
         self.stack.addWidget(self.pages["notifications"])
@@ -197,6 +199,7 @@ class SettingsView(QWidget):
             field.committed.connect(lambda _v: self.apply_now())
         for switch in (self.keep_logs, self.close_to_tray, self.autostart,
                        self.notifications.over_games, *self.notifications.switches.values(),
+                       *self.notifications.sound_switches.values(),
                        self.recording, self.rec_autostart, self.tag_from_game,
                        self.tag_from_screen,
                        self.backups.daily):
@@ -567,6 +570,7 @@ class SettingsView(QWidget):
             theme.use(self.schemes.value())
         self.autostart.setChecked(desktop.autostart_enabled())
         self.notifications.load(config.notifications, config.notify_over_games)
+        self.notifications.load_sounds(config.sounds, config.sound_files, config.sound_volume)
 
         rec = config.recorder
         self.command.setText(rec.command)
@@ -611,6 +615,9 @@ class SettingsView(QWidget):
         config.colour_scheme = self.schemes.value()
         config.notifications = self.notifications.choices()
         config.notify_over_games = self.notifications.over_games_choice()
+        config.sounds = self.notifications.sound_choices()
+        config.sound_files = dict(self.notifications.sound_files)
+        config.sound_volume = self.notifications.volume.value()
         rec = config.recorder
         rec.command = self._command()
         rec.enabled = self.recording.isChecked()
@@ -995,7 +1002,7 @@ def _log_changes(old: Config, new: Config) -> None:
 def _flat(data: dict, prefix: str = "") -> dict:
     flat = {}
     for key, value in data.items():
-        if isinstance(value, dict) and key != "notifications":
+        if isinstance(value, dict) and key not in ("notifications", "sounds", "sound_files"):
             flat.update(_flat(value, f"{prefix}{key}."))
         else:
             flat[f"{prefix}{key}"] = value

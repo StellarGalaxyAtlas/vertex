@@ -39,6 +39,9 @@ NAMES = (
     "STREAM_DECK_PLUGIN",
     # Whether the game in front can be told when a clip is saved, and it.
     "FULLSCREEN_GAME", "fullscreen_app",
+    # Whether Vertex draws its own toast over games (ui/game_toast), rather
+    # than GPU Screen Recorder's notifier.
+    "GAME_TOAST",
     # Folders (paths): whether to show home as ~, and where things go.
     "SHORT_HOME", "config_dir", "data_dir", "state_dir", "cache_dir", "runtime_dir",
     "user_dir", "real", "prepare_dir",

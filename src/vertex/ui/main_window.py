@@ -41,6 +41,7 @@ from vertex.setting_groups import LIBRARY
 from vertex.ui import icons, theme, workers
 from vertex.ui.editor.view import EditorView
 from vertex.ui.first_run import FirstRunView, SetupResult
+from vertex.ui.game_toast import GameToast
 from vertex.ui.home import HomeView
 from vertex.ui.library.state import LibraryState
 from vertex.ui.library.view import LibraryView
@@ -55,7 +56,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.context = context
         self.tray = None
+        # Over games: Vertex's own toast where it has one, else GSR's notifier.
         self.over_games = notifier.Notifier()
+        self.game_toast: GameToast | None = None
         self._quitting = False
         self._told_about_tray = False
         self._services_started = False
@@ -609,6 +612,10 @@ class MainWindow(QMainWindow):
             self.tray.pop_up(notice)
 
     def _over_games(self, notice: notifications.Notice, kind: notifications.Kind) -> bool:
+        if platform.GAME_TOAST:
+            if self.game_toast is None:
+                self.game_toast = GameToast()
+            return self.game_toast.show_notice(notice.title, notice.body, kind.level)
         background, ink = {"warn": (theme.WARN, theme.ON_DANGER),
                            "error": (theme.DANGER, theme.ON_DANGER)}.get(
             kind.level, (theme.ACCENT_FILL, theme.ON_ACCENT))
@@ -616,7 +623,8 @@ class MainWindow(QMainWindow):
 
     def _test_over_games(self) -> None:
         """Settings › Notifications' "Send a test": a sample over whatever is on
-        screen, as a saved clip would show over a game."""
+        screen, as a saved clip would show over a game. GSR's notifier may not
+        start; Vertex's own toast always does."""
         notice = notifications.Notice("clip_saved", "Clip saved", "This is how it looks")
         if not self._over_games(notice, notifications.BY_ID["clip_saved"]):
             self.settings_view.banner.show_message(
@@ -658,6 +666,8 @@ class MainWindow(QMainWindow):
         self._quitting = True
         self.library_view.cancel_exports()
         self._close_editor()
+        if self.game_toast is not None:
+            self.game_toast.close()
         self.close()
         QApplication.instance().quit()
 

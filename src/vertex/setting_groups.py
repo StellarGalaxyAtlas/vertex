@@ -113,6 +113,8 @@ GROUPS: tuple[Group, ...] = (
              lambda c: f"{len(c.notifications)} changed" if c.notifications else "Default"),
         Item("notify_over_games", "Over games", ("notify_over_games",),
              lambda c: _on(c.notify_over_games)),
+        Item("sounds", "Sounds", ("sounds", "sound_files", "sound_volume"),
+             lambda c: f"{c.sound_volume}%" + (", your own files" if c.sound_files else "")),
     )),
     Group("Shortcuts", (
         Item("hotkeys", "Hotkeys", ("hotkeys",),

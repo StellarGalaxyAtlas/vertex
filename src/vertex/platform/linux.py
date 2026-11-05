@@ -30,6 +30,9 @@ UNIX_SOCKETS = hasattr(socket, "AF_UNIX")
 CONTROL_FILE = "control.sock"
 HOTKEYS = False                     # see HotkeyListener
 FULLSCREEN_GAME = False             # see fullscreen_app
+# Over games, Vertex's notices go through GPU Screen Recorder's notifier:
+# a window of its own can't stay above a game on Wayland.
+GAME_TOAST = False
 SHORT_HOME = True                   # ~ for the home folder in paths shown
 LIBMPV_NAMES = ("mpv",)
 FILE_OPENER: tuple[str, str] | None = ("xdg-open", "install xdg-utils")

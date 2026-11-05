@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from vertex import fmt, hotkeys, logs, notifications, platform
+from vertex import fmt, hotkeys, logs, notifications, platform, sounds
 from vertex.audio import channels, devices, levels
 from vertex.audio.pulse import AudioError, Pactl
 from vertex.audio.sonar import Sonar, SonarStatus
@@ -973,6 +973,43 @@ class Hotkeys(QObject):
         self._listener.close()
 
 
+class SoundController(QObject):
+    """Plays a notice's sound when its kind has one switched on, whether or
+    not the notice pops up, on a worker of its own so sounds play in order.
+    With Sonar on, sounds play straight on the device Sonar plays through,
+    past its channels, so a clip never records them."""
+
+    def __init__(self, context: Context):
+        super().__init__(context)
+        self.context = context
+        self.player = sounds.Player()
+        self._executor = workers.serial_executor("sounds")
+        self._closed = False
+        context.notified.connect(self._notified)
+
+    def _notified(self, notice: notifications.Notice) -> None:
+        config = self.context.config
+        if sounds.enabled(config.sounds, notice.kind):
+            self.play(sounds.file_for(config.sound_files, notice.kind), config.sound_volume)
+
+    def play(self, path: str, volume: int) -> None:
+        """Play `path` at `volume` percent: also Settings' samples."""
+        if self._closed:
+            return
+        sonar = self.context.sonar
+        sink = sonar.status.output if sonar is not None and sonar.status.active else ""
+        workers.run(lambda: self.player.play(path, volume, sink),
+                    on_error=lambda exc: logs.APP.warning("Couldn't play %s: %s", path, exc),
+                    executor=self._executor)
+
+    def shutdown(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._executor.submit(self.player.close)
+        self._executor.shutdown(wait=True)
+
+
 class Context(QObject):
     config_changed = Signal()
     library_reset = Signal()             # the library or clips folder changed
@@ -992,6 +1029,7 @@ class Context(QObject):
         self.recorder = RecorderController(self)
         self.levels = LevelFeed(self) if self.sonar is not None else None
         self.hotkeys = Hotkeys(self)
+        self.sounds = SoundController(self)
         self._save_timer = QTimer(self, singleShot=True, interval=1000)
         self._save_timer.timeout.connect(self.save_config)
 
@@ -1054,6 +1092,7 @@ class Context(QObject):
 
     def shutdown(self) -> None:
         self.hotkeys.shutdown()
+        self.sounds.shutdown()
         if self._save_timer.isActive():
             self.save_config()
         self.recorder.shutdown()

@@ -70,7 +70,7 @@ README's from a made-up demo library.
 | `hotkeys` | global hotkeys (Windows): their text form, and holding them with `RegisterHotKey` |
 | `ui` | the PySide6 app: pages, editor, dialogs, settings, tray, theme |
 | `cli`, `ipc`, `control` | the `vertex` command, the control socket and its API |
-| `notifications`, `logs`, `desktop`, `kwin`, `doctor`, `paths` | notification kinds, log files, start menu entry, raising the window on KDE, checks, where things go |
+| `notifications`, `sounds`, `logs`, `desktop`, `kwin`, `doctor`, `paths` | notification kinds and their sounds (played by libmpv), log files, start menu entry, raising the window on KDE, checks, where things go |
 
 **Sonar** is built from stock modules that PipeWire's pulse server and
 PulseAudio both have: a `module-null-sink` per output channel, a
@@ -94,6 +94,12 @@ part) and scene collection (the monitor, one WASAPI source per track).
 Changed output settings take effect by loading the profile again, by way of
 another one. OBS saves into the cache folder; each save is cut to the last N
 seconds when asked, its tracks titled, and moved into the clips folder.
+
+**Over games**, Linux shows notices through GPU Screen Recorder's
+`gsr-notify`; Windows has Vertex's own toast (`ui/game_toast.py`), a
+topmost window that takes no focus or clicks. Sounds play through libmpv;
+with Sonar on, straight on its output device, so clips don't record them.
+The default sounds are made by `tools/make_sounds.py`.
 
 With recording switched off (`recorder.enabled`), Vertex never looks for or
 starts either recorder.

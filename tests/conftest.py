@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from vertex import logs
+from vertex import logs, sounds
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +23,37 @@ def isolated_home(tmp_path, monkeypatch):
     # A test that saved settings switched the logs on, in its own home.
     logs.shutdown()
     monkeypatch.setattr(logs, "_enabled", None)
+
+
+class FakeMpv:
+    """libmpv as sounds.Player uses it: what it was told to play, and where."""
+
+    def __init__(self):
+        self.audio_device_list = [{"name": "auto"}, {"name": "pulse/alsa_output.usb-headset"}]
+        self.audio_device = "auto"
+        self.volume = 100
+        self.played: list[tuple[str, str, int]] = []
+        self.terminated = False
+
+    def play(self, path):
+        self.played.append((path, self.audio_device, self.volume))
+
+    def terminate(self):
+        self.terminated = True
+
+
+@pytest.fixture(autouse=True)
+def fake_mpv_sounds(monkeypatch):
+    """No test plays a sound: each gets a stand-in for libmpv, the players it
+    made listed here."""
+    made: list[FakeMpv] = []
+
+    def new_player():
+        made.append(FakeMpv())
+        return made[-1]
+
+    monkeypatch.setattr(sounds, "_new_player", new_player)
+    return made
 
 
 def _have_ffmpeg():

@@ -7,15 +7,6 @@ and bugs get the next free number: 85.
 
 ## Open
 
-### Next
-
-**84.**
-**Sounds for clip events, and a toast over games on Windows**
-A sound when a clip is saved or isn't, and when the replay buffer starts or
-stops, on both systems, each one switchable and replaceable with your own
-file. On Windows, a ShadowPlay-style toast over games, as GSR's notifier
-gives on Linux.
-
 ### To try on Windows
 
 Built on Linux against stand-ins; only a Windows PC proves them.
@@ -26,6 +17,12 @@ That the replay buffer starts (also right after setup, and with "Start the
 replay buffer with Vertex"), saves clips, cuts "save the last 30 seconds",
 and records each track at its volume (77–79). Switching recording off closes
 an OBS that Vertex started, and only that one.
+
+**84.**
+**Sounds and the toast over games**
+That the toast shows over a game in borderless and in full screen without
+taking its focus, and that the sounds play (also on Linux, where with Sonar
+on they go straight to the headset and stay out of clips).
 
 **69, 72.**
 **Folders and the taskbar on the Microsoft Store's Python**
@@ -51,8 +48,8 @@ from those apps, and which app wrote `THE-FINALS2025-02-2816-49-17.mp4`.
 
 ## Decided
 
-- One package for Linux and Windows. Sonar, the Stream Deck plugin and
-  notifications over games are Linux only; hotkeys in Settings and the
-  full-screen game tag are Windows only.
+- One package for Linux and Windows. Sonar and the Stream Deck plugin are
+  Linux only; hotkeys in Settings and the full-screen game tag are Windows
+  only.
 - Imported clips' audio tracks stay as Vertex reads them; no setting to say
   which track is which.
