@@ -19,10 +19,9 @@ and records each track at its volume (77–79). Switching recording off closes
 an OBS that Vertex started, and only that one.
 
 **84.**
-**Sounds and the toast over games**
-That the toast shows over a game in borderless and in full screen without
-taking its focus, and that the sounds play (also on Linux, where with Sonar
-on they go straight to the headset and stay out of clips).
+**The toast over games**
+That it shows over a game in borderless and in full screen without taking
+its focus. (The sounds are proven on Linux.)
 
 **69, 72.**
 **Folders and the taskbar on the Microsoft Store's Python**
