@@ -18,11 +18,6 @@ replay buffer with Vertex"), saves clips, cuts "save the last 30 seconds",
 and records each track at its volume (77–79). Switching recording off closes
 an OBS that Vertex started, and only that one.
 
-**84.**
-**The toast over games**
-That it shows over a game in borderless and in full screen without taking
-its focus. (The sounds are proven on Linux.)
-
 **69, 72.**
 **Folders and the taskbar on the Microsoft Store's Python**
 That Cache, State and logs are where OBS and ffmpeg see them (`vertex doctor`
@@ -50,5 +45,9 @@ from those apps, and which app wrote `THE-FINALS2025-02-2816-49-17.mp4`.
 - One package for Linux and Windows. Sonar and the Stream Deck plugin are
   Linux only; hotkeys in Settings and the full-screen game tag are Windows
   only.
+- Windows' toast over games is a topmost window: it shows over windowed and
+  borderless games, not over exclusive full screen (League's "Full Screen").
+  Drawing inside the game, as Discord and GG do, is left out: anti-cheat
+  could flag it.
 - Imported clips' audio tracks stay as Vertex reads them; no setting to say
   which track is which.
