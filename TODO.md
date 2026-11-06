@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 86.
+and bugs get the next free number: 87.
 
 ---
 
@@ -9,7 +9,7 @@ and bugs get the next free number: 86.
 
 ### Next
 
-**85.**
+**86.**
 **Wait for OBS when it isn't ready**
 Right after OBS starts, or after it was closed and Vertex starts it again, OBS
 answers "not ready" (GetProfileList) and Vertex leaves the replay buffer off.
