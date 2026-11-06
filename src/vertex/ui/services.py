@@ -927,24 +927,19 @@ class LevelFeed(QObject):
 
 
 class Hotkeys(QObject):
-    """The global hotkeys in the settings, held with Windows while Vertex
-    runs (see vertex.hotkeys). `pressed` names the action; `failed` holds the
-    actions whose keys another program has, as of the last `checked`."""
+    """The global hotkeys in the settings, listened for while Vertex runs
+    (see vertex.hotkeys). `pressed` names the action."""
 
     pressed = Signal(str)
-    checked = Signal()               # Windows said which hotkeys it holds
-    _result = Signal(object)
 
     def __init__(self, context: Context):
         super().__init__(context)
         self.context = context
-        self.failed: set[str] = set()
         self._paused = False
         self._started = False
-        # Both are called from the listener's thread: through signals, they
-        # land on the UI thread.
-        self._listener = hotkeys.listener(self.pressed.emit, self._result.emit)
-        self._result.connect(self._got_result)
+        # Called from the listener's thread: through the signal, it lands on
+        # the UI thread.
+        self._listener = hotkeys.listener(self.pressed.emit)
         context.config_changed.connect(self.apply)
 
     def start(self) -> None:
@@ -958,16 +953,11 @@ class Hotkeys(QObject):
                                                 self.context.config.recorder.enabled))
 
     def pause(self, paused: bool) -> None:
-        """Let every hotkey go while new keys are being recorded, so pressing
-        one records it rather than running it."""
+        """Stop listening while new keys are being recorded, so pressing a
+        hotkey records it rather than running it."""
         if paused != self._paused:
             self._paused = paused
             self.apply()
-
-    def _got_result(self, failed: set[str]) -> None:
-        if not self._paused:
-            self.failed = set(failed)
-            self.checked.emit()
 
     def shutdown(self) -> None:
         self._listener.close()

@@ -408,8 +408,9 @@ def key_name(_native_key: int) -> str:
 class HotkeyListener:
     """No global hotkeys here (HOTKEYS): holds nothing."""
 
-    def __init__(self, on_press, on_result):
+    def __init__(self, on_press):
         self._thread = None
+        self.hooked = False
 
     def set(self, wanted: dict) -> None:
         pass

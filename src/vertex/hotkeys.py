@@ -4,9 +4,10 @@ A hotkey is kept in the settings as text, modifiers first in a fixed order:
 
     Ctrl+Alt+F9        Win+Shift+Num 5        F13
 
-The system holds them for Vertex (`listener`): Windows does, through
-RegisterHotKey (see platform.windows); elsewhere there are none, and
-`AVAILABLE` says so.
+The system tells Vertex about every key pressed (`listener`): on Windows a
+low-level keyboard hook (see platform.windows), which games can't switch off
+the way they can RegisterHotKey's hotkeys. `Matcher` picks the hotkeys out of
+those keys. Elsewhere there are none, and `AVAILABLE` says so.
 """
 
 from __future__ import annotations
@@ -116,11 +117,39 @@ def bindings(stored: dict, recording: bool = True) -> dict[str, Hotkey]:
     return found
 
 
-def listener(on_press: Callable[[str], None], on_result: Callable[[set[str]], None]):
-    """Something that holds the hotkeys with the system: `set(bindings)`
-    holds exactly those from then on, `close()` lets them go.
-    `on_press(action)` is called when one is pressed, and `on_result(failed)`
-    with the actions whose keys another program already holds after each
-    `set`, both from a thread of the listener's. Holds nothing where hotkeys
-    aren't AVAILABLE."""
-    return platform.HotkeyListener(on_press, on_result)
+class Matcher:
+    """Picks the hotkeys out of the keys pressed: a key going down with
+    exactly a hotkey's modifiers held runs its action, once however long it is
+    held. That key, down, repeating and up, is kept from every other program,
+    as a hotkey's key is; all others pass on."""
+
+    def __init__(self, wanted: dict[str, Hotkey] | None = None):
+        self.wanted = dict(wanted or {})
+        self._kept: set[str] = set()       # keys down that ran a hotkey
+
+    def down(self, key: str, modifiers) -> tuple[str, bool]:
+        """A key going down (or repeating) with these modifiers held: the
+        action it runs ("" for none), and whether to keep the key."""
+        if key in self._kept:
+            return "", True                 # held down: it ran once already
+        pressed = Hotkey.of(modifiers, key)
+        for action, hotkey in self.wanted.items():
+            if hotkey == pressed:
+                self._kept.add(key)
+                return action, True
+        return "", False
+
+    def up(self, key: str) -> bool:
+        """A key coming up: whether to keep it (it went down as a hotkey)."""
+        if key in self._kept:
+            self._kept.discard(key)
+            return True
+        return False
+
+
+def listener(on_press: Callable[[str], None]):
+    """Something that listens for the hotkeys: `set(bindings)` listens for
+    exactly those from then on, `close()` stops. `on_press(action)` is called
+    when one is pressed, from a thread of the listener's. Listens for nothing
+    where hotkeys aren't AVAILABLE."""
+    return platform.HotkeyListener(on_press)

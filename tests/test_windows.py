@@ -199,25 +199,52 @@ def test_track_volumes_stay_in_range():
         (100, 100, 0, 40)
 
 
-def test_windows_holds_the_hotkeys_and_lets_them_go():
-    import threading
+def test_a_hotkey_runs_once_and_its_key_is_kept_from_other_programs():
+    from vertex import hotkeys
+
+    matcher = hotkeys.Matcher({"save_clip": hotkeys.parse("F24"),
+                               "show": hotkeys.parse("Ctrl+Alt+V")})
+    # A macro key alone: runs once, held or repeating, and no one else sees it.
+    assert matcher.down("F24", []) == ("save_clip", True)
+    assert matcher.down("F24", []) == ("", True)
+    assert matcher.up("F24")
+    # Its modifiers exactly: more or fewer held is another key altogether.
+    assert matcher.down("V", ["Alt", "Ctrl"]) == ("show", True)
+    assert matcher.up("V")
+    assert matcher.down("V", ["Ctrl"]) == ("", False)
+    assert matcher.down("V", ["Ctrl", "Alt", "Shift"]) == ("", False)
+    assert matcher.down("F24", ["Shift"]) == ("", False)
+    assert not matcher.up("V") and not matcher.up("F24")
+    # Typing goes on as before.
+    assert matcher.down("A", []) == ("", False) and not matcher.up("A")
+    # Its hotkeys changed while one is held: its key still comes up kept.
+    matcher.down("F24", [])
+    matcher.wanted = {}
+    assert matcher.up("F24")
+    assert matcher.down("F24", []) == ("", False)
+
+
+def test_windows_hooks_the_keyboard_only_while_there_are_hotkeys():
+    import time
 
     from vertex import hotkeys
 
-    results = []
-    done = threading.Event()
-    listener = hotkeys.listener(lambda _action: None,
-                                lambda failed: (results.append(failed), done.set()))
+    listener = hotkeys.listener(lambda _action: None)
     listener.set({"save_clip": hotkeys.parse("Ctrl+Alt+Shift+F24")})
     if sys.platform != "win32":
-        assert listener._thread is None and not results     # nothing to hold elsewhere
+        assert listener._thread is None and not listener.hooked   # nothing to hook elsewhere
         return
+
+    def settles(hooked: bool) -> bool:
+        deadline = time.monotonic() + 5
+        while listener.hooked != hooked and time.monotonic() < deadline:
+            time.sleep(0.02)
+        return listener.hooked == hooked
+
     try:
-        assert done.wait(5)
-        assert results[-1] <= {"save_clip"}         # held, or another program has it
-        done.clear()
+        assert settles(True)
         listener.set({})
-        assert done.wait(5) and results[-1] == set()
+        assert settles(False)
     finally:
         listener.close()
 

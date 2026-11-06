@@ -144,7 +144,6 @@ class KeyRecorder(QFrame):
         super().__init__(parent)
         self.hotkey: Hotkey | None = None
         self.listening = False
-        self.warn = False
         self._held: list[str] = []
         self.setObjectName("KeyRecorder")
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -158,15 +157,13 @@ class KeyRecorder(QFrame):
         theme.style(self, self._style)
         self._show()
 
-    def set_hotkey(self, hotkey: Hotkey | None, warn: bool = False) -> None:
-        self.hotkey, self.warn = hotkey, warn
+    def set_hotkey(self, hotkey: Hotkey | None) -> None:
+        self.hotkey = hotkey
         self._show()
 
     def _style(self) -> str:
         if self.listening:
             edge = f"2px solid {theme.ACCENT}"
-        elif self.warn:
-            edge = f"1px solid {theme.WARN}"
         else:
             edge = f"1px {'solid' if self.hotkey else 'dashed'} {theme.LINE}"
         return (f"QFrame#KeyRecorder {{ background: {theme.FIELD_BG}; border: {edge}; "
@@ -316,14 +313,12 @@ def _keys(hotkey: Hotkey) -> str:
 
 
 class HotkeysPage:
-    """The hotkeys' section. A change is saved at once, and Windows then says
-    whether another program already has the keys."""
+    """The hotkeys' section. A change is saved and applies at once."""
 
     def __init__(self, context):
         self.context = context
         self.rows: dict[str, HotkeyRow] = {}
         self._undo: tuple[dict, str] | None = None   # the hotkeys before a move, and the row
-        self._waiting: dict[str, Hotkey | None] = {}  # action just set → the keys it had
         self.section = Section("Hotkeys", "Hotkeys work everywhere, in games too, while "
                                           "Vertex is running.")
         for action in hotkeys.ACTIONS:
@@ -337,7 +332,6 @@ class HotkeysPage:
                 row.length.activated.connect(lambda _i, r=row: self._length_chosen(r))
             self.rows[action.id] = row
             self.section.add(row)
-        context.hotkeys.checked.connect(self._checked)
         context.config_changed.connect(self._show_rows)
         self.load()
         self._show_rows()
@@ -350,9 +344,8 @@ class HotkeysPage:
     def load(self) -> None:
         config = self.context.config
         bound = self._bound()
-        failed = self.context.hotkeys.failed
         for action, row in self.rows.items():
-            row.recorder.set_hotkey(bound.get(action), warn=action in failed)
+            row.recorder.set_hotkey(bound.get(action))
             row.clear.setVisible(action in bound)
             if row.length is not None:
                 row.length.setCurrentIndex(max(0, row.length.findData(
@@ -376,12 +369,11 @@ class HotkeysPage:
     def _chosen(self, action: str, hotkey: Hotkey) -> None:
         bound = self._bound()
         for row in self.rows.values():
-            if row.said in ("refused", "moved", "taken"):
+            if row.said in ("refused", "moved"):
                 row.say()
         if bound.get(action) == hotkey:
             self.load()
             return
-        self._waiting[action] = bound.get(action)
         taken = next((other for other, hk in bound.items() if hk == hotkey), None)
         self._undo = (dict(bound), action) if taken is not None else None
         if taken is not None:
@@ -397,7 +389,6 @@ class HotkeysPage:
         bound = self._bound()
         if action in bound:
             del bound[action]
-            self._waiting.pop(action, None)
             self.rows[action].say()
             self._save(bound)
 
@@ -405,7 +396,6 @@ class HotkeysPage:
         if self._undo is not None:
             bound, action = self._undo
             self._undo = None
-            self._waiting.pop(action, None)
             self.rows[action].say()
             self._save(bound)
 
@@ -415,34 +405,6 @@ class HotkeysPage:
             logs.APP.info("Hotkey saves the last %s seconds", seconds)
             self.context.config.hotkey_last_seconds = seconds
             self.context.save_config()
-
-    def _checked(self) -> None:
-        """Keys just set that another program holds go back to what the action
-        had; keys set before stay, and say they do nothing for now."""
-        failed = self.context.hotkeys.failed
-        waiting, self._waiting = self._waiting, {}
-        bound = self._bound()
-        refused = {action: bound[action] for action in waiting
-                   if action in failed and action in bound}
-        if refused:
-            for action in refused:
-                if waiting[action] is not None:
-                    bound[action] = waiting[action]
-                else:
-                    del bound[action]
-            self._save(bound)
-            for action, taken in refused.items():
-                kept = "Your old keys are kept." if waiting[action] else "Pick other keys."
-                self.rows[action].say("taken", f"Another program already uses "
-                                               f"{_keys(taken)}. {kept}", "WARN")
-            return
-        self.load()
-        for action, row in self.rows.items():
-            if action in failed and action in bound:
-                row.say("held", f"Another program already uses {_keys(bound[action])}, so "
-                                f"it does nothing for now. Pick other keys.", "WARN")
-            elif row.said == "held":
-                row.say()
 
 
 # --- Commands, for other software ------------------------------------------------------

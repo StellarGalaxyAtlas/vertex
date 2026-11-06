@@ -532,11 +532,18 @@ def show_in_folder(path: str) -> bool:
 
 # --- Global hotkeys ---------------------------------------------------------------
 
-_MOD_BITS = {"Alt": 0x1, "Ctrl": 0x2, "Shift": 0x4, "Win": 0x8}
-_MOD_NOREPEAT = 0x4000      # held down, a hotkey fires once
-_WM_HOTKEY = 0x0312
+_WH_KEYBOARD_LL = 13
+_HC_ACTION = 0
+_WM_KEYDOWN, _WM_SYSKEYDOWN = 0x0100, 0x0104
 _WM_QUIT = 0x0012
 _WM_APP_SET = 0x8000 + 1
+_WM_APP_MASK = 0x8000 + 2
+_KEYEVENTF_KEYUP = 0x2
+# A key no keyboard has: pressed and let go after a hotkey held with Win or
+# Alt, so letting go of those doesn't open Start or a window's menu.
+_MASK_KEY = 0xE8
+# The modifiers by name, with the keys that hold each.
+_MODIFIER_KEYS = {"Win": (0x5B, 0x5C), "Ctrl": (0x11,), "Alt": (0x12,), "Shift": (0x10,)}
 
 
 def key_name(virtual_key: int) -> str:
@@ -552,25 +559,29 @@ def key_name(virtual_key: int) -> str:
 
 
 class HotkeyListener:
-    """Holds the hotkeys with Windows (RegisterHotKey, on a thread of its
-    own) and calls `on_press(action)` when one is pressed, and
-    `on_result(failed)` with the actions whose keys another program already
-    holds after each `set`. Both are called from the listener's thread."""
+    """Listens for the hotkeys with a low-level keyboard hook, on a thread of
+    its own, and calls `on_press(action)` from there when one is pressed.
 
-    def __init__(self, on_press, on_result):
+    The hook sees every key before any program does, so a game can't switch
+    the hotkeys off (as raw input's RIDEV_NOHOTKEYS does to RegisterHotKey's),
+    and no program can hold the keys first. It is only in place while there
+    are hotkeys. Keys typed into a program running as administrator don't
+    reach it, as they don't reach any program that isn't."""
+
+    def __init__(self, on_press):
         import threading
 
         self._on_press = on_press
-        self._on_result = on_result
         self._wanted: dict = {}
         self._lock = threading.Lock()
         self._ready = threading.Event()
         self._thread_id = 0
         self._thread: threading.Thread | None = None
+        self.hooked = False
 
     def set(self, wanted: dict) -> None:
-        """Hold exactly these hotkeys (action → hotkeys.Hotkey) from now on;
-        {} lets every one go."""
+        """Listen for exactly these hotkeys (action → hotkeys.Hotkey) from now
+        on; {} for none."""
         import threading
 
         if not ON_WINDOWS:
@@ -600,41 +611,85 @@ class HotkeyListener:
 
         from vertex import hotkeys, logs
 
-        user32 = ctypes.windll.user32
-        user32.RegisterHotKey.argtypes = (wintypes.HWND, ctypes.c_int, wintypes.UINT,
-                                          wintypes.UINT)
-        user32.UnregisterHotKey.argtypes = (wintypes.HWND, ctypes.c_int)
+        class KeyInfo(ctypes.Structure):      # KBDLLHOOKSTRUCT
+            _fields_ = (("vkCode", wintypes.DWORD), ("scanCode", wintypes.DWORD),
+                        ("flags", wintypes.DWORD), ("time", wintypes.DWORD),
+                        ("dwExtraInfo", ctypes.c_size_t))
+
+        result = ctypes.c_ssize_t           # LRESULT
+        hook_proc = ctypes.WINFUNCTYPE(result, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+        user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+        user32.SetWindowsHookExW.argtypes = (ctypes.c_int, hook_proc, wintypes.HINSTANCE,
+                                             wintypes.DWORD)
+        user32.SetWindowsHookExW.restype = wintypes.HHOOK
+        user32.UnhookWindowsHookEx.argtypes = (wintypes.HHOOK,)
+        user32.CallNextHookEx.argtypes = (wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM,
+                                          wintypes.LPARAM)
+        user32.CallNextHookEx.restype = result
+        user32.GetAsyncKeyState.restype = ctypes.c_short
         user32.PostThreadMessageW.argtypes = (wintypes.DWORD, wintypes.UINT, wintypes.WPARAM,
                                               wintypes.LPARAM)
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+        matcher = hotkeys.Matcher()
+
+        def held_modifiers() -> list[str]:
+            return [name for name, keys in _MODIFIER_KEYS.items()
+                    if any(user32.GetAsyncKeyState(key) & 0x8000 for key in keys)]
+
+        def on_key(code: int, message: int, info_address: int) -> int:
+            # Called for every key anyone types: quick, and never raising.
+            try:
+                if code == _HC_ACTION:
+                    info = KeyInfo.from_address(info_address)
+                    key = key_name(info.vkCode)
+                    if key:
+                        if message in (_WM_KEYDOWN, _WM_SYSKEYDOWN):
+                            modifiers = held_modifiers()
+                            action, keep = matcher.down(key, modifiers)
+                            if action:
+                                if {"Win", "Alt"} & set(modifiers):
+                                    user32.PostThreadMessageW(self._thread_id, _WM_APP_MASK,
+                                                              0, 0)
+                                self._on_press(action)
+                        else:
+                            keep = matcher.up(key)
+                        if keep:
+                            return 1
+            except Exception:
+                logs.APP.exception("The hotkey hook failed on a key")
+            return user32.CallNextHookEx(None, code, message, info_address)
+
+        callback = hook_proc(on_key)        # kept alive as long as the hook
+        hook = None
         message = wintypes.MSG()
         # A thread has a message queue once it asks for a message.
         user32.PeekMessageW(ctypes.byref(message), None, 0, 0, 0)
-        self._thread_id = ctypes.windll.kernel32.GetCurrentThreadId()
+        self._thread_id = kernel32.GetCurrentThreadId()
         self._ready.set()
-        held: dict[int, str] = {}
         while user32.GetMessageW(ctypes.byref(message), None, 0, 0) > 0:
-            if message.message == _WM_HOTKEY and message.wParam in held:
-                try:
-                    self._on_press(held[message.wParam])
-                except Exception:       # a hotkey must never end the thread
-                    logs.APP.exception("Hotkey %s failed", held[message.wParam])
-            elif message.message == _WM_APP_SET:
-                for number in held:
-                    user32.UnregisterHotKey(None, number)
-                held = {}
+            if message.message == _WM_APP_SET:
                 with self._lock:
                     wanted = dict(self._wanted)
-                failed = set()
-                for number, (action, hotkey) in enumerate(wanted.items(), 1):
-                    bits = sum(_MOD_BITS[m] for m in hotkey.modifiers) | _MOD_NOREPEAT
-                    if user32.RegisterHotKey(None, number, bits, hotkeys.KEYS[hotkey.key]):
-                        held[number] = action
-                    else:
-                        failed.add(action)
-                        logs.APP.warning("Another program holds %s", hotkey.text)
-                self._on_result(failed)
-        for number in held:
-            user32.UnregisterHotKey(None, number)
+                matcher.wanted = wanted
+                if wanted and hook is None:
+                    hook = user32.SetWindowsHookExW(_WH_KEYBOARD_LL, callback,
+                                                    kernel32.GetModuleHandleW(None), 0)
+                    if not hook:
+                        logs.APP.error("Windows refused the keyboard hook (error %s): "
+                                       "hotkeys won't work", ctypes.GetLastError())
+                elif not wanted and hook is not None:
+                    user32.UnhookWindowsHookEx(hook)
+                    hook = None
+                self.hooked = hook is not None
+            elif message.message == _WM_APP_MASK:
+                user32.keybd_event(_MASK_KEY, 0, 0, 0)
+                user32.keybd_event(_MASK_KEY, 0, _KEYEVENTF_KEYUP, 0)
+            else:
+                user32.TranslateMessage(ctypes.byref(message))
+                user32.DispatchMessageW(ctypes.byref(message))
+        if hook is not None:
+            user32.UnhookWindowsHookEx(hook)
+        self.hooked = False
 
 
 # --- What OBS needs to know from Windows --------------------------------------------

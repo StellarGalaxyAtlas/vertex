@@ -67,7 +67,7 @@ README's from a made-up demo library.
 | `recorder` | the replay buffer: `backend` picks GPU Screen Recorder (`gsr`, `replay`, `notifier`) or OBS (`obs`, `obsws`, `obs_replay`); monitors and presets for both |
 | `platform` | what differs between Linux and Windows: folders, the menu entry and autostart, hotkeys, the full-screen game, which recorder |
 | `backup`, `setting_groups` | backups: export, daily backups, restore by setting |
-| `hotkeys` | global hotkeys (Windows): their text form, and holding them with `RegisterHotKey` |
+| `hotkeys` | global hotkeys (Windows): their text form, and picking them out of a low-level keyboard hook, which games can't switch off |
 | `ui` | the PySide6 app: pages, editor, dialogs, settings, tray, theme |
 | `cli`, `ipc`, `control` | the `vertex` command, the control socket and its API |
 | `notifications`, `sounds`, `logs`, `desktop`, `kwin`, `doctor`, `paths` | notification kinds and their sounds (played by libmpv), log files, start menu entry, raising the window on KDE, checks, where things go |

@@ -2742,26 +2742,6 @@ def test_keys_another_action_has_move_and_can_come_back(qapp, monkeypatch):
     assert page.rows["replay"].note.isHidden()
 
 
-def test_keys_another_program_holds_go_back_or_say_so(qapp, monkeypatch):
-    from vertex import hotkeys
-
-    context, page = _hotkeys_page(monkeypatch)
-    page._chosen("show", hotkeys.parse("Ctrl+Alt+V"))
-    context.hotkeys._got_result(set())
-    page._chosen("show", hotkeys.parse("Win+Alt+G"))
-    context.hotkeys._got_result({"show"})         # Windows refused the new keys
-    assert context.config.hotkeys == {"show": "Ctrl+Alt+V"}
-    assert "Another program already uses Win + Alt + G. Your old keys are kept." in \
-        page.rows["show"].note.text()
-    context.hotkeys._got_result(set())
-    assert "Your old keys are kept" in page.rows["show"].note.text()
-    context.hotkeys._got_result({"show"})         # held elsewhere since, say at start
-    assert page.rows["show"].recorder.warn
-    assert "does nothing for now" in page.rows["show"].note.text()
-    context.hotkeys._got_result(set())
-    assert not page.rows["show"].recorder.warn and page.rows["show"].note.isHidden()
-
-
 def test_a_hotkey_runs_its_action(qapp, window):
     from vertex.ui.control import Commands
 

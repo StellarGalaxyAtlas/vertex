@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 87.
+and bugs get the next free number: 88.
 
 ---
 
@@ -18,6 +18,15 @@ It should wait for OBS and try again.
 ### To try on Windows
 
 Built on Linux against stand-ins; only a Windows PC proves them.
+
+**87.**
+**Hotkeys in games**
+Hotkeys now come from a low-level keyboard hook, as Discord's push-to-talk
+does, instead of RegisterHotKey, which League switched off while in front
+(F24 from the Stream Deck reached Moments but not Vertex). That F24 and a
+Ctrl/Alt/Win hotkey save in League, in borderless and full screen; that
+Win+… and Alt+… hotkeys don't open Start or a menu; that the key doesn't
+reach the game.
 
 **66.**
 **Record with OBS**
