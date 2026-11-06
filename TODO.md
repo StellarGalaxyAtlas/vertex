@@ -7,13 +7,6 @@ and bugs get the next free number: 86.
 
 ## Open
 
-### To try on Linux
-
-**85.**
-**Desktop tag**
-A clip saved with no game on Sonar's Game channel is tagged Desktop (not
-renamed). Built; John to try.
-
 ### To try on Windows
 
 Built on Linux against stand-ins; only a Windows PC proves them.
