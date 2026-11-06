@@ -65,7 +65,7 @@ README's from a made-up demo library.
 | `media` | ffmpeg/ffprobe: probing, track roles and names, mixing, waveforms, trims, exports, thumbnails |
 | `audio` | Sonar (Linux): channels, a `pactl` wrapper, device lists, level meters, the device manager |
 | `recorder` | the replay buffer: `backend` picks GPU Screen Recorder (`gsr`, `replay`, `notifier`) or OBS (`obs`, `obsws`, `obs_replay`); monitors and presets for both |
-| `platform` | what differs between Linux and Windows: folders, the menu entry and autostart, hotkeys, the full-screen game, which recorder |
+| `platform` | what differs between Linux and Windows: folders, the menu entry and autostart, hotkeys, the game being played (Steam, the full-screen window), which recorder |
 | `backup`, `setting_groups` | backups: export, daily backups, restore by setting |
 | `hotkeys` | global hotkeys (Windows): their text form, and holding them with `RegisterHotKey` |
 | `ui` | the PySide6 app: pages, editor, dialogs, settings, tray, theme |

@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 86.
+and bugs get the next free number: 87.
 
 ---
 
@@ -30,6 +30,16 @@ That each hotkey works in a game and keys another program holds are named;
 that a clip saved in a game, in exclusive and borderless full screen, is
 tagged with it.
 
+### To try on Linux
+
+**86.**
+**The game tag without Sonar**
+With Sonar off, a clip saved in a Steam game is tagged with its store name;
+one saved in another full-screen game (Lutris, Heroic, native) with its
+window title; one saved on the desktop Desktop. Untried: that the desktop
+clears XWayland's active window when a Wayland window is in front, and
+that Steam names the game in its `reaper` process.
+
 ### Importing clips
 
 **75.**
@@ -43,7 +53,7 @@ from those apps, and which app wrote `THE-FINALS2025-02-2816-49-17.mp4`.
 ## Decided
 
 - One package for Linux and Windows. Sonar, the Stream Deck plugin and
-  notifications over games are Linux only; hotkeys in Settings and the
-  full-screen game tag are Windows only.
+  notifications over games are Linux only; hotkeys in Settings are
+  Windows only. The game tag works without Sonar on both.
 - Imported clips' audio tracks stay as Vertex reads them; no setting to say
   which track is which.

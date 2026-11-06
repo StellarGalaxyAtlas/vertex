@@ -107,10 +107,9 @@ class RecorderConfig:
     chat_volume: int = 100
     media_volume: int = 100
     mic_volume: int = 100
-    # Tag a saved clip with the game filling the screen (Windows), or Desktop.
-    tag_from_fullscreen: bool = True
-    # Tag a new clip with the app playing on Sonar's Game channel when it is saved.
-    tag_from_game_channel: bool = True
+    # Tag a new clip with the game played when it is saved, or Desktop: the
+    # app on Sonar's Game channel, the game Steam runs, or the full-screen app.
+    tag_with_game: bool = True
     extra_args: str = ""
 
 

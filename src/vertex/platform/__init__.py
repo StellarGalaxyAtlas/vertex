@@ -37,8 +37,10 @@ NAMES = (
     # Where to get the Vertex plugin for this system's Stream Deck software;
     # "" for none.
     "STREAM_DECK_PLUGIN",
-    # Whether the game in front can be told when a clip is saved, and it.
-    "FULLSCREEN_GAME", "fullscreen_app",
+    # The game a clip saved now is of: the one a launcher runs ("" for
+    # none), the full-screen window in front (None if not told), and where
+    # Settings says the tag comes from.
+    "running_game", "fullscreen_app", "GAME_FROM",
     # Folders (paths): whether to show home as ~, and where things go.
     "SHORT_HOME", "config_dir", "data_dir", "state_dir", "cache_dir", "runtime_dir",
     "user_dir", "real", "prepare_dir",

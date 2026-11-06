@@ -18,7 +18,7 @@ if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt
-from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton
+from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton
 
 from vertex.config import Config
 from vertex.core import naming
@@ -1222,7 +1222,6 @@ def test_without_sonar_no_part_of_it_shows(qapp, tmp_path, no_sonar, window):
     assert window.sonar_view is None and window.home_view.sonar_tile is None
     assert "sonar" not in window.topbar.tabs
     settings = window.settings_view
-    assert not settings.tag_from_game.isVisibleTo(settings)
     settings.tracks.show_devices([], window.context.config.recorder)
     assert [settings.chat_audio.itemText(i) for i in range(settings.chat_audio.count())] == [
         "None", "Default output"]
@@ -2325,15 +2324,26 @@ def test_a_saved_clip_takes_the_game_channel_and_is_named_after_it(qapp, window,
 
 
 def test_a_clip_saved_with_no_game_on_the_game_channel_is_tagged_desktop(qapp, window,
-                                                                         library_dir):
+                                                                         library_dir,
+                                                                         monkeypatch):
+    from types import SimpleNamespace
+
+    from vertex.platform import linux
+    from vertex.ui.services import game_played
+
     context = window.context
     name = "Replay_2026-01-02_03-04-05.mp4"
     recorder = context.recorder
     saved = []
     recorder.saved.connect(saved.append)
+    monkeypatch.setattr(linux, "running_game", lambda: "")
+    monkeypatch.setattr(linux, "fullscreen_app", lambda: ("", ""))
 
-    # Only a browser and Vertex itself on the Game channel: no game.
-    recorder._got_game_apps(["Firefox", "Vertex"])
+    def channel(*apps):
+        return SimpleNamespace(game_apps=lambda: list(apps))
+
+    # Only a browser and Vertex itself on the Game channel, nothing else: no game.
+    recorder._got_game(game_played(channel("Firefox", "Vertex"), False))
     recorder._on_saved(str(library_dir / name))
     wait_until(qapp, lambda: saved)
     assert saved == [str(library_dir / name)]           # not named after Desktop
@@ -2341,10 +2351,66 @@ def test_a_clip_saved_with_no_game_on_the_game_channel_is_tagged_desktop(qapp, w
 
     # Two games: which one is unclear, so neither, and not Desktop either.
     context.library.set_tags(name, "", [])
-    recorder._got_game_apps(["Overwatch.exe", "Deep_Rock_Galactic"])
+    recorder._got_game(game_played(channel("Overwatch.exe", "Deep_Rock_Galactic"), False))
     recorder._on_saved(str(library_dir / name))
     wait_until(qapp, lambda: len(saved) == 2)
     assert context.library.get_edit(name).game == ""
+
+
+def test_without_sonar_the_game_comes_from_steam_or_the_full_screen_app(monkeypatch):
+    from types import SimpleNamespace
+
+    from vertex.audio.pulse import AudioError
+    from vertex.platform import linux
+    from vertex.ui.services import game_played
+
+    running, window = [""], [("", "")]
+    monkeypatch.setattr(linux, "running_game", lambda: running[0])
+    monkeypatch.setattr(linux, "fullscreen_app", lambda: window[0])
+    assert game_played(None, False) == ("Desktop", "desktop")
+    assert game_played(None, True) == ("", "")         # Vertex in front can't tell
+
+    window[0] = ("Hollow Knight", "hollow_knight.x86_64")
+    assert game_played(None, False) == ("Hollow Knight", "screen")
+    window[0] = ("YouTube — Mozilla Firefox", "firefox")
+    assert game_played(None, False) == ("Desktop", "desktop")
+    window[0] = None                                   # no X server to ask
+    assert game_played(None, False) == ("", "")
+
+    # Steam's game, also behind Vertex's window, and without a sound on the
+    # Game channel, or with Sonar not answering.
+    running[0] = "ELDEN RING™"
+    assert game_played(None, True) == ("ELDEN RING", "running")
+    assert game_played(SimpleNamespace(game_apps=lambda: ["Discord"]), True) == \
+        ("ELDEN RING", "running")
+
+    def no_answer():
+        raise AudioError("no server")
+
+    assert game_played(SimpleNamespace(game_apps=no_answer), True) == ("ELDEN RING", "running")
+    # The Game channel goes first.
+    assert game_played(SimpleNamespace(game_apps=lambda: ["Overwatch.exe"]), True) == \
+        ("Overwatch", "channel")
+
+
+def test_game_tagging_is_one_setting(qapp, window, monkeypatch):
+    from vertex import platform
+    from vertex.ui.main_window import MainWindow
+    from vertex.ui.services import Context
+
+    def subtitles(win):
+        return [widget.text() for widget in win.settings_view.findChildren(QLabel)
+                if widget.text().endswith("or Desktop")]
+
+    settings = window.settings_view
+    assert subtitles(window) == ["From the Game channel, Steam or the full-screen app, or Desktop"]
+    settings.tag_with_game.setChecked(False)
+    assert settings.collect().recorder.tag_with_game is False
+
+    monkeypatch.setattr(platform.here(), "SONAR", False)
+    win = MainWindow(Context(Config()))
+    assert subtitles(win) == ["From Steam or the full-screen app, or Desktop"]
+    _close(win)
 
 
 def test_settings_review_tags_from_file_names(qapp, window, library_dir, sample_clip):
@@ -2684,6 +2750,7 @@ def test_a_saved_clip_is_tagged_with_the_fullscreen_game(qapp, window, monkeypat
 
     from vertex import platform
     from vertex.platform import windows as windows_platform
+    from vertex.ui import services
 
     context, library = window.context, window.context.library
     recorder = context.recorder
@@ -2691,15 +2758,18 @@ def test_a_saved_clip_is_tagged_with_the_fullscreen_game(qapp, window, monkeypat
                                                               save=lambda _seconds: None,
                                                               stop=lambda timeout: None))
     monkeypatch.setattr(platform, "WINDOWS", True)
+    # Saved from a hotkey: another window than Vertex's is in front.
+    monkeypatch.setattr(services.QGuiApplication, "applicationState",
+                        lambda: Qt.ApplicationState.ApplicationInactive)
     context.rename_game("HeroesOfTheStorm_x64", "Heroes of the Storm")
     windows = [("", r"C:\Games\HeroesOfTheStorm_x64.exe"), ("", ""), None]
     asked = []
     monkeypatch.setattr(windows_platform, "fullscreen_app",
                         lambda: asked.append(1) or windows.pop(0))
     hints = []
-    real_got = recorder._got_fullscreen
-    monkeypatch.setattr(recorder, "_got_fullscreen",
-                        lambda window: (real_got(window), hints.append(window)))
+    real_got = recorder._got_game
+    monkeypatch.setattr(recorder, "_got_game",
+                        lambda found: (real_got(found), hints.append(found)))
 
     for count, clip in enumerate(("a.mp4", "b.mp4", "c.mp4"), 1):
         recorder.save()
