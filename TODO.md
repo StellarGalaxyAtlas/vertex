@@ -20,13 +20,10 @@ It should wait for OBS and try again.
 Built on Linux against stand-ins; only a Windows PC proves them.
 
 **87.**
-**Hotkeys in games**
-Hotkeys now come from a low-level keyboard hook, as Discord's push-to-talk
-does, instead of RegisterHotKey, which League switched off while in front
-(F24 from the Stream Deck reached Moments but not Vertex). That F24 and a
-Ctrl/Alt/Win hotkey save in League, in borderless and full screen; that
-Win+… and Alt+… hotkeys don't open Start or a menu; that the key doesn't
-reach the game.
+**Win and Alt hotkeys in games**
+Hotkeys come from a low-level keyboard hook now; the Stream Deck's F24 saves
+in League in full screen. Left to try: that Win+… and Alt+… hotkeys don't
+open Start or a menu when let go, and don't reach the game.
 
 **66.**
 **Record with OBS**
