@@ -1,7 +1,7 @@
 # To-Do
 
 One item at a time, top to bottom unless we decide otherwise. New requests
-and bugs get the next free number: 88.
+and bugs get the next free number: 89.
 
 ---
 
@@ -9,7 +9,7 @@ and bugs get the next free number: 88.
 
 ### Next
 
-**86.**
+**87.**
 **Wait for OBS when it isn't ready**
 Right after OBS starts, or after it was closed and Vertex starts it again, OBS
 answers "not ready" (GetProfileList) and Vertex leaves the replay buffer off.
@@ -18,12 +18,6 @@ It should wait for OBS and try again.
 ### To try on Windows
 
 Built on Linux against stand-ins; only a Windows PC proves them.
-
-**87.**
-**Win and Alt hotkeys in games**
-Hotkeys come from a low-level keyboard hook now; the Stream Deck's F24 saves
-in League in full screen. Left to try: that Win+… and Alt+… hotkeys don't
-open Start or a menu when let go, and don't reach the game.
 
 **66.**
 **Record with OBS**
@@ -38,11 +32,22 @@ That Cache, State and logs are where OBS and ffmpeg see them (`vertex doctor`
 says where each one is), and that the Start menu shortcut and the taskbar
 show Vertex's icon, not Python's.
 
-**67, 81.**
+**67, 81, 88.**
 **Hotkeys and the full-screen game tag**
-That each hotkey works in a game and keys another program holds are named;
-that a clip saved in a game, in exclusive and borderless full screen, is
-tagged with it.
+Hotkeys come from a low-level keyboard hook now, and the Stream Deck's F24
+saves in League in full screen. Left to try: that Win+… and Alt+… hotkeys
+don't open Start or a menu when let go and don't reach the game; that a clip
+saved in a game, in exclusive and borderless full screen, is tagged with it.
+
+### To try on Linux
+
+**86.**
+**The game tag without Sonar**
+With Sonar off, a clip saved in a Steam game is tagged with its store name;
+one saved in another full-screen game (Lutris, Heroic, native) with its
+window title; one saved on the desktop Desktop. Untried: that the desktop
+clears XWayland's active window when a Wayland window is in front, and
+that Steam names the game in its `reaper` process.
 
 ### Importing clips
 
@@ -57,11 +62,11 @@ from those apps, and which app wrote `THE-FINALS2025-02-2816-49-17.mp4`.
 ## Decided
 
 - One package for Linux and Windows. Sonar and the Stream Deck plugin are
-  Linux only; hotkeys in Settings and the full-screen game tag are Windows
-  only.
+  Linux only; hotkeys in Settings are Windows only. The game tag works
+  without Sonar on both.
 - Windows' toast over games is a topmost window: it shows over windowed and
-  borderless games, not over exclusive full screen (League's "Full Screen").
-  Drawing inside the game, as Discord and GG do, is left out: anti-cheat
-  could flag it.
+  borderless games, not over exclusive full screen (League's "Full Screen"),
+  where the sound is the sign. Drawing inside the game, as Discord and GG
+  do, is left out: anti-cheat could flag it.
 - Imported clips' audio tracks stay as Vertex reads them; no setting to say
   which track is which.

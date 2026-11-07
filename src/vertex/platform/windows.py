@@ -37,7 +37,7 @@ STREAM_DECK_PLUGIN = ""
 UNIX_SOCKETS = False                # `vertex <command>` reaches Vertex over a local port
 CONTROL_FILE = "control.json"       # ... named in this file, with its token
 HOTKEYS = True                      # see HotkeyListener
-FULLSCREEN_GAME = True              # see fullscreen_app
+GAME_FROM = "the full-screen app"   # see fullscreen_app
 # Vertex draws its own toast over games: a topmost window that takes no
 # focus, above windowed, borderless and most full-screen games.
 GAME_TOAST = True
@@ -210,6 +210,11 @@ def set_window_app_id(hwnd: int, app_id: str, command: str, icon: str, name: str
 
 # Windows of the desktop and the taskbar: the foreground with no app in front.
 _SHELL_CLASSES = frozenset({"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"})
+
+
+def running_game() -> str:
+    """Not told here: the full-screen app says (fullscreen_app)."""
+    return ""
 
 
 def fullscreen_app() -> tuple[str, str] | None:

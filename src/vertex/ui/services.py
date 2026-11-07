@@ -13,7 +13,8 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QGuiApplication
 
 from vertex import fmt, hotkeys, logs, notifications, platform, sounds
 from vertex.audio import channels, devices, levels
@@ -728,11 +729,12 @@ class RecorderController(QObject):
                     lambda exc: self.context.notify("clip_not_saved", "Clip not saved",
                                                     str(exc)))
         self._game_hint = (0.0, "", "")
-        rec, sonar = self.context.config.recorder, self.context.sonar
-        if sonar is not None and rec.tag_from_game_channel and sonar.enabled:
-            workers.run(sonar.game_apps, self._got_game_apps, lambda _exc: None)
-        if platform.FULLSCREEN_GAME and rec.tag_from_fullscreen:
-            workers.run(platform.fullscreen_app, self._got_fullscreen, lambda _exc: None)
+        if self.context.config.recorder.tag_with_game:
+            sonar = self.context.sonar
+            sonar = sonar if sonar is not None and sonar.enabled else None
+            # Vertex's own window in front hides what was played behind it.
+            in_front = QGuiApplication.applicationState() == Qt.ApplicationState.ApplicationActive
+            workers.run(lambda: game_played(sonar, in_front), self._got_game, lambda _exc: None)
         span = f"the last {fmt.duration(seconds)}" if seconds else "the replay buffer"
         return f"Saving {span}…"
 
@@ -781,19 +783,8 @@ class RecorderController(QObject):
             self.context.notify("replay_failed", "Replay buffer stopped", error)
         self.state_changed.emit(state.value, error or "")
 
-    def _got_game_apps(self, names: list[str]) -> None:
-        games = {game_from_app(name) for name in names or []} - {""}
-        if not games:
-            # No game on the Game channel: the clip is of the desktop.
-            self._game_hint = (time.monotonic(), naming.DESKTOP_TAG, "desktop")
-            return
-        # Only a single, unambiguous game is worth writing down.
-        self._game_hint = (time.monotonic(), games.pop() if len(games) == 1 else "", "channel")
-
-    def _got_fullscreen(self, window: tuple[str, str] | None) -> None:
-        if window is not None:
-            game = naming.game_from_window(*window) or naming.DESKTOP_TAG
-            self._game_hint = (time.monotonic(), game, "screen")
+    def _got_game(self, found: tuple[str, str]) -> None:
+        self._game_hint = (time.monotonic(), *found)
 
     def _on_saved(self, path: str) -> None:
         logs.RECORDER.info("Saved %s", path)
@@ -822,7 +813,7 @@ class RecorderController(QObject):
             self.saved.emit(path)
             return
         if seen != "channel":
-            why = "on screen" if seen == "screen" else "no game on the Game channel"
+            why = {"running": "running", "screen": "full screen"}.get(seen, "no game playing")
             logs.CLIPS.info("Tagged %s with %s (%s when it was saved)", name, tagged, why)
             self.saved.emit(path)
             return
@@ -849,6 +840,31 @@ class RecorderController(QObject):
         if self.running:
             logs.RECORDER.info("Stopping the replay buffer (quitting)")
             self.recorder.stop(timeout=3)
+
+
+def game_played(sonar: Sonar | None, vertex_in_front: bool) -> tuple[str, str]:
+    """The game a clip saved now is of, and how that was told: the app on
+    Sonar's Game channel when Sonar is on ("channel"), the game a launcher
+    runs ("running"), the full-screen app ("screen"), or else Desktop
+    ("desktop"). ("", how) when it can't be told: two games on the Game
+    channel, or Vertex's own window in front of whatever was played.
+    Blocking: run it on a worker."""
+    if sonar is not None:
+        try:
+            games = {game_from_app(name) for name in sonar.game_apps()} - {""}
+        except AudioError:
+            games = set()       # no answer: ask the others
+        if games:
+            # Only a single, unambiguous game is worth writing down.
+            return games.pop() if len(games) == 1 else "", "channel"
+    game = naming.clean_tag(platform.running_game().translate(naming.TRADEMARKS))
+    if game:
+        return game, "running"
+    window = None if vertex_in_front else platform.fullscreen_app()
+    if window is None:
+        return "", ""
+    game = naming.game_from_window(*window)
+    return (game, "screen") if game else (naming.DESKTOP_TAG, "desktop")
 
 
 def _name_after_game(path: str, game: str) -> str:

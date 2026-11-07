@@ -72,8 +72,9 @@ from vertex.ui.widgets import (
 # restart the replay buffer, so they wait for Apply.
 APPLY_AT_ONCE = ("clip_path", "export_path", "data_path", "state_path", "cache_path",
                  "keep_logs", "log_path", "close_to_tray", "colour_scheme", "notifications",
-                 "notify_over_games", "sounds", "sound_files", "sound_volume", "daily_backup")
-RECORDER_AT_ONCE = ("enabled", "autostart", "tag_from_game_channel", "tag_from_fullscreen")
+                 "notify_over_games", "sounds", "sound_files", "sound_volume",
+                 "daily_backup")
+RECORDER_AT_ONCE = ("enabled", "autostart", "tag_with_game")
 
 LABELS = {
     "very_high": "Very high", "qp": "Constant quality (QP)", "vbr": "Variable bitrate",
@@ -200,8 +201,7 @@ class SettingsView(QWidget):
         for switch in (self.keep_logs, self.close_to_tray, self.autostart,
                        self.notifications.over_games, *self.notifications.switches.values(),
                        *self.notifications.sound_switches.values(),
-                       self.recording, self.rec_autostart, self.tag_from_game,
-                       self.tag_from_screen,
+                       self.recording, self.rec_autostart, self.tag_with_game,
                        self.backups.daily):
             switch.toggled.connect(lambda _on: self.apply_now())
         self.schemes.picked.connect(lambda _s: self.apply_now())
@@ -300,14 +300,11 @@ class SettingsView(QWidget):
         self.resolution, self.fps = self.choices.resolution, self.choices.fps
         self.cursor = Toggle()
         clips.add_row("Record the cursor", self.cursor)
-        self.tag_from_game = Toggle()
-        tag_row = clips.add_row("Tag clips with the game you're playing", self.tag_from_game,
-                                "From the app on Sonar's Game channel, or Desktop")
-        tag_row.setVisible(platform.SONAR)
-        self.tag_from_screen = Toggle()
-        tag_row = clips.add_row("Tag clips with the game you're playing", self.tag_from_screen,
-                                "From the full-screen app, or Desktop")
-        tag_row.setVisible(platform.FULLSCREEN_GAME)
+        self.tag_with_game = Toggle()
+        sources = ("the Game channel, " if self.context.sonar is not None else "") + \
+            platform.GAME_FROM
+        clips.add_row("Tag clips with the game you're playing", self.tag_with_game,
+                      f"From {sources}, or Desktop")
         self.tracks = TrackTable()
         devices = self.tracks.devices
         self.game_audio, self.chat_audio = devices[roles.GAME.id], devices[roles.CHAT.id]
@@ -577,8 +574,7 @@ class SettingsView(QWidget):
         self.recording.setChecked(rec.enabled)
         self._show_recording(rec.enabled)
         self.rec_autostart.setChecked(rec.autostart)
-        self.tag_from_game.setChecked(rec.tag_from_game_channel)
-        self.tag_from_screen.setChecked(rec.tag_from_fullscreen)
+        self.tag_with_game.setChecked(rec.tag_with_game)
         self.choices.capture = rec.capture
         self.choices.show_capture()
         _set_combo(self.framerate_mode, rec.framerate_mode)
@@ -622,8 +618,7 @@ class SettingsView(QWidget):
         rec.command = self._command()
         rec.enabled = self.recording.isChecked()
         rec.autostart = self.rec_autostart.isChecked()
-        rec.tag_from_game_channel = self.tag_from_game.isChecked()
-        rec.tag_from_fullscreen = self.tag_from_screen.isChecked()
+        rec.tag_with_game = self.tag_with_game.isChecked()
         self.choices.apply(rec)
         rec.framerate_mode = self.framerate_mode.currentData()
         rec.video_codec = self.video_codec.currentData()

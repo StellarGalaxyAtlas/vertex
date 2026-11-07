@@ -37,8 +37,10 @@ NAMES = (
     # Where to get the Vertex plugin for this system's Stream Deck software;
     # "" for none.
     "STREAM_DECK_PLUGIN",
-    # Whether the game in front can be told when a clip is saved, and it.
-    "FULLSCREEN_GAME", "fullscreen_app",
+    # The game a clip saved now is of: the one a launcher runs ("" for
+    # none), the full-screen window in front (None if not told), and where
+    # Settings says the tag comes from.
+    "running_game", "fullscreen_app", "GAME_FROM",
     # Whether Vertex draws its own toast over games (ui/game_toast), rather
     # than GPU Screen Recorder's notifier.
     "GAME_TOAST",

@@ -49,7 +49,7 @@ and push it. Code, tests and docs don't mention TODO items.
   (`linux.py`, `windows.py`, the same names in each, listed in `NAMES`);
   nothing else checks which system it runs on, and a test fails if it does.
   Sonar exists where `platform.SONAR` says; in the UI, `context.sonar` is
-  None without it. Hotkeys and fullscreen-game tagging are Windows-only.
+  None without it. Hotkeys are Windows-only.
 - Blocking work (pactl, ffmpeg, the recorder, disk) goes through `ui/workers.run`, never on
   the UI thread.
 - Never modify a user's recordings; write under a staging name and move into

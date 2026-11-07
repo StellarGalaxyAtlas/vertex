@@ -19,6 +19,12 @@ added, for Linux and Windows.
 - Selecting several clips in the library to favorite, tag, export or delete
   them together.
 - A recording volume per track.
+- Sounds when a clip is saved or isn't and when the replay buffer starts,
+  stops or crashes, each switchable and replaceable with your own file; with
+  Sonar on they play past its channels, so clips don't record them.
+- Notifications over games on Windows: Vertex's own toast, over windowed and
+  borderless games. Windows hotkeys come from a keyboard hook, so games can't
+  switch them off.
 - **Sonar**: virtual Game, Chat, Media and Aux outputs and a Vertex Mic input on
   PipeWire/PulseAudio, with per-channel volume and mute, output and microphone
   selection, and remembered per-app routing.
@@ -29,8 +35,9 @@ added, for Linux and Windows.
   clip has the same audio layout.
 - New clips can be tagged with the game playing on the Game channel, and are
   then named after it the way Moments names clips
-  (`Heroes-of-the-Storm__2026-10-20__21-00-00.mp4`); with no game there,
-  they are tagged Desktop.
+  (`Heroes-of-the-Storm__2026-10-20__21-00-00.mp4`). Without Sonar, or with
+  no game there, the tag comes from the game Steam runs or the full-screen
+  app (X11 and XWayland), else Desktop.
 - `vertex` command with `save-clip`, `replay`, `sonar`, `doctor`,
   `install-desktop` and `uninstall-desktop`; single-instance control socket.
 - Tray icon, start at login, and keep running when the window is closed.

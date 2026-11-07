@@ -101,9 +101,8 @@ GROUPS: tuple[Group, ...] = (
             "recorder.media_volume", "recorder.mic_volume"), _tracks, recorder=True),
         Item("autostart", "Start the replay buffer with Vertex", ("recorder.autostart",),
              lambda c: _on(c.recorder.autostart)),
-        Item("tagging", "Tag clips with the game", (
-            "recorder.tag_from_fullscreen", "recorder.tag_from_game_channel"),
-             lambda c: _on(c.recorder.tag_from_game_channel or c.recorder.tag_from_fullscreen)),
+        Item("tagging", "Tag clips with the game", ("recorder.tag_with_game",),
+             lambda c: _on(c.recorder.tag_with_game)),
         Item("recorder_program", "Recorder program", ("recorder.command",),
              lambda c: os.path.basename(c.recorder.command) or "Found by itself",
              recorder=True),

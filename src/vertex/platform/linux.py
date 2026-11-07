@@ -29,7 +29,7 @@ STREAM_DECK_PLUGIN = "https://github.com/StellarGalaxyAtlas/vertex-unified-plugi
 UNIX_SOCKETS = hasattr(socket, "AF_UNIX")
 CONTROL_FILE = "control.sock"
 HOTKEYS = False                     # see HotkeyListener
-FULLSCREEN_GAME = False             # see fullscreen_app
+GAME_FROM = "Steam or the full-screen app"   # see running_game, fullscreen_app
 # Over games, Vertex's notices go through GPU Screen Recorder's notifier:
 # a window of its own can't stay above a game on Wayland.
 GAME_TOAST = False
@@ -385,9 +385,27 @@ def allow_foreground() -> None:
     """Nothing to hand over: see activate_windows."""
 
 
+def running_game() -> str:
+    """The game Steam runs now (see steam); "" for none, or more than one."""
+    from vertex.platform import steam
+
+    games = steam.running_games()
+    return games.pop() if len(games) == 1 else ""
+
+
 def fullscreen_app() -> tuple[str, str] | None:
-    """Not told here (FULLSCREEN_GAME)."""
-    return None
+    """(title, program) of the X window in front when it is full screen,
+    the way a game is; ("", "") when no X window is in front or it isn't.
+    None where that can't be told: no X server, or Vertex's own window is
+    in front. A Wayland window is no X window, so a game running on Wayland
+    itself is not told (see x11)."""
+    from vertex.platform import x11
+
+    window = x11.fullscreen_window()
+    if window is None:
+        return None
+    title, program, pid = window
+    return None if pid == os.getpid() else (title, program)
 
 
 def light_desktop() -> bool | None:
